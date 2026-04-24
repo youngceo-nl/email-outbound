@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.local.example
+.next
+node_modules
+supabase/.temp
+/tmp
+*.log

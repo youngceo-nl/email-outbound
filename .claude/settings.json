@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s \"https://docs.airscale.io/sitemap.xml\")",
+      "Bash(curl -s \"https://docs.airscale.io/llms.txt\")",
+      "Bash(curl -s \"https://docs.airscale.io/llms-full.txt\")"
+    ]
+  }
+}
