@@ -11,6 +11,7 @@ import { ProcessButton } from "@/components/leads/process-button";
 import { HeaderWithTip } from "@/components/ui/info-tip";
 import { SourceBadge } from "@/components/leads/source-badge";
 import { AnalyzeProvider } from "@/components/leads/analyze-context";
+import { SelectionProvider, SelectAllCheckbox, LeadCheckbox, BulkDeleteBar } from "@/components/leads/selection";
 import { formatNumber, formatPct, scoreColor } from "@/lib/utils";
 import { buildKeywordOr } from "@/lib/leads/keyword-filter";
 import { statusLabel } from "@/lib/labels";
@@ -84,6 +85,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   q = q.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
   const { data: leads, count } = await q;
+  const allIds = (leads ?? []).map((l) => l.id);
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -108,11 +110,14 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         </CardContent>
       </Card>
 
+      <SelectionProvider allIds={allIds}>
+      <BulkDeleteBar />
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"><SelectAllCheckbox /></TableHead>
                 <TableHead className="w-[28%]">Account</TableHead>
                 <TableHead className="w-[32%]">Bio</TableHead>
                 <TableHead>Niche</TableHead>
@@ -143,6 +148,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               <AnalyzeProvider>
               {(leads ?? []).map((l) => (
                 <TableRow key={l.id} className="align-top">
+                  <TableCell className="pt-3"><LeadCheckbox id={l.id} /></TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <Link href={`/leads/${l.username}`} className="font-medium hover:underline">@{l.username}</Link>
@@ -227,7 +233,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               ))}
               {(leads ?? []).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center text-sm text-muted-foreground py-8">
+                  <TableCell colSpan={15} className="text-center text-sm text-muted-foreground py-8">
                     No leads match these filters.
                   </TableCell>
                 </TableRow>
@@ -237,6 +243,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           </Table>
         </CardContent>
       </Card>
+      </SelectionProvider>
 
       <Pagination page={page} totalPages={totalPages} sp={sp} />
     </div>

@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { ClaudeScore, Lead, ScrapedProfile } from "@/lib/types";
 import type { ComputedMetrics } from "./metrics";
 import type { DiscoveredFollowing } from "@/lib/apify/actors";
+import { getExcludedUsernames } from "./exclusions";
 
 type Args = {
   profile: ScrapedProfile;
@@ -79,7 +80,15 @@ export async function bulkUpsertDiscoveredLeads(
 ): Promise<number> {
   if (items.length === 0) return 0;
   const sb = createAdminClient();
-  const rows = items.map((i) => ({
+
+  // Drop any usernames the user previously bulk-deleted — never re-add them.
+  const excluded = await getExcludedUsernames(items.map((i) => i.username));
+  const fresh = excluded.size
+    ? items.filter((i) => !excluded.has(i.username.toLowerCase()))
+    : items;
+  if (fresh.length === 0) return 0;
+
+  const rows = fresh.map((i) => ({
     username: i.username,
     full_name: i.full_name,
     profile_url: `https://www.instagram.com/${i.username}/`,
