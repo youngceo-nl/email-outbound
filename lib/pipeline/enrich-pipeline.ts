@@ -114,6 +114,45 @@ export async function enrichLeadPipeline(opts: {
     youtubeError = youtubeError ?? ytEmail.error;
   }
 
+  // ── Step 3.5: gated "View email address" reveal via headless Chromium +
+  //    CapSolver (runs BEFORE AirScale). Only fires when a CapSolver key and a
+  //    logged-in YouTube cookie are configured. Real Chromium can't run in the
+  //    serverless functions, so this executes only when the pipeline runs
+  //    locally / on a worker, or against a remote browser (BROWSER_WS_ENDPOINT).
+  const capsolverKey = process.env.CAPSOLVER_API_KEY || "";
+  const ytGoogleCookie = process.env.YT_GOOGLE_COOKIE || "";
+  if (youtubeUrl && capsolverKey && ytGoogleCookie) {
+    try {
+      const { revealYoutubeEmail } = await import("@/lib/youtube/reveal-email");
+      const revealed = await revealYoutubeEmail({
+        channelUrl: youtubeUrl,
+        googleCookie: ytGoogleCookie,
+        capsolverKey,
+        proxy: process.env.YT_REVEAL_PROXY || null,
+      });
+      if (revealed.email) {
+        return persistAndReturn({
+          leadId: opts.leadId,
+          patch: {
+            youtube_url: youtubeUrl,
+            youtube_lookup_error: null,
+            email: revealed.email,
+            email_status: "found",
+            email_provider: "youtube_about_gated",
+            email_verifier: null,
+            enriched_at: new Date().toISOString(),
+            enrichment_error: null,
+          },
+          result: { ok: true, linkedin_url: existingLinkedin, youtube_url: youtubeUrl, email: revealed.email, email_status: "found", source: "youtube", error: null },
+        });
+      }
+      youtubeError = youtubeError ?? revealed.error;
+    } catch (err) {
+      // Browser unavailable (e.g. serverless) or flow broke — log, keep going.
+      youtubeError = youtubeError ?? `reveal_failed: ${(err instanceof Error ? err.message : String(err)).slice(0, 160)}`;
+    }
+  }
+
   // ── Steps 4 & 5: LinkedIn discovery + AirScale lookup (paid, last resort). ─
   if (!airscaleKey) {
     return persistAndReturn({
