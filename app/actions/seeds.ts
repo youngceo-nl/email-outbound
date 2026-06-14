@@ -35,7 +35,14 @@ export async function addSeed(formData: FormData) {
     profile_url: profileUrl(username),
     max_profiles_to_scrape,
   });
-  if (error && !error.message.includes("duplicate")) return { error: error.message };
+
+  if (error) {
+    if (!error.message.includes("duplicate")) return { error: error.message };
+    // Already exists — bump created_at so it sorts to the top.
+    await sb.from("seeds").update({ created_at: new Date().toISOString() }).eq("username", username);
+    revalidatePath("/seeds");
+    return { ok: true, already_existed: true };
+  }
 
   revalidatePath("/seeds");
   return { ok: true };

@@ -289,7 +289,8 @@ export async function fetchFollowingDirect(opts: {
   username: string;
   sessionCookie: string;
   limit: number;
-}): Promise<DiscoveredFollowingDirect[]> {
+  startCursor?: string | null;
+}): Promise<{ items: DiscoveredFollowingDirect[]; nextCursor: string | null }> {
   const userId = await resolveUserIdDirect({ username: opts.username, sessionCookie: opts.sessionCookie });
   if (!userId) throw new InstagramDirectError(`Could not resolve user_id for @${opts.username}`, undefined, false);
 
@@ -305,8 +306,9 @@ export async function fetchFollowingDirect(opts: {
 
   const out: DiscoveredFollowingDirect[] = [];
   const seen = new Set<string>();
-  let maxId: string | null = null;
+  let maxId: string | null = opts.startCursor ?? null;
   let pages = 0;
+  let nextCursor: string | null = null;
 
   while (out.length < opts.limit) {
     const u = new URL(`https://www.instagram.com/api/v1/friendships/${userId}/following/`);
@@ -349,9 +351,10 @@ export async function fetchFollowingDirect(opts: {
       });
       if (out.length >= opts.limit) break;
     }
-    if (!json.next_max_id) break;
-    maxId = json.next_max_id;
+    nextCursor = json.next_max_id ?? null;
+    if (!nextCursor) break;
+    maxId = nextCursor;
     if (out.length < opts.limit) await sleep(FOLLOWING_DELAY_MS);
   }
-  return out.slice(0, opts.limit);
+  return { items: out.slice(0, opts.limit), nextCursor: out.length >= opts.limit ? nextCursor : null };
 }

@@ -105,6 +105,12 @@ function JobRow({ job }: { job: Row }) {
           </span>
           <span><span className="text-green-600 font-medium">{job.qualified_count}</span> qualified</span>
           <span><span className="text-red-600 font-medium">{job.rejected_count}</span> not a fit</span>
+          {job.status === "completed" && scraped > 0 && job.qualified_count === 0 && job.rejected_count === 0 && (
+            <span className="text-muted-foreground italic">— all already in your database</span>
+          )}
+          {job.status === "completed" && scraped === 0 && (
+            <span className="text-muted-foreground italic">— nothing scraped</span>
+          )}
         </div>
 
         {(pct != null || job.status === "running") && (

@@ -25,6 +25,7 @@ export function SeedManager({
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const latestBySeed = useMemo(() => {
     const m = new Map<string, LatestJob>();
@@ -34,9 +35,11 @@ export function SeedManager({
 
   const onAdd = (formData: FormData) => {
     setError(null);
+    setInfo(null);
     start(async () => {
       const res = await addSeed(formData);
       if ("error" in res && res.error) setError(res.error);
+      else if ("already_existed" in res && res.already_existed) setInfo("Account was already added — moved to top.");
     });
   };
 
@@ -59,6 +62,7 @@ export function SeedManager({
         <Button type="submit" disabled={pending}>Add account</Button>
       </form>
       {error && <p className="text-sm text-destructive">{error}</p>}
+      {info && <p className="text-sm text-muted-foreground">{info}</p>}
 
       <div className="rounded-md border divide-y">
         {seeds.length === 0 && <p className="p-4 text-sm text-muted-foreground">No source accounts yet. Add one above to get started.</p>}

@@ -11,7 +11,8 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
   apifyToken: string | null;
   crawl_job_id?: string | null;
   limitOverride?: number | null;
-}): Promise<{ items: DiscoveredFollowing[]; provider: "cookie" | "apify" | "scrapingbee" }> {
+  startCursor?: string | null;
+}): Promise<{ items: DiscoveredFollowing[]; provider: "cookie" | "apify" | "scrapingbee"; nextCursor: string | null }> {
   const { username, settings, apifyToken } = opts;
   const sbKey = settings.scrapingbee_api_key || process.env.SCRAPINGBEE_API_KEY || "";
   const singleCookie = (settings.instagram_session_cookie || process.env.INSTAGRAM_SESSION_COOKIE || "").trim();
@@ -21,9 +22,9 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
     : settings.max_profiles_per_account;
 
   // 1. Direct cookie fetch (uses a burner-account session cookie via IG's API)
-  const tryCookie = async (): Promise<DiscoveredFollowing[]> => {
+  const tryCookie = async () => {
     if (!singleCookie) throw new Error("IG session cookie not configured");
-    return fetchFollowingDirect({ username, sessionCookie: singleCookie, limit });
+    return fetchFollowingDirect({ username, sessionCookie: singleCookie, limit, startCursor: opts.startCursor });
   };
 
   // 2. Apify actor
@@ -54,21 +55,21 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
 
   // Explicit provider selection
   if (provider === "scrapingbee") {
-    return { items: await trySb(), provider: "scrapingbee" };
+    return { items: await trySb(), provider: "scrapingbee", nextCursor: null };
   }
   if (provider === "apify") {
-    return { items: await tryApify(), provider: "apify" };
+    return { items: await tryApify(), provider: "apify", nextCursor: null };
   }
-  // Cookie-only: use the burner-account session cookie via IG's own mobile API.
-  // Never falls back to Apify — if the cookie path fails, surface the error.
   if (provider === "cookie") {
-    return { items: await tryCookie(), provider: "cookie" };
+    const r = await tryCookie();
+    return { items: r.items, provider: "cookie", nextCursor: r.nextCursor };
   }
 
-  // Auto: cookie-only when configured, then Apify, then ScrapingBee
+  // Auto: cookie first, then Apify, then ScrapingBee
   if (singleCookie) {
     try {
-      return { items: await tryCookie(), provider: "cookie" };
+      const r = await tryCookie();
+      return { items: r.items, provider: "cookie", nextCursor: r.nextCursor };
     } catch (err) {
       await logError({
         context: "ig.cookie.following.fallback",
@@ -80,7 +81,7 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
   }
 
   try {
-    return { items: await tryApify(), provider: "apify" };
+    return { items: await tryApify(), provider: "apify", nextCursor: null };
   } catch (apifyErr) {
     const apifyMsg = apifyErr instanceof Error ? apifyErr.message : String(apifyErr);
     if (!sbKey) throw apifyErr;
@@ -90,6 +91,6 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
       payload: { username },
       crawl_job_id: opts.crawl_job_id ?? null,
     });
-    return { items: await trySb(), provider: "scrapingbee" };
+    return { items: await trySb(), provider: "scrapingbee", nextCursor: null };
   }
 }

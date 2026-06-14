@@ -4,11 +4,9 @@ import { scrapeFollowingDetailedWithFallback } from "@/lib/pipeline/scrape-follo
 import { bulkUpsertDiscoveredLeads, logCrawl, logError } from "@/lib/pipeline/persist";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Entry point: a seed's crawl starts here at depth 0.
-// FOLLOWING-ONLY MODE: scrape the seed's following list, bulk-upsert every new
-// username as a `pending` lead with the metadata from the following actor
-// (username, full_name, is_private, is_verified). NO automatic profile/post
-// scrape. The user clicks "Process" per row when they want the full pipeline.
+const PAGE_SIZE = 50;  // accounts fetched per Instagram API call
+const MAX_PAGES = 40;  // safety cap — Instagram naturally limits ~250 for other users' following
+
 export const crawlSeed = inngest.createFunction(
   {
     id: "crawl-seed",
@@ -18,7 +16,7 @@ export const crawlSeed = inngest.createFunction(
   },
   { event: "crawl/seed.requested" },
   async ({ event, step }) => {
-    const { crawl_job_id, seed_id, seed_username, profile_limit } = event.data;
+    const { crawl_job_id, seed_id, seed_username, profile_limit, provider_override } = event.data;
 
     await step.run("mark-running", async () => {
       const sb = createAdminClient();
@@ -30,66 +28,90 @@ export const crawlSeed = inngest.createFunction(
 
     const settings = await step.run("load-settings", () => getSettings(true));
     const token = resolveApifyToken(settings);
+    const targetNew = profile_limit ?? settings.max_profiles_per_account;
 
-    let r;
-    try {
-      r = await step.run("scrape-seed-following", () =>
-        scrapeFollowingDetailedWithFallback({
-          username: seed_username,
-          settings,
-          apifyToken: token,
-          crawl_job_id,
-          limitOverride: profile_limit ?? null,
+    const effectiveSettings = provider_override
+      ? { ...settings, following_scraper_provider: provider_override }
+      : settings;
+
+    let cursor: string | null = null;
+    let totalNew = 0;
+    let totalScraped = 0;
+    let pageIndex = 0;
+    const allNewUsernames: string[] = [];
+
+    while (totalNew < targetNew && pageIndex < MAX_PAGES) {
+      let r;
+      try {
+        r = await step.run(`scrape-page-${pageIndex}`, () =>
+          scrapeFollowingDetailedWithFallback({
+            username: seed_username,
+            settings: effectiveSettings,
+            apifyToken: token,
+            crawl_job_id,
+            limitOverride: PAGE_SIZE,
+            startCursor: cursor,
+          }),
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await logError({ context: "scrape.following.seed", error_message: msg, crawl_job_id });
+        await markJobFailed(crawl_job_id, msg);
+        throw err;
+      }
+
+      if (r.items.length === 0) break;
+      totalScraped += r.items.length;
+
+      const inserted = await step.run(`bulk-upsert-${pageIndex}`, () =>
+        bulkUpsertDiscoveredLeads(r.items, {
+          crawl_depth: 1,
+          source_seed_id: seed_id,
+          parent_username: seed_username,
         }),
       );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await logError({ context: "scrape.following.seed", error_message: msg, crawl_job_id });
-      await markJobFailed(crawl_job_id, msg);
-      throw err;
-    }
 
-    const inserted = await step.run("bulk-upsert", () =>
-      bulkUpsertDiscoveredLeads(r.items, {
-        crawl_depth: 1,
-        source_seed_id: seed_id,
-        parent_username: seed_username,
-      }),
-    );
+      totalNew += inserted;
+      if (inserted > 0) {
+        allNewUsernames.push(...r.items.map((i) => i.username));
+      }
+
+      await logCrawl({
+        crawl_job_id,
+        profile_username: seed_username,
+        parent_username: null,
+        action: "scraped_following",
+        depth: 0,
+        detail: `provider=${r.provider} page=${pageIndex} total=${r.items.length} inserted_new=${inserted} cumulative_new=${totalNew}/${targetNew}`,
+      });
+
+      // No cursor = end of following list — stop regardless
+      if (!r.nextCursor) break;
+      cursor = r.nextCursor;
+      pageIndex++;
+    }
 
     await step.run("set-counters", async () => {
       const sb = createAdminClient();
       await sb
         .from("crawl_jobs")
         .update({
-          expected_profiles: inserted,
-          profiles_scraped: inserted,
+          expected_profiles: totalScraped,
+          profiles_scraped: totalScraped,
         })
         .eq("id", crawl_job_id);
     });
 
-    await logCrawl({
-      crawl_job_id,
-      profile_username: seed_username,
-      parent_username: null,
-      action: "scraped_following",
-      depth: 0,
-      detail: `provider=${r.provider} total=${r.items.length} inserted_new=${inserted}`,
-    });
-
-    // Fire metadata backfill for all freshly-inserted usernames so the leads
-    // page shows followers / bio / external_link without waiting for a manual
-    // Process per row. Only the items we actually inserted (deduped).
-    if (inserted > 0) {
-      const freshUsernames = r.items.map((i) => i.username);
+    // Backfill metadata only for newly inserted leads
+    if (allNewUsernames.length > 0) {
       await step.sendEvent("backfill-metadata", {
         name: "leads/backfill.metadata.requested" as const,
-        data: { usernames: freshUsernames, crawl_job_id },
+        data: { usernames: allNewUsernames, crawl_job_id },
       });
     }
 
     await markJobCompleted(crawl_job_id);
-    return { discovered: inserted };
+    return { discovered: totalNew, pages: pageIndex + 1 };
   },
 );
 
