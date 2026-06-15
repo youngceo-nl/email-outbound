@@ -63,6 +63,111 @@ export async function addLead(formData: FormData): Promise<AddLeadResult> {
   return { ok: true, username, analyzing: analyze };
 }
 
+// ─── CSV Import ──────────────────────────────────────────────────────────────
+
+export type CsvImportRow = {
+  username?: string;
+  full_name?: string;
+  email?: string;
+  followers?: string;
+  bio?: string;
+  niche?: string;
+  youtube_url?: string;
+  linkedin_url?: string;
+  profile_url?: string;
+};
+
+export type CsvImportResult = {
+  ok: boolean;
+  imported: number;
+  skipped: number;
+  error?: string;
+};
+
+const IG_PROFILE_RE = /instagram\.com\/([a-zA-Z0-9_.]{1,30})\/?/;
+
+function resolveUsername(row: CsvImportRow): string | null {
+  // Direct username field first
+  const direct = row.username?.trim().replace(/^@/, "").toLowerCase();
+  if (direct && /^[a-z0-9._]{1,30}$/.test(direct)) return direct;
+  // Derive from profile_url
+  const fromUrl = row.profile_url?.match(IG_PROFILE_RE)?.[1]?.toLowerCase();
+  if (fromUrl) return fromUrl;
+  return null;
+}
+
+export async function importLeadsFromCsv(rows: CsvImportRow[]): Promise<CsvImportResult> {
+  await requireUser();
+  if (!rows.length) return { ok: true, imported: 0, skipped: 0 };
+
+  const sb = createAdminClient();
+
+  const inserts: object[] = [];
+  let skipped = 0;
+
+  for (const row of rows) {
+    const username = resolveUsername(row);
+    if (!username) { skipped++; continue; }
+
+    const followers = row.followers ? parseInt(row.followers.replace(/[^0-9]/g, ""), 10) : null;
+
+    inserts.push({
+      username,
+      profile_url: profileUrl(username),
+      status: "pending",
+      crawl_depth: 0,
+      full_name: row.full_name?.trim() || null,
+      email: row.email?.trim().toLowerCase() || null,
+      email_status: row.email?.trim() ? "found" : null,
+      followers: Number.isFinite(followers) ? followers : null,
+      bio: row.bio?.trim() || null,
+      niche: row.niche?.trim() || null,
+      youtube_url: row.youtube_url?.trim() || null,
+      linkedin_url: row.linkedin_url?.trim() || null,
+    });
+  }
+
+  if (!inserts.length) return { ok: true, imported: 0, skipped };
+
+  // ignoreDuplicates: silently skip rows whose username already exists.
+  const { error } = await sb
+    .from("leads")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .upsert(inserts as any[], { onConflict: "username", ignoreDuplicates: true });
+
+  if (error) return { ok: false, imported: 0, skipped, error: error.message };
+
+  revalidatePath("/leads");
+  return { ok: true, imported: inserts.length, skipped };
+}
+
+// ─── Churn bucket actions ─────────────────────────────────────────────────────
+
+export async function recordManualOutreach(leadId: string): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  const sb = createAdminClient();
+  const { error } = await sb
+    .from("leads")
+    .update({ outreach_count: 1, last_outreach_at: new Date().toISOString() })
+    .eq("id", leadId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/churn");
+  return { ok: true };
+}
+
+export async function rejectLead(leadId: string): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  const sb = createAdminClient();
+  const { error } = await sb
+    .from("leads")
+    .update({ status: "rejected", rejection_reason: "manual_reject_churn" })
+    .eq("id", leadId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/churn");
+  revalidatePath("/leads");
+  return { ok: true };
+}
+
 export type DeleteLeadsResult = { ok: boolean; deleted: number; error?: string };
 
 // Bulk-delete leads by id. Before deleting, each lead's username is recorded in

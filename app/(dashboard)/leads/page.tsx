@@ -7,6 +7,7 @@ import { LeadsFilterBar } from "@/components/leads/filter-bar";
 import { Button } from "@/components/ui/button";
 import { EnrichButton } from "@/components/leads/enrich-button";
 import { AddLeadButton } from "@/components/leads/add-lead-button";
+import { CsvImportButton } from "@/components/leads/csv-import-button";
 import { ColumnVisibility } from "@/components/leads/column-visibility";
 import { SendEmailButton } from "@/components/leads/send-email-button";
 import { ProcessButton } from "@/components/leads/process-button";
@@ -17,7 +18,7 @@ import { SelectionProvider, SelectAllCheckbox, LeadCheckbox, BulkDeleteBar } fro
 import { formatNumber, formatPct, scoreColor } from "@/lib/utils";
 import { buildKeywordOr } from "@/lib/leads/keyword-filter";
 import { statusLabel } from "@/lib/labels";
-import { Download, ChevronLeft, ChevronRight, ExternalLink, Youtube, Linkedin } from "lucide-react";
+import { Download, Upload, ChevronLeft, ChevronRight, ExternalLink, Youtube, Linkedin } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 50;
@@ -119,9 +120,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         </div>
         <div className="flex items-center gap-2">
           <AddLeadButton />
+          <CsvImportButton />
           <ColumnVisibility />
           <Button asChild variant="secondary">
-            <a href={exportHref}><Download className="h-4 w-4 mr-2" /> Export CSV</a>
+            <a href={exportHref}><Upload className="h-4 w-4 mr-2" /> Export CSV</a>
           </Button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { LayoutDashboard, Users, Settings, ScrollText, Sprout, LogOut, Gauge, CreditCard, Inbox } from "lucide-react";
+import { LayoutDashboard, Users, Settings, ScrollText, Sprout, LogOut, Gauge, CreditCard, Inbox, ArchiveX } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -13,7 +14,17 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  // Churn count: qualified + no email + enriched + not yet contacted
+  const sb = createAdminClient();
+  const { count: churnCount } = await sb
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "qualified")
+    .is("email", null)
+    .not("enriched_at", "is", null)
+    .eq("outreach_count", 0);
+
   return (
     <div className="grid grid-cols-[220px_1fr] min-h-screen">
       <aside className="border-r bg-muted/20 flex flex-col">
@@ -33,6 +44,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {item.label}
             </Link>
           ))}
+
+          {/* Churn bucket — separate so we can show the live count badge */}
+          <Link
+            href="/churn"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors"
+          >
+            <ArchiveX className="h-4 w-4" />
+            <span className="flex-1">Churn Bucket</span>
+            {(churnCount ?? 0) > 0 && (
+              <span className="bg-amber-500 text-white text-[10px] font-semibold rounded-full px-1.5 py-0.5 leading-none tabular-nums">
+                {churnCount}
+              </span>
+            )}
+          </Link>
         </nav>
         <form action={signOut} className="p-2 border-t">
           <button
