@@ -42,7 +42,6 @@ export function SettingsForm({ initial }: { initial: AppSettings }) {
           <Field label="Claude (Anthropic) API key" name="claude_api_key" defaultValue={initial.claude_api_key ?? ""} type="password" hint="Used only when scoring provider is Claude." />
           <Field label="Claude model" name="claude_model" defaultValue={initial.claude_model} hint="e.g. claude-opus-4-7, claude-sonnet-4-6" />
           <Separator />
-          <Field label="AirScale API key (optional)" name="airscale_api_key" defaultValue={initial.airscale_api_key ?? ""} type="password" hint="Used by the per-lead 'Find email' button. Falls back to AIRSCALE_API_KEY env var." />
           <Field label="CapSolver API key" name="capsolver_api_key" defaultValue={initial.capsolver_api_key ?? ""} type="password" hint="Used to solve reCAPTCHA when revealing gated business emails on YouTube. Falls back to CAPSOLVER_API_KEY env var." />
           <div className="space-y-1">
             <label htmlFor="yt_google_cookie" className="text-sm font-medium">YouTube Google session cookie</label>
@@ -58,6 +57,16 @@ export function SettingsForm({ initial }: { initial: AppSettings }) {
               Logged-in Google/YouTube cookie for About-page scraping and gated email reveal. In YouTube, open DevTools, go to Network, click any request, and copy the <code>cookie</code> request header. Falls back to YT_GOOGLE_COOKIE env var.
             </p>
           </div>
+          <Separator />
+          <p className="text-sm font-medium">YouTube auto-login (optional)</p>
+          <p className="text-xs text-muted-foreground -mt-2">
+            When the cookie above expires, the app logs back into this Google account to mint a fresh one automatically. Use a dedicated account. Leave blank to manage the cookie by hand.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Google account email" name="yt_google_email" defaultValue={initial.yt_google_email ?? ""} hint="Falls back to YT_GOOGLE_EMAIL env var." />
+            <Field label="Google account password" name="yt_google_password" defaultValue={initial.yt_google_password ?? ""} type="password" hint="Falls back to YT_GOOGLE_PASSWORD env var." />
+          </div>
+          <Field label="Authenticator (TOTP) secret" name="yt_google_totp_secret" defaultValue={initial.yt_google_totp_secret ?? ""} type="password" hint="Only if the account has app-based 2-Step Verification — the base32 key behind the QR code. Falls back to YT_GOOGLE_TOTP_SECRET env var." />
         </CardContent>
       </Card>
 

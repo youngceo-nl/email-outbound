@@ -10,7 +10,10 @@ export type EnrichLeadResponse = {
   linkedin_url?: string | null;
   youtube_url?: string | null;
   source?: string;
+  // Human-readable summary shown to the user when nothing was found.
   error?: string;
+  // Full step-by-step trace, shown behind a "details" affordance.
+  detail?: string;
 };
 
 export async function enrichLead(leadId: string): Promise<EnrichLeadResponse> {
@@ -31,5 +34,6 @@ export async function enrichLead(leadId: string): Promise<EnrichLeadResponse> {
     youtube_url: r.youtube_url,
     source: r.source,
     error: r.error ?? undefined,
+    detail: r.detail ?? undefined,
   };
 }

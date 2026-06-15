@@ -14,6 +14,7 @@ export type ConnectResult = { browser: Browser; context: BrowserContext; isRemot
 export async function connectBrowser(opts: {
   headless?: boolean;
   proxy?: string | null; // local-launch only; for remote, configure the proxy on the provider
+  args?: string[]; // extra Chromium launch flags (local-launch only)
   contextOptions?: Parameters<Browser["newContext"]>[0];
 }): Promise<ConnectResult> {
   const { chromium } = await import("playwright");
@@ -28,9 +29,11 @@ export async function connectBrowser(opts: {
     return { browser, context, isRemote: true };
   }
 
-  const launchOpts = opts.proxy
-    ? { headless: opts.headless ?? true, proxy: { server: opts.proxy } }
-    : { headless: opts.headless ?? true };
+  const launchOpts = {
+    headless: opts.headless ?? true,
+    ...(opts.proxy ? { proxy: { server: opts.proxy } } : {}),
+    ...(opts.args ? { args: opts.args } : {}),
+  };
   const browser = await chromium.launch(launchOpts);
   const context = await browser.newContext(opts.contextOptions as never);
   return { browser, context, isRemote: false };

@@ -7,7 +7,7 @@ export type Tier = {
   highlight?: boolean;
 };
 
-export type ProviderId = "apify" | "scrapingbee" | "airscale" | "openai" | "claude";
+export type ProviderId = "apify" | "scrapingbee" | "openai" | "claude";
 
 export type ProviderMeta = {
   id: ProviderId;
@@ -43,18 +43,6 @@ export const PROVIDERS: ProviderMeta[] = [
       { name: "Startup",     price: "$99",   unit: "/mo · 1M credits" },
       { name: "Business",    price: "$249",  unit: "/mo · 3M credits" },
       { name: "Business+",   price: "$599",  unit: "/mo · 8M credits" },
-    ],
-  },
-  {
-    id: "airscale",
-    name: "AirScale",
-    unit: "email lookups",
-    pricingUrl: "https://airscale.io/pricing",
-    dashboardUrl: "https://app.airscale.io/billing",
-    tiers: [
-      { name: "Starter", price: "$39",  unit: "/mo · 1k credits" },
-      { name: "Growth",  price: "$99",  unit: "/mo · 5k credits" },
-      { name: "Scale",   price: "$299", unit: "/mo · 25k credits" },
     ],
   },
   {

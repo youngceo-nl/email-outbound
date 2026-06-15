@@ -106,7 +106,7 @@ export default async function BillingPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Daily usage spend</CardTitle>
-            <CardDescription>Metered API calls (LLM tokens + AirScale lookups) per day.</CardDescription>
+            <CardDescription>Metered API calls (LLM tokens + search lookups) per day.</CardDescription>
           </CardHeader>
           <CardContent>
             <SpendChart daily={b.daily} />
@@ -172,8 +172,8 @@ export default async function BillingPage() {
       </section>
 
       <p className="text-xs text-muted-foreground">
-        * Usage figures marked &ldquo;est.&rdquo; are computed from published list pricing (LLM token rates,
-        AirScale per-lookup rate) and may differ slightly from your invoice. Apify is read live from its
+        * Usage figures marked &ldquo;est.&rdquo; are computed from published list pricing (LLM token rates)
+        and may differ slightly from your invoice. Apify is read live from its
         billing API. Verify exact charges on each provider&rsquo;s dashboard.
       </p>
     </div>

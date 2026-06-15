@@ -37,7 +37,6 @@ export type AppSettings = {
   scoring_provider: "openai" | "claude";
   openai_api_key: string | null;
   openai_model: string;
-  airscale_api_key: string | null;
   enrich_funnels_auto: boolean;
   enrich_emails_auto: boolean;
   outreach_subject_template: string;
@@ -48,6 +47,10 @@ export type AppSettings = {
   gmail_from_name: string | null;
   capsolver_api_key: string | null;
   yt_google_cookie: string | null;
+  // Credentials for auto-refreshing the YouTube cookie (see lib/youtube/refresh-cookie.ts)
+  yt_google_email: string | null;
+  yt_google_password: string | null;
+  yt_google_totp_secret: string | null;
   updated_at: string;
 };
 

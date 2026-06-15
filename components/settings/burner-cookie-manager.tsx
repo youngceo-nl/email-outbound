@@ -20,7 +20,7 @@ export function BurnerCookieManager({ cookies }: { cookies: string[] }) {
     setError(null);
     start(async () => {
       const res = await addBurnerCookie(input);
-      if (res && "error" in res) { setError(res.error); return; }
+      if (res && "error" in res) { setError(res.error ?? "Failed to add cookie"); return; }
       setInput("");
     });
   };

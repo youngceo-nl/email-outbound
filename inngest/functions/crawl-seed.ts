@@ -3,6 +3,7 @@ import { getSettings, resolveApifyToken } from "@/lib/config/settings";
 import { scrapeFollowingDetailedWithFallback } from "@/lib/pipeline/scrape-following";
 import { bulkUpsertDiscoveredLeads, logCrawl, logError } from "@/lib/pipeline/persist";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { AppSettings } from "@/lib/types";
 
 const PAGE_SIZE = 50;  // accounts fetched per Instagram API call
 const MAX_PAGES = 40;  // safety cap — Instagram naturally limits ~250 for other users' following
@@ -31,7 +32,7 @@ export const crawlSeed = inngest.createFunction(
     const targetNew = profile_limit ?? settings.max_profiles_per_account;
 
     const effectiveSettings = provider_override
-      ? { ...settings, following_scraper_provider: provider_override }
+      ? { ...settings, following_scraper_provider: provider_override as AppSettings["following_scraper_provider"] }
       : settings;
 
     let cursor: string | null = null;

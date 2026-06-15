@@ -5,7 +5,7 @@ import { getJobStatus, logError } from "@/lib/pipeline/persist";
 export const enrichEmail = inngest.createFunction(
   {
     id: "enrich-email",
-    name: "Enrich lead with LinkedIn + AirScale email",
+    name: "Enrich lead with public email sources",
     retries: 2,
     concurrency: [
       { limit: 4, key: "event.data.crawl_job_id" },

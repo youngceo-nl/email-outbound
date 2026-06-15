@@ -1,14 +1,12 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSettings } from "@/lib/config/settings";
-import { findLinkedInUrl } from "@/lib/linkedin/find";
-import { extractLinkedInProfileUrl } from "@/lib/linkedin/profile-url";
 import { findYouTubeChannel } from "@/lib/youtube/find";
 import { extractYouTubeChannelUrl } from "@/lib/youtube/channel-url";
-import { fetchYouTubeAboutWithCookie } from "@/lib/youtube/about-cookie";
+import { attemptYoutubeEmail } from "@/lib/youtube/email-from-channel";
+import { refreshAndSaveYoutubeCookie, youtubeLoginConfigured } from "@/lib/youtube/refresh-cookie";
 import { scrapeWebsiteForEmail } from "@/lib/website/scrape-email";
 import { extractEmailFromText } from "@/lib/leads/email-extract";
-import { deriveInputs, findEmail, findEmailByLinkedInUrl } from "@/lib/airscale/enrich";
 
 export type EnrichPipelineResult = {
   ok: boolean;
@@ -16,8 +14,11 @@ export type EnrichPipelineResult = {
   youtube_url: string | null;
   email: string | null;
   email_status: string;
-  source: "cached" | "ig_bio" | "website" | "youtube" | "linkedin" | "domain" | "skipped";
+  source: "cached" | "ig_bio" | "website" | "youtube" | "skipped";
+  // User-facing summary of what happened when no email was found.
   error: string | null;
+  // Full step-by-step trace, surfaced behind a "details" affordance in the UI.
+  detail?: string | null;
 };
 
 export async function enrichLeadPipeline(opts: {
@@ -31,7 +32,7 @@ export async function enrichLeadPipeline(opts: {
     .eq("id", opts.leadId)
     .single();
   if (!lead) {
-    return { ok: false, linkedin_url: null, youtube_url: null, email: null, email_status: "error", source: "skipped", error: "lead_not_found" };
+    return { ok: false, linkedin_url: null, youtube_url: null, email: null, email_status: "error", source: "skipped", error: "We couldn't find this lead anymore — try refreshing the page.", detail: "lead_not_found" };
   }
 
   const existingLinkedin = (lead.linkedin_url as string | null) ?? null;
@@ -74,9 +75,8 @@ export async function enrichLeadPipeline(opts: {
 
   const settings = await getSettings();
   const serperKey = settings.serper_api_key || process.env.SERPER_API_KEY || "";
-  const airscaleKey = settings.airscale_api_key || process.env.AIRSCALE_API_KEY || "";
   const capsolverKey = settings.capsolver_api_key || process.env.CAPSOLVER_API_KEY || "";
-  const ytGoogleCookie = settings.yt_google_cookie || process.env.YT_GOOGLE_COOKIE || "";
+  let ytGoogleCookie = settings.yt_google_cookie || process.env.YT_GOOGLE_COOKIE || "";
 
   const username = (lead.username as string | null) ?? null;
   const externalLink = (lead.external_link as string | null) ?? null;
@@ -126,157 +126,113 @@ export async function enrichLeadPipeline(opts: {
     steps.push("yt_serper: skipped (no Serper key)");
   }
 
-  if (youtubeUrl && ytGoogleCookie) {
-    const cookieScrape = await fetchYouTubeAboutWithCookie({ channelUrl: youtubeUrl, googleCookie: ytGoogleCookie });
-    if (cookieScrape.email) {
+  if (youtubeUrl) {
+    const ytProxy = process.env.YT_REVEAL_PROXY || null;
+
+    // If there's no cookie at all but a login is configured, mint one up front.
+    if (!ytGoogleCookie && youtubeLoginConfigured(settings)) {
+      const minted = await refreshAndSaveYoutubeCookie();
+      if (minted.cookie) {
+        ytGoogleCookie = minted.cookie;
+        steps.push("yt_cookie_refresh: minted");
+      } else {
+        steps.push(`yt_cookie_refresh: ${minted.error}`);
+      }
+    }
+
+    let attempt = await attemptYoutubeEmail({ channelUrl: youtubeUrl, googleCookie: ytGoogleCookie, capsolverKey, proxy: ytProxy });
+
+    // Cookie rejected as logged-out? Re-mint it and try the channel once more.
+    if (attempt.authFailed && youtubeLoginConfigured(settings)) {
+      const refreshed = await refreshAndSaveYoutubeCookie();
+      if (refreshed.cookie) {
+        ytGoogleCookie = refreshed.cookie;
+        steps.push("yt_cookie_refresh: ok");
+        attempt = await attemptYoutubeEmail({ channelUrl: youtubeUrl, googleCookie: ytGoogleCookie, capsolverKey, proxy: ytProxy });
+      } else {
+        steps.push(`yt_cookie_refresh: ${refreshed.error}`);
+      }
+    }
+
+    steps.push(...attempt.trace);
+    if (attempt.email && attempt.provider) {
       return persistAndReturn({
         leadId: opts.leadId,
         patch: {
           youtube_url: youtubeUrl,
           youtube_lookup_error: null,
-          email: cookieScrape.email,
+          email: attempt.email,
           email_status: "found",
-          email_provider: "youtube_about",
+          email_provider: attempt.provider,
           email_verifier: null,
           enriched_at: new Date().toISOString(),
           enrichment_error: null,
         },
-        result: { ok: true, linkedin_url: existingLinkedin, youtube_url: youtubeUrl, email: cookieScrape.email, email_status: "found", source: "youtube", error: null },
+        result: { ok: true, linkedin_url: existingLinkedin, youtube_url: youtubeUrl, email: attempt.email, email_status: "found", source: "youtube", error: null },
       });
     }
-    steps.push(`yt_cookie_scrape: ${cookieScrape.error ?? "none"}`);
-    youtubeError = youtubeError ?? cookieScrape.error;
-  } else if (youtubeUrl && !ytGoogleCookie) {
-    steps.push("yt_cookie_scrape: skipped (no YT cookie)");
-  } else if (!youtubeUrl) {
+    youtubeError = youtubeError ?? attempt.youtubeError;
+  } else {
     steps.push("yt_cookie_scrape: skipped (no channel found)");
   }
 
-  if (youtubeUrl && capsolverKey && ytGoogleCookie) {
-    try {
-      const { revealYoutubeEmail } = await import("@/lib/youtube/reveal-email");
-      const revealed = await revealYoutubeEmail({
-        channelUrl: youtubeUrl,
-        googleCookie: ytGoogleCookie,
-        capsolverKey,
-        proxy: process.env.YT_REVEAL_PROXY || null,
-      });
-      if (revealed.email) {
-        return persistAndReturn({
-          leadId: opts.leadId,
-          patch: {
-            youtube_url: youtubeUrl,
-            youtube_lookup_error: null,
-            email: revealed.email,
-            email_status: "found",
-            email_provider: "youtube_about_gated",
-            email_verifier: null,
-            enriched_at: new Date().toISOString(),
-            enrichment_error: null,
-          },
-          result: { ok: true, linkedin_url: existingLinkedin, youtube_url: youtubeUrl, email: revealed.email, email_status: "found", source: "youtube", error: null },
-        });
-      }
-      steps.push(`yt_capsolver: ${revealed.error ?? "none"}`);
-      youtubeError = youtubeError ?? revealed.error;
-    } catch (err) {
-      const msg = (err instanceof Error ? err.message : String(err)).slice(0, 100);
-      steps.push(`yt_capsolver: failed (${msg})`);
-      youtubeError = youtubeError ?? `reveal_failed: ${msg}`;
-    }
-  } else if (youtubeUrl && (!capsolverKey || !ytGoogleCookie)) {
-    steps.push(`yt_capsolver: skipped (${!capsolverKey ? "no CapSolver key" : "no YT cookie"})`);
-  }
+  // ── Nothing turned up through any of the available (free) public sources. ──
+  // Email enrichment relies only on what people publish themselves: the
+  // Instagram bio, the website linked in their bio, and their YouTube About
+  // page. Build a clear, human-readable explanation of what we tried — and,
+  // when a lookup was skipped because an integration isn't set up, say exactly
+  // what to configure so the user can act on it.
+  const checked: string[] = ["the Instagram bio"];
+  if (websiteScraped) checked.push("the website in their bio");
+  if (youtubeUrl) checked.push("their YouTube About page");
 
-  // ── Steps 5 & 6: LinkedIn discovery + AirScale lookup (paid, last resort). ─
-  if (!airscaleKey) {
-    const trace = steps.join(" · ") + " · airscale: not configured";
-    return persistAndReturn({
-      leadId: opts.leadId,
-      patch: { youtube_url: youtubeUrl, youtube_lookup_error: youtubeError, enrichment_error: trace },
-      result: { ok: false, linkedin_url: existingLinkedin, youtube_url: youtubeUrl, email: null, email_status: "error", source: "skipped", error: trace },
-    });
+  const fixes: string[] = [];
+  if (!youtubeUrl && !serperKey) {
+    fixes.push("To also search Google for their YouTube channel, add a Serper.dev API key in Settings.");
   }
-
-  let linkedinUrl: string | null = existingLinkedin;
-  let linkedinError: string | null = null;
-
-  if (!linkedinUrl) {
-    linkedinUrl = extractLinkedInProfileUrl(externalLink);
-    if (linkedinUrl) steps.push("li_url: from bio link");
+  if (youtubeUrl && !ytGoogleCookie && !youtubeLoginConfigured(settings)) {
+    fixes.push("To read emails hidden behind the YouTube “View email” button, add a YouTube session cookie in Settings.");
   }
-  if (!linkedinUrl && serperKey && (tokens.length >= 2 || username)) {
-    const hint = buildHint(lead.niche as string | null, lead.bio as string | null);
-    const lookup = await findLinkedInUrl({ apiKey: serperKey, fullName, username, hints: hint });
-    linkedinUrl = lookup.url;
-    linkedinError = lookup.error;
-    steps.push(`li_serper: ${linkedinUrl ? linkedinUrl.slice(0, 50) : (lookup.error ?? "not found")}`);
-  } else if (!linkedinUrl && !serperKey) {
-    linkedinError = "skipped:no_serper_key";
-    steps.push("li_serper: skipped (no Serper key)");
+  if (youtubeError) {
+    fixes.push(`The YouTube lookup ran into a problem: ${youtubeError}.`);
   }
-
-  if (linkedinUrl) {
-    const first = tokens[0] ?? null;
-    const last = tokens.length >= 2 ? tokens[tokens.length - 1] : null;
-    const result = await findEmailByLinkedInUrl({
-      apiKey: airscaleKey,
-      linkedinUrl,
-      firstName: first,
-      lastName: last,
-      leadId: opts.leadId,
-    });
-    if (result.email) {
-      return persistAndReturn({
-        leadId: opts.leadId,
-        patch: {
-          linkedin_url: linkedinUrl,
-          linkedin_lookup_error: null,
-          youtube_url: youtubeUrl,
-          youtube_lookup_error: youtubeError,
-          email: result.email,
-          email_status: result.email_status,
-          email_provider: result.email_provider,
-          email_verifier: result.email_verifier,
-          enriched_at: new Date().toISOString(),
-          enrichment_error: null,
-        },
-        result: { ok: true, linkedin_url: linkedinUrl, youtube_url: youtubeUrl, email: result.email, email_status: result.email_status, source: "linkedin", error: null },
-      });
-    }
-    steps.push(`airscale_li: ${result.email_status}`);
-    linkedinError = linkedinError ?? `airscale_linkedin:${result.email_status}`;
-  }
-
-  const inputs = deriveInputs({ full_name: fullName, external_link: lead.external_link as string | null });
-  const fallback = await findEmail({ apiKey: airscaleKey, inputs, leadId: opts.leadId });
-  steps.push(`airscale_domain: ${fallback.email_status}`);
 
   const trace = steps.join(" · ");
+  const message =
+    fixes.length > 0
+      ? `No email found yet. ${fixes.join(" ")}`
+      : `No public email found. We checked ${formatList(checked)}, but none of them list one.`;
+
   return persistAndReturn({
     leadId: opts.leadId,
     patch: {
-      linkedin_url: linkedinUrl,
-      linkedin_lookup_error: linkedinError,
       youtube_url: youtubeUrl,
       youtube_lookup_error: youtubeError,
-      email: fallback.email,
-      email_status: fallback.email_status,
-      email_provider: fallback.email_provider,
-      email_verifier: fallback.email_verifier,
+      email: null,
+      email_status: "not_found",
+      email_provider: null,
+      email_verifier: null,
       enriched_at: new Date().toISOString(),
-      enrichment_error: fallback.error ? `${fallback.error} · ${trace}` : trace,
+      enrichment_error: trace,
     },
     result: {
-      ok: !fallback.error,
-      linkedin_url: linkedinUrl,
+      ok: false,
+      linkedin_url: existingLinkedin,
       youtube_url: youtubeUrl,
-      email: fallback.email,
-      email_status: fallback.email_status,
-      source: linkedinUrl ? "linkedin" : "domain",
-      error: fallback.error ? `${fallback.error} · ${trace}` : null,
+      email: null,
+      email_status: "not_found",
+      source: "skipped",
+      error: message,
+      detail: trace,
     },
   });
+}
+
+// Joins a list into a natural-language phrase: "a", "a and b", "a, b, and c".
+function formatList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
 function buildHint(niche: string | null, bio: string | null): string {

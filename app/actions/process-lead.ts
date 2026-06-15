@@ -67,7 +67,7 @@ export async function processLeadsBatch(
 ): Promise<ProcessBatchResponse> {
   const sb = await createClient();
   const { data: { user } } = await sb.auth.getUser();
-  if (!user) return { ok: false, queued: 0, error: "unauthorized" };
+  if (!user) return { ok: false, queued: 0, leadIds: [], error: "unauthorized" };
 
   const admin = createAdminClient();
   let q = admin

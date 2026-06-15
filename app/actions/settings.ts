@@ -49,7 +49,6 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     })(),
     openai_api_key: String(formData.get("openai_api_key") ?? "") || null,
     openai_model: String(formData.get("openai_model") ?? prev.openai_model),
-    airscale_api_key: String(formData.get("airscale_api_key") ?? "") || null,
     enrich_funnels_auto: formData.get("enrich_funnels_auto") === "on",
     enrich_emails_auto: formData.get("enrich_emails_auto") === "on",
     outreach_subject_template: String(formData.get("outreach_subject_template") ?? prev.outreach_subject_template),
@@ -62,6 +61,20 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     yt_google_cookie: String(formData.get("yt_google_cookie") ?? "") || null,
   };
   await updateSettings(patch);
+
+  // YouTube auto-login credentials live in columns added by a later migration.
+  // Update them separately and tolerate failure, so a DB that hasn't run that
+  // migration yet doesn't break the entire settings save.
+  try {
+    await updateSettings({
+      yt_google_email: String(formData.get("yt_google_email") ?? "") || null,
+      yt_google_password: String(formData.get("yt_google_password") ?? "") || null,
+      yt_google_totp_secret: String(formData.get("yt_google_totp_secret") ?? "") || null,
+    });
+  } catch {
+    // columns not present yet — ignore
+  }
+
   revalidatePath("/settings");
   return { ok: true };
 }

@@ -9,6 +9,8 @@ type Events = {
       // Optional per-seed cap on how many followings to scrape from the seed
       // itself. Recursion still uses settings.max_profiles_per_account.
       profile_limit?: number | null;
+      // Optional one-off override of the configured scrape provider.
+      provider_override?: string | null;
     };
   };
   "crawl/profile.discovered": {
@@ -55,7 +57,19 @@ type Events = {
   };
 };
 
+// Decide dev vs. cloud deterministically instead of letting the SDK guess.
+// Rule: only talk to Inngest Cloud when a real event key is configured.
+// Otherwise force dev mode so events always go to the local dev server
+// (http://localhost:8288). This makes the "401 Event key not found" cloud
+// fallback impossible during local development — no key, no cloud, ever.
+// Set INNGEST_DEV=0 (or "false") to override and force cloud explicitly.
+const isDev =
+  process.env.INNGEST_DEV !== undefined
+    ? process.env.INNGEST_DEV !== "0" && process.env.INNGEST_DEV !== "false"
+    : !process.env.INNGEST_EVENT_KEY;
+
 export const inngest = new Inngest({
   id: "leads-scraper-ig",
   schemas: new EventSchemas().fromRecord<Events>(),
+  isDev,
 });

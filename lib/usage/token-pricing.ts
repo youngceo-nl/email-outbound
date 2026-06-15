@@ -20,10 +20,6 @@ const CLAUDE_RATES: Record<string, TokenRate> = {
   opus: { inputPer1M: 15, outputPer1M: 75 },
 };
 
-// Per-call unit prices for metered non-token APIs (USD). These vary with the
-// plan tier, so they are flagged `estimated` when logged.
-export const AIRSCALE_LOOKUP_USD = 0.04; // ~Starter $39 / 1k credits
-
 function openAiRate(model: string): TokenRate {
   const m = model.toLowerCase();
   for (const key of Object.keys(OPENAI_RATES)) {
