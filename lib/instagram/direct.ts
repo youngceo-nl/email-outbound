@@ -67,8 +67,7 @@ export async function fetchProfileMetadataDirect(opts: {
   const { username, sessionCookie, timeoutMs = 15_000 } = opts;
   const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`;
   const headers: Record<string, string> = {
-    "User-Agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    "User-Agent": randomUA(),
     "X-IG-App-ID": "936619743392459",
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
@@ -184,6 +183,27 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// Random integer in [min, max]
+function jitter(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// Realistic User-Agent pool — rotated per-request to avoid fingerprinting on a
+// fixed UA string. Mix of browser and official IG app UAs.
+const USER_AGENTS = [
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
+  "Instagram 291.0.0.29.111 Android (30/11; 480dpi; 1080x2137; samsung; SM-G973F; beyond1; exynos9820; en_US; 493494379)",
+  "Instagram 317.0.0.24.109 Android (33/13; 420dpi; 1080x2280; samsung; SM-S918B; dm3q; qcom; en_US; 562662939)",
+  "Instagram 289.0.0.77.109 Android (28/9; 560dpi; 1440x2960; samsung; SM-G965F; star2qltecs; qcom; en_US; 488165203)",
+];
+
+function randomUA(): string {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
 // =============================================================================
 // Fetch the last N unpinned reels for a user via /api/v1/clips/user/
 // Returns RecentPost[] with is_reel=true, is_pinned set appropriately.
@@ -196,7 +216,7 @@ export async function fetchReelsDirect(opts: {
 }): Promise<RecentPost[]> {
   const { userId, sessionCookie, limit = 12 } = opts;
   const headers: Record<string, string> = {
-    "User-Agent": "Instagram 291.0.0.29.111 Android (30/11; 480dpi; 1080x2137; samsung; SM-G973F; beyond1; exynos9820; en_US; 493494379)",
+    "User-Agent": randomUA(),
     "X-IG-App-ID": "936619743392459",
     "Accept": "*/*",
     "Content-Type": "application/x-www-form-urlencoded",
@@ -254,7 +274,8 @@ export async function fetchReelsDirect(opts: {
     const more = json.paging_info?.more_available;
     maxId = json.paging_info?.max_id ?? null;
     if (!more || !maxId) break;
-    await sleep(1500); // throttle between reel pages — same IP/cookie as the caller
+    await sleep(jitter(800, 2500));
+    headers["User-Agent"] = randomUA();
   }
 
   return out.slice(0, limit);
@@ -285,22 +306,38 @@ type IgFollowingUser = {
 };
 
 const FOLLOWING_PAGE_SIZE = 50;
-const FOLLOWING_DELAY_MS = 2500;
+// Jittered delay range between following pages (ms)
+const FOLLOWING_DELAY_MIN_MS = 1800;
+const FOLLOWING_DELAY_MAX_MS = 4500;
+// Backoff on 429 before marking rate-limited
+const BACKOFF_MIN_MS = 35_000;
+const BACKOFF_MAX_MS = 90_000;
+const BACKOFF_MAX_RETRIES = 2;
 
 async function resolveUserIdDirect(opts: {
   username: string;
   sessionCookie: string;
 }): Promise<string | null> {
+  // Small pre-request delay — looks more human than instant lookup
+  await sleep(jitter(300, 900));
+
   const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(opts.username)}`;
   const headers: Record<string, string> = {
-    "User-Agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    "User-Agent": randomUA(),
     "X-IG-App-ID": "936619743392459",
     "Accept": "application/json",
     "Referer": `https://www.instagram.com/${encodeURIComponent(opts.username)}/`,
     "Cookie": opts.sessionCookie,
   };
-  const res = await fetch(url, { headers });
+  let res = await fetch(url, { headers });
+
+  // Retry with backoff on 429 (transient rate-limits often clear in ~30s)
+  if (res.status === 429) {
+    await sleep(jitter(BACKOFF_MIN_MS, BACKOFF_MAX_MS));
+    headers["User-Agent"] = randomUA();
+    res = await fetch(url, { headers });
+  }
+
   if (res.status === 429) throw new InstagramDirectError("Rate-limited resolving user_id", 429, true);
   if (res.status === 401 || res.status === 403)
     throw new InstagramDirectError(`Cookie rejected resolving user_id (HTTP ${res.status})`, res.status, false);
@@ -324,8 +361,7 @@ export async function fetchFollowingDirect(opts: {
   if (!userId) throw new InstagramDirectError(`Could not resolve user_id for @${opts.username}`, undefined, false);
 
   const headers: Record<string, string> = {
-    "User-Agent":
-      "Instagram 291.0.0.29.111 Android (30/11; 480dpi; 1080x2137; samsung; SM-G973F; beyond1; exynos9820; en_US; 493494379)",
+    "User-Agent": randomUA(),
     "X-IG-App-ID": "936619743392459",
     "Accept": "application/json",
     "Accept-Language": "en-US",
@@ -340,12 +376,28 @@ export async function fetchFollowingDirect(opts: {
   let nextCursor: string | null = null;
 
   while (out.length < opts.limit) {
+    // Jittered inter-page delay: always sleep between pages so the Inngest
+    // per-page-step case also gets throttled (it only fetches one page per call
+    // so the old end-of-loop guard never fired for limit=50=PAGE_SIZE).
+    if (pages > 0) await sleep(jitter(FOLLOWING_DELAY_MIN_MS, FOLLOWING_DELAY_MAX_MS));
+    // Rotate User-Agent each page — prevents fingerprinting on a fixed UA string
+    headers["User-Agent"] = randomUA();
+    pages++;
+
     const u = new URL(`https://www.instagram.com/api/v1/friendships/${userId}/following/`);
     u.searchParams.set("count", String(FOLLOWING_PAGE_SIZE));
     if (maxId) u.searchParams.set("max_id", maxId);
 
-    const res = await fetch(u.toString(), { headers });
-    pages++;
+    // Fetch with exponential backoff on 429 before giving up
+    let res = await fetch(u.toString(), { headers });
+    if (res.status === 429) {
+      let retries = BACKOFF_MAX_RETRIES;
+      while (retries-- > 0 && res.status === 429) {
+        await sleep(jitter(BACKOFF_MIN_MS, BACKOFF_MAX_MS));
+        headers["User-Agent"] = randomUA();
+        res = await fetch(u.toString(), { headers });
+      }
+    }
 
     if (res.status === 429)
       throw new InstagramDirectError(`Rate-limited at page ${pages}`, 429, true);
@@ -383,7 +435,6 @@ export async function fetchFollowingDirect(opts: {
     nextCursor = json.next_max_id ?? null;
     if (!nextCursor) break;
     maxId = nextCursor;
-    if (out.length < opts.limit) await sleep(FOLLOWING_DELAY_MS);
   }
   return { items: out.slice(0, opts.limit), nextCursor: out.length >= opts.limit ? nextCursor : null };
 }

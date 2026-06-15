@@ -90,6 +90,13 @@ export const crawlSeed = inngest.createFunction(
       if (!r.nextCursor) break;
       cursor = r.nextCursor;
       pageIndex++;
+
+      // Pause between Inngest steps so consecutive API pages don't fire back-to-back.
+      // Each fetchFollowingDirect call resolves one page (limit=PAGE_SIZE=50), so the
+      // in-function delay only fires within multi-page calls. This step.sleep covers
+      // the Inngest-step-boundary gap.
+      const delaySecs = Math.floor(Math.random() * 3) + 2; // 2–4 s
+      await step.sleep(`inter-page-sleep-${pageIndex}`, `${delaySecs}s`);
     }
 
     await step.run("set-counters", async () => {

@@ -48,6 +48,7 @@ export type AppSettings = {
   gmail_from_name: string | null;
   capsolver_api_key: string | null;
   yt_google_cookie: string | null;
+  yt_google_cookies: string[];
   // Credentials for auto-refreshing the YouTube cookie (see lib/youtube/refresh-cookie.ts)
   yt_google_email: string | null;
   yt_google_password: string | null;

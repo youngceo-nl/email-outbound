@@ -32,6 +32,11 @@ export function pickCookie(pool: string[]): string | null {
   return null;
 }
 
+export function isRateLimited(cookie: string): boolean {
+  const exp = rateLimitedUntil.get(cookieKey(cookie));
+  return !!exp && Date.now() < exp;
+}
+
 export function markRateLimited(cookie: string) {
   rateLimitedUntil.set(cookieKey(cookie), Date.now() + RATE_LIMIT_TTL_MS);
 }

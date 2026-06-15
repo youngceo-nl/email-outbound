@@ -2,7 +2,7 @@ import "server-only";
 import { scrapeFollowingDetailed as apifyFollowingDetailed, type DiscoveredFollowing } from "@/lib/apify/actors";
 import { scrapeFollowingViaScrapingBee } from "@/lib/scrapingbee/instagram";
 import { fetchFollowingDirect, InstagramDirectError } from "@/lib/instagram/direct";
-import { buildCookiePool, markRateLimited } from "@/lib/instagram/cookie-pool";
+import { buildCookiePool, markRateLimited, isRateLimited } from "@/lib/instagram/cookie-pool";
 import { logError } from "@/lib/pipeline/persist";
 import type { AppSettings } from "@/lib/types";
 
@@ -25,8 +25,12 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
   // 1. Direct cookie fetch — rotates through all burner accounts, skipping rate-limited ones
   const tryCookie = async () => {
     if (cookiePool.length === 0) throw new Error("No Instagram session cookies configured");
+    const available = cookiePool.filter(c => !isRateLimited(c));
+    if (available.length === 0) {
+      throw new Error(`All ${cookiePool.length} Instagram cookie(s) are rate-limited — wait 2h or add more burner accounts`);
+    }
     let lastErr: Error | null = null;
-    for (const cookie of cookiePool) {
+    for (const cookie of available) {
       try {
         return await fetchFollowingDirect({ username, sessionCookie: cookie, limit, startCursor: opts.startCursor });
       } catch (err) {
@@ -51,11 +55,13 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
   // 3. ScrapingBee
   const trySb = async (): Promise<DiscoveredFollowing[]> => {
     if (!sbKey) throw new Error("ScrapingBee API key not configured");
+    const availableCookie = cookiePool.find(c => !isRateLimited(c)) ?? null;
+    if (!availableCookie) throw new Error("All Instagram cookies are rate-limited — ScrapingBee also needs a cookie to scrape following lists. Wait ~2h or add more burner accounts in Settings.");
     const usernames = await scrapeFollowingViaScrapingBee({
       apiKey: sbKey,
       username,
       limit,
-      sessionCookie: cookiePool[0] || null,
+      sessionCookie: availableCookie,
     });
     return usernames.slice(0, limit).map((u) => ({
       username: u.toLowerCase(),

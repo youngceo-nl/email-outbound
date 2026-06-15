@@ -40,7 +40,9 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     include_keywords: csv(formData.get("include_keywords")),
     exclude_keywords: csv(formData.get("exclude_keywords")),
     following_scraper_provider: (() => {
-      const v = String(formData.get("following_scraper_provider") ?? "auto");
+      const raw = formData.get("following_scraper_provider");
+      if (raw == null) return prev.following_scraper_provider; // field not in form — keep DB value
+      const v = String(raw);
       return (["apify", "scrapingbee", "cookie", "auto"] as const).includes(v as never) ? (v as "apify" | "scrapingbee" | "cookie" | "auto") : "auto";
     })(),
     instagram_session_cookie: String(formData.get("instagram_session_cookie") ?? "") || null,
@@ -99,5 +101,27 @@ export async function removeBurnerCookie(index: number) {
   if (index < 0 || index >= cookies.length) return;
   cookies.splice(index, 1);
   await updateSettings({ instagram_session_cookies: cookies });
+  revalidatePath("/settings");
+}
+
+export async function addYtCookie(cookie: string) {
+  await requireUser();
+  const settings = await getSettings(true);
+  const trimmed = cookie.trim();
+  if (!trimmed) return { error: "Cookie is empty" };
+  const cookies = settings.yt_google_cookies ?? [];
+  if (cookies.includes(trimmed)) return { error: "Cookie already added" };
+  await updateSettings({ yt_google_cookies: [...cookies, trimmed] });
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function removeYtCookie(index: number) {
+  await requireUser();
+  const settings = await getSettings(true);
+  const cookies = [...(settings.yt_google_cookies ?? [])];
+  if (index < 0 || index >= cookies.length) return;
+  cookies.splice(index, 1);
+  await updateSettings({ yt_google_cookies: cookies });
   revalidatePath("/settings");
 }

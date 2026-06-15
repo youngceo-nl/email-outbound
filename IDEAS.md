@@ -1,5 +1,51 @@
 # Ideas Backlog
 
+## Instagram Burner Cookie Strategy (minimizing suspension risk)
+
+### Why accounts get suspended
+Instagram bans based on behavioral patterns, not just volume:
+- Too many API calls through one session in a short window
+- Calls coming from a server IP (not residential)
+- No natural pauses between requests (inhuman cadence)
+- Repeatedly fetching the same accounts
+- New accounts with zero organic activity
+
+### Volume math
+A typical scrape of 1 source account at 1000 profiles = ~20 batch API calls (50 accounts per page).
+10 source accounts = ~200 calls per full run.
+At 1 cookie: 200 calls through one session → high detection risk.
+At 5 cookies: ~40 calls each per run → much safer.
+At 10 cookies: ~20 calls each per run → very safe for daily runs.
+
+### Recommended pool size by usage
+
+| Sources scraping daily | Min cookies | Comfortable | Ideal |
+|---|---|---|---|
+| 1–3 sources | 2 | 3 | 5 |
+| 4–10 sources | 3 | 5 | 8 |
+| 10+ sources | 5 | 10 | 15+ |
+
+**Current setup:** we have 1 seed (joshsklein active) — 3 cookies is the minimum to start safely.
+
+### Account quality matters more than quantity
+- **New accounts** (<30 days old): higher ban rate, shorter cookie TTL (~7–14 days), more CAPTCHAs
+- **Aged accounts** (6+ months, some posts/follows): treated like real users, cookies last weeks, far lower ban rate
+- **Ratio:** better to have 3 aged accounts than 10 fresh ones
+
+### Practical rules
+1. Never scrape the same source twice within 2 hours on the same cookie — our 2h rate-limit TTL handles this
+2. Don't run all seeds simultaneously — stagger by 10–15 min between sources
+3. Add a small random delay (1–3s) between paginated batch calls — reduces inhuman cadence signal
+4. If an account gets a 401/403 (not just 429), retire that cookie immediately — it's flagged
+5. Each burner account should follow ~20–50 real accounts and have a profile pic to look human
+
+### Phase plan
+- **Now (testing):** 2–3 fresh accounts, expect occasional 429s, monitor for 401s
+- **Month 1:** Replace with 3–5 aged accounts (buy or grow organically)
+- **Long term:** 5–10 aged accounts, run on a remote server with residential proxies per cookie
+
+---
+
 ## Automated Seed Discovery
 
 **Concept:** Info operators are the best seed accounts (e.g. @joshsklein, @pierree) because they follow other info operators — which is exactly the ICP. Instead of manually adding seeds, automate finding them.

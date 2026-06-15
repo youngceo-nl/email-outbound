@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { toUsername, profileUrl } from "@/lib/pipeline/normalize";
 import { inngest } from "@/inngest/client";
 import { getSettings } from "@/lib/config/settings";
+import { serperSearch } from "@/lib/serper/client";
 
 async function requireUser() {
   const sb = await createClient();
@@ -19,6 +20,59 @@ function parseLimit(v: FormDataEntryValue | null): number | null {
   const n = Number(s);
   if (!Number.isFinite(n) || n <= 0) return null;
   return Math.floor(n);
+}
+
+// Reserved Instagram path segments that are NOT profile usernames
+const IG_RESERVED = new Set([
+  "p", "reel", "reels", "tv", "stories", "explore", "accounts",
+  "about", "help", "legal", "privacy", "safety", "press", "direct",
+  "directory", "login", "challenge", "oauth", "api",
+]);
+const IG_PROFILE_RE = /^https?:\/\/(www\.)?instagram\.com\/([a-zA-Z0-9_.]{1,30})\/?(\?.*)?$/;
+
+export type DiscoveredSeedResult = {
+  username: string;
+  snippet: string | null;
+  title: string | null;
+};
+
+export async function discoverSeeds(opts: { keywords: string }): Promise<
+  { results: DiscoveredSeedResult[] } | { error: string }
+> {
+  await requireUser();
+  const settings = await getSettings(true);
+  const apiKey = settings.serper_api_key || process.env.SERPER_API_KEY;
+  if (!apiKey) return { error: "Serper API key not configured — add it in Settings." };
+
+  const kwParts = opts.keywords
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean)
+    .map((k) => `"${k}"`);
+  if (kwParts.length === 0) return { error: "Enter at least one keyword." };
+
+  // Two complementary queries: one broad, one bio-focused
+  const base = `site:instagram.com ${kwParts.join(" OR ")}`;
+  const [r1, r2] = await Promise.all([
+    serperSearch({ apiKey, query: base, num: 20 }),
+    serperSearch({ apiKey, query: `${base} bio`, num: 10 }),
+  ]);
+
+  const seen = new Set<string>();
+  const results: DiscoveredSeedResult[] = [];
+
+  for (const r of [...r1.organic, ...r2.organic]) {
+    if (!r.link) continue;
+    const m = r.link.match(IG_PROFILE_RE);
+    if (!m) continue;
+    const username = m[2].toLowerCase();
+    if (IG_RESERVED.has(username)) continue;
+    if (seen.has(username)) continue;
+    seen.add(username);
+    results.push({ username, snippet: r.snippet ?? null, title: r.title ?? null });
+  }
+
+  return { results };
 }
 
 export async function addSeed(formData: FormData) {
@@ -85,7 +139,11 @@ export async function startCrawl(seed_id: string, providerOverride?: ScrapeProvi
 
   const apifyOk = !!(settings.apify_api_key || process.env.APIFY_TOKEN);
   const sbOk = !!(settings.scrapingbee_api_key || process.env.SCRAPINGBEE_API_KEY);
-  const cookieOk = !!(settings.instagram_session_cookie || process.env.INSTAGRAM_SESSION_COOKIE);
+  const cookieOk = !!(
+    (settings.instagram_session_cookies ?? []).length > 0 ||
+    settings.instagram_session_cookie ||
+    process.env.INSTAGRAM_SESSION_COOKIE
+  );
 
   if (provider === "apify" && !apifyOk)
     return { error: "Apify selected but no Apify API key is set." };

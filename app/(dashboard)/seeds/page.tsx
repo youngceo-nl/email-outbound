@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SeedManager } from "@/components/seeds/seed-manager";
 import { CrawlJobsList } from "@/components/seeds/crawl-jobs-list";
 import { BioCoverageCard } from "@/components/seeds/bio-coverage";
+import { SeedDiscovery } from "@/components/seeds/seed-discovery";
+import { SuggestedSeeds } from "@/components/seeds/suggested-seeds";
 import { getSettings } from "@/lib/config/settings";
 import { getBioCoverage } from "@/app/actions/backfill-bios";
 
@@ -18,7 +20,24 @@ export default async function SeedsPage() {
     getBioCoverage(),
   ]);
 
+  const existingUsernames = (seeds ?? []).map((s) => s.username);
+
+  // Qualified leads not already used as seeds, sorted by follower count — these
+  // are the highest-signal seed candidates since they've already passed scoring.
+  let candidateQuery = sb
+    .from("leads")
+    .select("username, profile_url, followers, overall_score, niche")
+    .eq("status", "qualified")
+    .not("followers", "is", null)
+    .order("followers", { ascending: false })
+    .limit(15);
+  if (existingUsernames.length > 0) {
+    candidateQuery = candidateQuery.not("username", "in", `(${existingUsernames.join(",")})`);
+  }
+  const { data: suggestedCandidates } = await candidateQuery;
+
   const cookieSet = !!(settings.instagram_session_cookie?.trim() || process.env.INSTAGRAM_SESSION_COOKIE?.trim());
+  const serperConfigured = !!(settings.serper_api_key?.trim() || process.env.SERPER_API_KEY?.trim());
 
   return (
     <div className="p-6 space-y-6">
@@ -44,6 +63,36 @@ export default async function SeedsPage() {
             seeds={seeds ?? []}
             jobs={jobs ?? []}
             defaultLimit={settings.max_profiles_per_account}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Suggested seed accounts</CardTitle>
+          <CardDescription>
+            Your highest-follower qualified leads — already ICP-vetted, so their following lists are likely full of peers.
+            This is the main growth loop: good leads become seeds that surface more good leads.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SuggestedSeeds candidates={suggestedCandidates ?? []} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Discover from Google</CardTitle>
+          <CardDescription>
+            Use this for cold start (no leads yet) or to branch into a new niche.
+            Searches Google for Instagram accounts mentioning your keywords — results are unvetted,
+            so check each one before adding. Once you have qualified leads above, prefer those instead.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SeedDiscovery
+            existingSeedUsernames={existingUsernames}
+            serperConfigured={serperConfigured}
           />
         </CardContent>
       </Card>

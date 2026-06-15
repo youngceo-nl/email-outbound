@@ -86,7 +86,14 @@ export async function enrichLeadPipeline(opts: {
   const settings = await getSettings();
   const serperKey = settings.serper_api_key || process.env.SERPER_API_KEY || "";
   const capsolverKey = settings.capsolver_api_key || process.env.CAPSOLVER_API_KEY || "";
-  let ytGoogleCookie = settings.yt_google_cookie || process.env.YT_GOOGLE_COOKIE || "";
+
+  // Build YT cookie pool: array field first, legacy single field + env var as fallback.
+  const ytCookiePool: string[] = [];
+  for (const c of settings.yt_google_cookies ?? []) { if (c.trim()) ytCookiePool.push(c.trim()); }
+  const legacySingle = (settings.yt_google_cookie || process.env.YT_GOOGLE_COOKIE || "").trim();
+  if (legacySingle && !ytCookiePool.includes(legacySingle)) ytCookiePool.push(legacySingle);
+
+  let ytGoogleCookie = ytCookiePool[0] ?? "";
 
   const username = (lead.username as string | null) ?? null;
   let externalLink = (lead.external_link as string | null) ?? null;
