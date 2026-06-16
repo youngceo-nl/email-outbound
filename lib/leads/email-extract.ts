@@ -16,13 +16,48 @@ const NOISE_DOMAINS = [
 ];
 const NOISE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"];
 
+// Well-known placeholder / demo addresses that appear in UI screenshots, docs, etc.
+const PLACEHOLDER_ADDRESSES = new Set([
+  "johnappleseed@gmail.com",
+  "john@appleseed.com",
+  "test@test.com",
+  "test@example.com",
+  "user@example.com",
+  "email@example.com",
+  "hello@example.com",
+  "info@example.com",
+]);
+
+// Real TLDs are almost always ≤ 6 chars (.com, .io, .co.uk, .photography is 11 but rare).
+// Anything longer than 13 chars is almost certainly a concatenated word like "comcopyright".
+const MAX_TLD_LEN = 13;
+
 function isPlausible(email: string): boolean {
   const lower = email.toLowerCase();
+
   if (NOISE_EXTENSIONS.some((ext) => lower.endsWith(ext))) return false;
-  const domain = lower.slice(lower.indexOf("@") + 1);
-  if (NOISE_DOMAINS.some((d) => domain === d || domain.endsWith("." + d))) return false;
-  // Guard against version/sprite tokens like "icon@2x" that slipped past the ext check.
+  if (PLACEHOLDER_ADDRESSES.has(lower)) return false;
+
+  // Guard against version/sprite tokens like "icon@2x".
   if (/@\d+x$/.test(lower)) return false;
+
+  const atIdx = lower.indexOf("@");
+  const local = lower.slice(0, atIdx);
+  const domain = lower.slice(atIdx + 1);
+
+  // Local part starting with digits → almost always a phone-number prefix
+  // concatenated with the real email (e.g. "385-506-2827sales@…").
+  if (/^\d/.test(local)) return false;
+
+  // Local part too long — real email handles are rarely > 40 chars.
+  if (local.length > 40) return false;
+
+  if (NOISE_DOMAINS.some((d) => domain === d || domain.endsWith("." + d))) return false;
+
+  // TLD (last label after the final dot) must not look like a concatenated word.
+  const tld = domain.slice(domain.lastIndexOf(".") + 1);
+  if (tld.length > MAX_TLD_LEN) return false;
+
   return true;
 }
 

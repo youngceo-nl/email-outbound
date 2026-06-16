@@ -19,6 +19,7 @@ import { formatNumber, formatPct, scoreColor } from "@/lib/utils";
 import { buildKeywordOr } from "@/lib/leads/keyword-filter";
 import { statusLabel } from "@/lib/labels";
 import { Download, Upload, ChevronLeft, ChevronRight, ExternalLink, Youtube, Linkedin } from "lucide-react";
+import { RetryFunnelButton } from "@/components/leads/retry-funnel-button";
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 50;
@@ -111,6 +112,15 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   const exportHref = `/api/leads/export?${new URLSearchParams(sp as Record<string, string>).toString()}`;
 
+  // Count leads that have email but no program name — shown as hint to re-enrich
+  const { count: missingProgramNames } = await sb
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "qualified")
+    .not("email", "is", null)
+    .is("funnel_program_name", null)
+    .not("external_link", "is", null);
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-end justify-between gap-4">
@@ -118,7 +128,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
           <p className="text-sm text-muted-foreground">{formatNumber(total)} total · page {page} of {totalPages}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {(missingProgramNames ?? 0) > 0 && (
+            <RetryFunnelButton missingCount={missingProgramNames ?? 0} />
+          )}
           <AddLeadButton />
           <CsvImportButton />
           <ColumnVisibility />

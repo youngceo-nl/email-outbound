@@ -3,6 +3,7 @@ import { ExternalLink, Youtube, Linkedin, Mail } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChurnActions } from "@/components/leads/churn-actions";
+import { RetryChurnButton } from "@/components/leads/retry-churn-button";
 import { formatNumber } from "@/lib/utils";
 import { scoreColor } from "@/lib/utils";
 import type { Lead } from "@/lib/types";
@@ -26,6 +27,7 @@ export default async function ChurnPage() {
 
   return (
     <div className="p-6 space-y-6">
+      <div className="flex items-start justify-between gap-4">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Churn Bucket</h1>
         <p className="text-sm text-muted-foreground max-w-2xl">
@@ -34,6 +36,8 @@ export default async function ChurnPage() {
           their profile page and they'll leave this list automatically. If you've tried and can't find
           anything, hit <strong>Dismiss</strong> to clear them out.
         </p>
+      </div>
+      <RetryChurnButton total={rows.length} />
       </div>
 
       {rows.length === 0 ? (

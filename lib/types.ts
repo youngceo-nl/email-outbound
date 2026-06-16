@@ -1,6 +1,21 @@
 // Shared TypeScript types — kept thin and aligned with the SQL schema.
 
 export type LeadStatus = "qualified" | "review" | "rejected" | "pending";
+
+// A cookie account managed by the system: credentials are stored so the auto-
+// refresh cron can re-login without user input. Passwords never leave the server.
+export type ManagedAccount = {
+  id: string;
+  label: string;          // Instagram username OR Google email — display + login identifier
+  password: string;       // server-only: stored for automated re-login
+  totp_secret: string | null; // server-only
+  cookie: string | null;
+  cookie_set_at: string | null; // ISO timestamp of last successful login
+  last_error: string | null;
+};
+
+// Password-stripped view sent to client components.
+export type ManagedAccountDisplay = Omit<ManagedAccount, "password" | "totp_secret">;
 export type ActivityStatus = "very_active" | "active" | "semi_active" | "inactive";
 export type CrawlJobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
@@ -53,6 +68,9 @@ export type AppSettings = {
   yt_google_email: string | null;
   yt_google_password: string | null;
   yt_google_totp_secret: string | null;
+  // Multi-account managed cookies (credentials stored for auto-refresh)
+  instagram_accounts: ManagedAccount[];
+  yt_accounts: ManagedAccount[];
   updated_at: string;
 };
 

@@ -1,5 +1,5 @@
 "use client";
-import { useTransition, useState, useEffect, useCallback } from "react";
+import { useTransition, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,17 +8,39 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { AlertTriangle } from "lucide-react";
-import { saveSettings } from "@/app/actions/settings";
+import { saveSettings, removeManagedAccount } from "@/app/actions/settings";
 import { BurnerCookieManager } from "@/components/settings/burner-cookie-manager";
 import { YtCookieManager } from "@/components/settings/yt-cookie-manager";
-import type { AppSettings } from "@/lib/types";
+import { ManagedAccountManager } from "@/components/settings/managed-account-manager";
+import type { AppSettings, ManagedAccountDisplay } from "@/lib/types";
+import type { CookieLiveness } from "@/lib/youtube/refresh-cookie";
 
-export function SettingsForm({ initial }: { initial: AppSettings }) {
+export function SettingsForm({
+  initial,
+  ytCookieLiveness = [],
+  igAccounts = [],
+  ytAccounts = [],
+}: {
+  initial: AppSettings;
+  ytCookieLiveness?: CookieLiveness[];
+  igAccounts?: ManagedAccountDisplay[];
+  ytAccounts?: ManagedAccountDisplay[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [isDirty, setIsDirty] = useState(false);
+  // Tracks account IDs queued for deletion — committed on Save, cleared on Discard.
+  const pendingDeletes = useRef<Array<{ platform: "instagram" | "youtube"; id: string }>>([]);
+  // Incrementing these keys forces ManagedAccountManager to remount (resetting local state) on Discard.
+  const [igResetKey, setIgResetKey] = useState(0);
+  const [ytResetKey, setYtResetKey] = useState(0);
 
   const markDirty = useCallback(() => setIsDirty(true), []);
+
+  const addPendingDelete = useCallback((platform: "instagram" | "youtube", id: string) => {
+    pendingDeletes.current.push({ platform, id });
+    markDirty();
+  }, [markDirty]);
 
   // Warn on browser-level navigation (tab close, refresh, URL change)
   useEffect(() => {
@@ -35,6 +57,10 @@ export function SettingsForm({ initial }: { initial: AppSettings }) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     startTransition(async () => {
+      const deletes = pendingDeletes.current.splice(0);
+      for (const { platform, id } of deletes) {
+        await removeManagedAccount(platform, id);
+      }
       await saveSettings(initial, fd);
       setIsDirty(false);
       router.refresh();
@@ -73,15 +99,32 @@ export function SettingsForm({ initial }: { initial: AppSettings }) {
           <CardHeader><CardTitle>Cookie management</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <p className="text-sm font-medium">Instagram cookies</p>
-              <p className="text-xs text-muted-foreground">Burner accounts used to scrape following lists. The scraper rotates automatically when one gets rate-limited.</p>
+              <p className="text-sm font-medium">Instagram accounts</p>
+              <p className="text-xs text-muted-foreground">
+                Add burner Instagram accounts. The system logs in automatically and keeps the cookie fresh — the scraper rotates between accounts when one gets rate-limited.
+              </p>
+              <ManagedAccountManager key={igResetKey} platform="instagram" accounts={igAccounts} onPendingDelete={(id) => addPendingDelete("instagram", id)} />
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Instagram cookies (manual)</p>
+              <p className="text-xs text-muted-foreground">Or paste a cookie directly. Used as fallback if no managed accounts are set.</p>
               <BurnerCookieManager cookies={initial.instagram_session_cookies ?? []} />
             </div>
             <Separator />
             <div className="space-y-2">
-              <p className="text-sm font-medium">YouTube cookies</p>
-              <p className="text-xs text-muted-foreground">Logged-in Google accounts used to scrape About pages and reveal gated business emails. Rotates when one expires.</p>
-              <YtCookieManager cookies={initial.yt_google_cookies ?? []} />
+              <p className="text-sm font-medium">YouTube accounts</p>
+              <p className="text-xs text-muted-foreground">
+                Add Google/YouTube accounts for email reveal. The system logs in automatically and keeps the cookie fresh.
+                Use dedicated burner accounts, not your personal Google account.
+              </p>
+              <ManagedAccountManager key={ytResetKey} platform="youtube" accounts={ytAccounts} onPendingDelete={(id) => addPendingDelete("youtube", id)} />
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <p className="text-sm font-medium">YouTube cookies (manual)</p>
+              <p className="text-xs text-muted-foreground">Or paste a cookie manually. Only needed if no managed accounts are configured.</p>
+              <YtCookieManager cookies={initial.yt_google_cookies ?? []} liveness={ytCookieLiveness} />
             </div>
           </CardContent>
         </Card>
@@ -195,7 +238,13 @@ export function SettingsForm({ initial }: { initial: AppSettings }) {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => { setIsDirty(false); router.refresh(); }}
+                onClick={() => {
+                  pendingDeletes.current = [];
+                  setIgResetKey((k) => k + 1);
+                  setYtResetKey((k) => k + 1);
+                  setIsDirty(false);
+                  router.refresh();
+                }}
               >
                 Discard
               </Button>

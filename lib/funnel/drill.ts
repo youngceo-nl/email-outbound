@@ -120,6 +120,19 @@ export function pickBestFunnelLink(opts: {
     }
   }
 
+  // Supplement with links embedded in __NEXT_DATA__ (Linktree, Beacons, etc.)
+  for (const href of extractNextDataLinks(opts.html, opts.aggregatorUrl)) {
+    const linkHost = parseHost(href);
+    if (!linkHost || linkHost === host) continue;
+    if (NOISE_HOSTS.some((n) => linkHost === n || linkHost.endsWith(`.${n}`))) continue;
+    const lowerHref = href.toLowerCase();
+    let score = 2; // inherently interesting (came from JSON data, not nav)
+    if (VSL_KEYWORDS_PATH.some((k) => lowerHref.includes(k))) score += 4;
+    const existing = seen.get(href);
+    if (existing) { existing.score += 2; existing.reasons.push("nextdata"); }
+    else seen.set(href, { href, text: "", score, reasons: ["nextdata"] });
+  }
+
   const ranked = [...seen.values()].sort((a, b) => b.score - a.score);
   if (ranked.length === 0) return null;
   if (ranked[0].score <= 0) return null;
@@ -139,5 +152,40 @@ function absolutize(href: string, base: string): string | null {
     return new URL(href, base).toString();
   } catch {
     return null;
+  }
+}
+
+// Extract external URLs from Next.js / React embedded JSON (__NEXT_DATA__, etc.)
+function extractNextDataLinks(html: string, baseUrl: string): string[] {
+  const results: string[] = [];
+  // Match __NEXT_DATA__ or similar JSON script tags
+  const m = html.match(/<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (!m) return results;
+  try {
+    const data = JSON.parse(m[1]);
+    // Recursively pull out all string values that look like https:// URLs
+    collectUrls(data, results, baseUrl);
+  } catch {
+    // ignore parse errors
+  }
+  return [...new Set(results)];
+}
+
+function collectUrls(node: unknown, out: string[], base: string, depth = 0): void {
+  if (depth > 8) return;
+  if (typeof node === "string") {
+    if (/^https?:\/\//i.test(node) && !node.includes("linktree") && !node.includes("beacons")) {
+      out.push(node);
+    }
+    return;
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) collectUrls(item, out, base, depth + 1);
+    return;
+  }
+  if (node && typeof node === "object") {
+    for (const val of Object.values(node as Record<string, unknown>)) {
+      collectUrls(val, out, base, depth + 1);
+    }
   }
 }

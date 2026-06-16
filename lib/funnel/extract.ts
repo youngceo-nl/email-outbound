@@ -22,8 +22,9 @@ export function extractFunnel(opts: { html: string; platform: string }): FunnelE
   const docTitle = ($("title").first().text() || "").trim() || null;
   const h1 = ($("h1").first().text() || "").replace(/\s+/g, " ").trim() || null;
   const h2 = ($("h2").first().text() || "").replace(/\s+/g, " ").trim() || null;
+  const footerName = extractFooterCopyrightName($);
 
-  const program_name = pickBest([ogTitle, h1, docTitle, h2], opts.platform);
+  const program_name = pickBest([ogTitle, h1, docTitle, h2, footerName], opts.platform);
   const offer_summary = firstNonEmpty([ogDesc, metaDesc, h2]);
   const price = extractPrice($);
 
@@ -69,4 +70,20 @@ function extractPrice($: cheerio.CheerioAPI): string | null {
 function bodyText($: cheerio.CheerioAPI): string {
   $("script, style, noscript, svg, nav, footer").remove();
   return ($("body").text() || "").replace(/\s+/g, " ").trim();
+}
+
+// Looks for "© 2024 Program Name" in the page footer.
+function extractFooterCopyrightName($: cheerio.CheerioAPI): string | null {
+  const footerEl = $("footer, [class*='footer'], [id*='footer'], [class*='Footer'], [id*='Footer']").first();
+  const raw = footerEl.length
+    ? footerEl.text()
+    : $("body").text().slice(-2000); // fallback: bottom of body text
+  const text = raw.replace(/\s+/g, " ").trim();
+
+  // Match: © [year[-year]] Name [LLC|Inc.|Ltd.|All rights|…]
+  const m = text.match(/©\s*(?:\d{4}(?:[-–]\d{2,4})?\s+)?([A-Za-z0-9 &'.,-]{3,60}?)(?:\s+(?:LLC|Inc\.|Ltd\.|All rights|Privacy|Terms|\|)|\s*\.?\s*$)/);
+  if (!m) return null;
+  const name = m[1].trim().replace(/\.$/, "").trim();
+  if (name.length < 3 || name.length > 60) return null;
+  return name;
 }

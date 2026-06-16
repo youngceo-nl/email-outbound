@@ -143,6 +143,79 @@ export async function importLeadsFromCsv(rows: CsvImportRow[]): Promise<CsvImpor
 
 // ─── Churn bucket actions ─────────────────────────────────────────────────────
 
+export async function retryChurnEnrichment(
+  limit = 50,
+): Promise<{ ok: boolean; queued: number; ids: string[]; startedAt: string; error?: string }> {
+  await requireUser();
+  const sb = createAdminClient();
+  const { data, error } = await sb
+    .from("leads")
+    .select("id")
+    .eq("status", "qualified")
+    .is("email", null)
+    .not("enriched_at", "is", null)
+    .eq("outreach_count", 0)
+    .order("overall_score", { ascending: false })
+    .limit(limit);
+  if (error) return { ok: false, queued: 0, ids: [], startedAt: "", error: error.message };
+  const ids = (data ?? []).map((r) => r.id as string);
+  if (!ids.length) return { ok: true, queued: 0, ids: [], startedAt: "" };
+  const startedAt = new Date().toISOString();
+  const { enrichLeadsBulk } = await import("@/app/actions/enrich");
+  const result = await enrichLeadsBulk(ids);
+  revalidatePath("/churn");
+  return { ...result, ids, startedAt };
+}
+
+export async function getChurnRetryProgress(
+  leadIds: string[],
+  since: string,
+): Promise<{ done: number; total: number; foundEmail: number }> {
+  await requireUser();
+  const sb = createAdminClient();
+  const { data } = await sb
+    .from("leads")
+    .select("id, email, enriched_at")
+    .in("id", leadIds)
+    .gte("enriched_at", since);
+  const done = (data ?? []).length;
+  const foundEmail = (data ?? []).filter((r) => r.email).length;
+  return { done, total: leadIds.length, foundEmail };
+}
+
+// Re-enrich funnel (program name) for all leads that have an email but no program name.
+// Uses the free pipeline (raw fetch + domain parse) — safe to run even when ScrapingBee quota is exhausted.
+export async function retryFunnelEnrichment(
+  limit = 50,
+): Promise<{ ok: boolean; queued: number; results: Array<{ username: string; program_name: string | null; error: string | null }> }> {
+  await requireUser();
+  const sb = createAdminClient();
+  const { data, error } = await sb
+    .from("leads")
+    .select("id, username, external_link")
+    .eq("status", "qualified")
+    .not("email", "is", null)
+    .is("funnel_program_name", null)
+    .not("external_link", "is", null)
+    .order("overall_score", { ascending: false })
+    .limit(limit);
+  if (error) return { ok: false, queued: 0, results: [] };
+  const rows = (data ?? []) as Array<{ id: string; username: string; external_link: string }>;
+  if (!rows.length) return { ok: true, queued: 0, results: [] };
+
+  const { enrichFunnelForLead } = await import("@/lib/funnel/enrich");
+
+  const results: Array<{ username: string; program_name: string | null; error: string | null }> = [];
+  for (const row of rows) {
+    const r = await enrichFunnelForLead({ leadId: row.id, externalLink: row.external_link });
+    results.push({ username: row.username, program_name: r.funnel_program_name, error: r.error });
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/churn");
+  return { ok: true, queued: rows.length, results };
+}
+
 export async function recordManualOutreach(leadId: string): Promise<{ ok: boolean; error?: string }> {
   await requireUser();
   const sb = createAdminClient();

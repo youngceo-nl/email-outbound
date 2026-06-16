@@ -8,8 +8,9 @@ import { enrichEmail } from "@/inngest/functions/enrich-email";
 import { backfillMetadata } from "@/inngest/functions/backfill-metadata";
 import { scoreLead } from "@/inngest/functions/score-lead";
 import { refreshYtCookie } from "@/inngest/functions/refresh-yt-cookie";
+import { refreshIgCookies } from "@/inngest/functions/refresh-ig-cookies";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [crawlSeed, processProfile, recurseFollowing, enrichFunnel, enrichEmail, backfillMetadata, scoreLead, refreshYtCookie],
+  functions: [crawlSeed, processProfile, recurseFollowing, enrichFunnel, enrichEmail, backfillMetadata, scoreLead, refreshYtCookie, refreshIgCookies],
 });

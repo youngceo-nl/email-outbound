@@ -1,5 +1,5 @@
-import crypto from "node:crypto";
 import { connectBrowser } from "@/lib/browser/connect";
+import { generateTotp } from "@/lib/totp";
 import type { AppSettings } from "@/lib/types";
 
 // Auto-refreshes the logged-in Google cookie used to read/reveal YouTube
@@ -330,37 +330,43 @@ function buildCookieHeader(cookies: Array<{ name: string; value: string }>): str
   return [...byName.entries()].map(([n, v]) => `${n}=${v}`).join("; ");
 }
 
-// ── TOTP (RFC 6238) via node crypto — no extra dependency ────────────────────
-function generateTotp(secret: string, atMs = Date.now()): string {
-  const key = base32Decode(secret);
-  const counter = Math.floor(atMs / 1000 / 30);
-  const buf = Buffer.alloc(8);
-  buf.writeBigUInt64BE(BigInt(counter));
-  const hmac = crypto.createHmac("sha1", key).update(buf).digest();
-  const offset = hmac[hmac.length - 1] & 0xf;
-  const code =
-    ((hmac[offset] & 0x7f) << 24) |
-    ((hmac[offset + 1] & 0xff) << 16) |
-    ((hmac[offset + 2] & 0xff) << 8) |
-    (hmac[offset + 3] & 0xff);
-  return (code % 1_000_000).toString().padStart(6, "0");
-}
+/**
+ * Iterates all entries in `app_settings.yt_accounts` and re-mints each cookie.
+ * Called by the Inngest cron so accounts stay fresh without user interaction.
+ */
+export async function refreshAllYtAccounts(): Promise<{ refreshed: number; failed: number }> {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const sb = createAdminClient();
+  const { data: row } = await sb.from("app_settings").select("yt_accounts").eq("id", 1).single();
+  const accounts: Array<{
+    id: string; label: string; password: string; totp_secret: string | null;
+    cookie: string | null; cookie_set_at: string | null; last_error: string | null;
+  }> = (row as { yt_accounts?: unknown })?.yt_accounts as typeof accounts ?? [];
 
-function base32Decode(input: string): Buffer {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  const clean = input.replace(/=+$/, "").replace(/\s/g, "").toUpperCase();
-  let bits = 0;
-  let value = 0;
-  const out: number[] = [];
-  for (const ch of clean) {
-    const idx = alphabet.indexOf(ch);
-    if (idx === -1) throw new Error("YT_GOOGLE_TOTP_SECRET is not valid base32");
-    value = (value << 5) | idx;
-    bits += 5;
-    if (bits >= 8) {
-      out.push((value >>> (bits - 8)) & 0xff);
-      bits -= 8;
+  if (!accounts.length) return { refreshed: 0, failed: 0 };
+
+  let refreshed = 0;
+  let failed = 0;
+  const updated = [...accounts];
+
+  for (let i = 0; i < updated.length; i++) {
+    const account = updated[i];
+    if (!account.password) { failed++; continue; }
+    try {
+      const cookie = await loginAndExtractCookie({
+        email: account.label,
+        password: account.password,
+        totpSecret: account.totp_secret,
+      });
+      updated[i] = { ...account, cookie, cookie_set_at: new Date().toISOString(), last_error: null };
+      refreshed++;
+    } catch (err) {
+      updated[i] = { ...account, last_error: err instanceof Error ? err.message : String(err) };
+      failed++;
     }
   }
-  return Buffer.from(out);
+
+  await sb.from("app_settings").update({ yt_accounts: updated }).eq("id", 1);
+  return { refreshed, failed };
 }
+

@@ -153,6 +153,19 @@ Een LinkedIn email finder API
 
 ---
 
+## Unified account-based cookie management (Instagram + YouTube)
+
+Both Instagram and YouTube cookie management should follow the same pattern:
+
+- User enters account credentials (email/username + password, optionally TOTP secret) for one or more accounts
+- The system logs in automatically, catches the resulting cookie, and displays it in the corresponding cookie box — so the user can always see which cookie is active for each account
+- If a cookie expires or gets invalidated, it is refreshed automatically in the background without manual intervention
+- A manual cookie option stays available as a fallback (paste a raw cookie directly)
+
+This applies to both Instagram burner accounts and YouTube/Google accounts.
+
+---
+
 ## YouTube Google Account Strategy (for cookie-based email reveal)
 
 **Context:** The headless Chromium + CapSolver flow needs a logged-in Google/YouTube session cookie. The quality of that account affects how long the cookie stays valid and whether YouTube flags the scraping activity.

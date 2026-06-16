@@ -22,17 +22,19 @@ export default async function SeedHistoryPage() {
   const sb = createAdminClient();
   const settings = await getSettings();
 
-  // All distinct seed usernames ever used, with lead counts
+  // All distinct seed usernames ever used, with lead counts and last-used timestamp
   const { data: rows } = await sb
     .from("leads")
-    .select("parent_username")
+    .select("parent_username, created_at")
     .not("parent_username", "is", null);
 
   const countMap = new Map<string, number>();
+  const lastUsedMap = new Map<string, string>(); // username → ISO date of most recent lead
   for (const r of rows ?? []) {
-    if (r.parent_username) {
-      countMap.set(r.parent_username, (countMap.get(r.parent_username) ?? 0) + 1);
-    }
+    if (!r.parent_username) continue;
+    countMap.set(r.parent_username, (countMap.get(r.parent_username) ?? 0) + 1);
+    const prev = lastUsedMap.get(r.parent_username);
+    if (!prev || r.created_at > prev) lastUsedMap.set(r.parent_username, r.created_at);
   }
 
   // Current seeds so we can show which are already active, get their IDs, and check exhaustion
@@ -56,7 +58,11 @@ export default async function SeedHistoryPage() {
   }
 
   const history = Array.from(countMap.entries())
-    .sort((a, b) => b[1] - a[1])
+    .sort(([a], [b]) => {
+      const ta = lastUsedMap.get(a) ?? "";
+      const tb = lastUsedMap.get(b) ?? "";
+      return tb.localeCompare(ta); // most recently used first
+    })
     .map(([username, leadCount]) => {
       const seed = activeSeedMap.get(username);
       const latestJob = seed ? latestJobBySeed.get(seed.id) : null;

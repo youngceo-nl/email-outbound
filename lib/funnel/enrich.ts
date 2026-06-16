@@ -6,6 +6,8 @@ import { classifyFunnel } from "./classify";
 import { pickBestFunnelLink } from "./drill";
 import { extractFunnel } from "./extract";
 import { llmExtractFunnel } from "./llm-extract";
+import { freeFetchPage } from "./free-fetch";
+import { extractProgramNameFromUrl } from "./program-name-from-url";
 
 export type FunnelEnrichmentResult = {
   ok: boolean;
@@ -17,22 +19,49 @@ export type FunnelEnrichmentResult = {
   error: string | null;
 };
 
+type FunnelData = {
+  funnel_url: string;
+  funnel_platform: string;
+  program: { program_name: string | null; offer_summary: string | null; price: string | null };
+  error: string | null;
+};
+
 export async function enrichFunnelForLead(opts: {
   leadId: string;
   externalLink: string;
 }): Promise<FunnelEnrichmentResult> {
-  const settings = await getSettings();
-  const apiKey = settings.scrapingbee_api_key || process.env.SCRAPINGBEE_API_KEY || "";
-  if (!apiKey) {
-    return persistError(opts.leadId, "ScrapingBee API key not configured");
-  }
+  // Step 1: domain/URL-based name — instant, zero cost
+  const domainName = extractProgramNameFromUrl(opts.externalLink);
 
   try {
-    // 1. Fetch entry URL
+    // Step 2: free raw HTTP fetch (no ScrapingBee credits)
+    const freeResult = await tryFreeTier(opts.externalLink, domainName);
+    if (freeResult) {
+      return persistResult({ leadId: opts.leadId, ...freeResult });
+    }
+
+    // Step 3: ScrapingBee (JS rendering, behind Cloudflare, etc.)
+    const settings = await getSettings();
+    const apiKey = settings.scrapingbee_api_key || process.env.SCRAPINGBEE_API_KEY || "";
+
+    if (!apiKey) {
+      // Last resort: save whatever we extracted from the URL
+      if (domainName) {
+        return persistResult({
+          leadId: opts.leadId,
+          funnel_url: opts.externalLink,
+          funnel_platform: "unknown",
+          program: { program_name: domainName, offer_summary: null, price: null },
+          error: null,
+        });
+      }
+      return persistError(opts.leadId, "ScrapingBee API key not configured");
+    }
+
+    // --- ScrapingBee path ---
     const entry = await fetchFunnelPage({ apiKey, url: opts.externalLink });
     const entryClass = classifyFunnel({ url: entry.finalUrl, html: entry.html });
 
-    // 2. If aggregator, drill to the best free-course/VSL link
     let pageUrl = entry.finalUrl;
     let pageHtml = entry.html;
     let platform = entryClass.platform;
@@ -44,7 +73,7 @@ export async function enrichFunnelForLead(opts: {
           leadId: opts.leadId,
           funnel_url: entry.finalUrl,
           funnel_platform: entryClass.platform,
-          program: { program_name: null, offer_summary: null, price: null },
+          program: { program_name: domainName, offer_summary: null, price: null },
           error: "no_drill_candidate",
         });
       }
@@ -54,10 +83,8 @@ export async function enrichFunnelForLead(opts: {
       platform = classifyFunnel({ url: drilled.finalUrl, html: drilled.html }).platform;
     }
 
-    // 3. Cheap extractor
     const cheap = extractFunnel({ html: pageHtml, platform });
-
-    let program_name = cheap.program_name;
+    let program_name = cheap.program_name ?? domainName;
     let offer_summary = cheap.offer_summary;
     let price = cheap.price;
 
@@ -77,7 +104,6 @@ export async function enrichFunnelForLead(opts: {
           price = extraction.price ?? price;
         }
       } catch (err) {
-        // LLM is best-effort; persist whatever the cheap extractor found.
         const msg = err instanceof Error ? err.message : String(err);
         return persistResult({
           leadId: opts.leadId,
@@ -98,8 +124,96 @@ export async function enrichFunnelForLead(opts: {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    // On any hard error, still persist a domain name if we have one
+    if (domainName) {
+      return persistResult({
+        leadId: opts.leadId,
+        funnel_url: opts.externalLink,
+        funnel_platform: "unknown",
+        program: { program_name: domainName, offer_summary: null, price: null },
+        error: msg.slice(0, 400),
+      });
+    }
     return persistError(opts.leadId, msg);
   }
+}
+
+// Attempts to enrich using only free HTTP fetches (no ScrapingBee).
+// Returns a FunnelData object if we got something useful, null otherwise.
+async function tryFreeTier(
+  externalLink: string,
+  domainFallback: string | null,
+): Promise<FunnelData | null> {
+  const fetched = await freeFetchPage(externalLink);
+  if (!fetched) return null;
+
+  const classify = classifyFunnel({ url: fetched.finalUrl, html: fetched.html });
+
+  if (!classify.isAggregator) {
+    return extractFromPage(fetched.finalUrl, fetched.html, classify.platform, domainFallback);
+  }
+
+  // Aggregator: try drilling to a child link first
+  const childUrl = pickBestFunnelLink({ aggregatorUrl: fetched.finalUrl, html: fetched.html });
+  if (childUrl) {
+    const childFetched = await freeFetchPage(childUrl);
+    if (childFetched) {
+      const childClassify = classifyFunnel({ url: childFetched.finalUrl, html: childFetched.html });
+      const childDomainName = extractProgramNameFromUrl(childFetched.finalUrl);
+      const childResult = extractFromPage(
+        childFetched.finalUrl,
+        childFetched.html,
+        childClassify.platform,
+        childDomainName ?? domainFallback,
+      );
+      if (childResult) return childResult;
+    }
+  }
+
+  // No good child — extract from the aggregator page itself (person/brand name from og:title)
+  const aggResult = extractFromPage(fetched.finalUrl, fetched.html, classify.platform, domainFallback);
+  if (aggResult?.program.program_name) {
+    const cleaned = cleanAggregatorTitle(aggResult.program.program_name);
+    if (cleaned) {
+      aggResult.program.program_name = cleaned;
+      return aggResult;
+    }
+  }
+
+  return null;
+}
+
+// Strips common aggregator platform suffixes from og:title values.
+// e.g. "Christa Miller (@clynn69) | Stan" → "Christa Miller"
+// e.g. "thehouserealty Official: TikTok, Instagram | Linktree" → "thehouserealty"
+function cleanAggregatorTitle(title: string): string | null {
+  const cleaned = title
+    .replace(/\s*Official:\s*.+$/i, "")
+    .replace(/\s*\|\s*(Linktree|Stan|Beacons?|Whop|Bio\.link|Campsite)\s*$/i, "")
+    .replace(/\s*\(@[^)]+\)\s*/g, "")
+    .trim();
+  if (cleaned.length < 3 || cleaned === title.trim()) return cleaned.length >= 3 ? cleaned : null;
+  return cleaned;
+}
+
+function extractFromPage(
+  url: string,
+  html: string,
+  platform: string,
+  domainFallback: string | null,
+): FunnelData | null {
+  const cheap = extractFunnel({ html, platform });
+  const program_name = cheap.program_name ?? domainFallback;
+
+  // Return something useful if we have at least a name or a summary
+  if (!program_name && !cheap.offer_summary) return null;
+
+  return {
+    funnel_url: url,
+    funnel_platform: platform,
+    program: { program_name, offer_summary: cheap.offer_summary, price: cheap.price },
+    error: null,
+  };
 }
 
 async function persistResult(args: {

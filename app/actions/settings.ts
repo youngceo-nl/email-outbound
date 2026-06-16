@@ -1,8 +1,9 @@
 "use server";
+import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getSettings, updateSettings } from "@/lib/config/settings";
-import type { AppSettings } from "@/lib/types";
+import type { AppSettings, ManagedAccount } from "@/lib/types";
 
 async function requireUser() {
   const sb = await createClient();
@@ -124,4 +125,164 @@ export async function removeYtCookie(index: number) {
   cookies.splice(index, 1);
   await updateSettings({ yt_google_cookies: cookies });
   revalidatePath("/settings");
+}
+
+export async function refreshYtCookieNow(creds?: {
+  email?: string;
+  password?: string;
+  totpSecret?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+
+  // When the caller supplies credentials directly (from the form fields),
+  // save them to DB first and then drive the login directly — this bypasses
+  // the in-memory cooldown that throttles background/cron refreshes, which is
+  // the right behaviour for an explicit user-initiated "Login now" click.
+  if (creds?.email && creds?.password) {
+    try {
+      await updateSettings({
+        yt_google_email: creds.email,
+        yt_google_password: creds.password,
+        yt_google_totp_secret: creds.totpSecret || null,
+      });
+    } catch {
+      // columns not present yet — ignore
+    }
+    const { loginAndExtractCookie } = await import("@/lib/youtube/refresh-cookie");
+    try {
+      const sb = (await import("@/lib/supabase/admin")).createAdminClient();
+      const cookie = await loginAndExtractCookie({
+        email: creds.email,
+        password: creds.password,
+        totpSecret: creds.totpSecret || null,
+      });
+      await sb.from("app_settings").update({ yt_google_cookie: cookie }).eq("id", 1);
+      revalidatePath("/settings");
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  // No creds in the call — fall back to the standard refresh that reads from DB.
+  const { refreshAndSaveYoutubeCookie } = await import("@/lib/youtube/refresh-cookie");
+  const result = await refreshAndSaveYoutubeCookie();
+  if (result.cookie) {
+    revalidatePath("/settings");
+    return { ok: true };
+  }
+  return { ok: false, error: result.error ?? "Login failed" };
+}
+
+// ── Managed account CRUD (Instagram + YouTube) ────────────────────────────────
+
+type Platform = "instagram" | "youtube";
+
+function accountsKey(platform: Platform): "instagram_accounts" | "yt_accounts" {
+  return platform === "instagram" ? "instagram_accounts" : "yt_accounts";
+}
+
+async function loginManaged(platform: Platform, account: ManagedAccount): Promise<string> {
+  if (platform === "instagram") {
+    const { loginInstagramPlaywright } = await import("@/lib/instagram/login-playwright");
+    return loginInstagramPlaywright({
+      username: account.label,
+      password: account.password,
+      totp_secret: account.totp_secret,
+    });
+  }
+  const { loginAndExtractCookie } = await import("@/lib/youtube/refresh-cookie");
+  return loginAndExtractCookie({
+    email: account.label,
+    password: account.password,
+    totpSecret: account.totp_secret,
+  });
+}
+
+export async function addManagedAccount(
+  platform: Platform,
+  data: { label: string; password: string; totp_secret?: string },
+): Promise<{ ok?: true; error?: string }> {
+  await requireUser();
+  const settings = await getSettings(true);
+  const key = accountsKey(platform);
+  const accounts: ManagedAccount[] = (settings[key] as ManagedAccount[]) ?? [];
+
+  if (accounts.some((a) => a.label === data.label)) {
+    return { error: "Account already added" };
+  }
+
+  const id = crypto.randomUUID();
+  const newAccount: ManagedAccount = {
+    id,
+    label: data.label,
+    password: data.password,
+    totp_secret: data.totp_secret || null,
+    cookie: null,
+    cookie_set_at: null,
+    last_error: null,
+  };
+
+  // Save the account first so it shows up in the list even if login fails.
+  await updateSettings({ [key]: [...accounts, newAccount] } as Partial<AppSettings>);
+
+  // Attempt immediate login.
+  try {
+    const cookie = await loginManaged(platform, newAccount);
+    const fresh = await getSettings(true);
+    const updated = ((fresh[key] as ManagedAccount[]) ?? []).map((a) =>
+      a.id === id ? { ...a, cookie, cookie_set_at: new Date().toISOString(), last_error: null } : a,
+    );
+    await updateSettings({ [key]: updated } as Partial<AppSettings>);
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    const fresh = await getSettings(true);
+    const updated = ((fresh[key] as ManagedAccount[]) ?? []).map((a) =>
+      a.id === id ? { ...a, last_error: error } : a,
+    );
+    await updateSettings({ [key]: updated } as Partial<AppSettings>);
+    revalidatePath("/settings");
+    return { error };
+  }
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function removeManagedAccount(platform: Platform, id: string): Promise<void> {
+  await requireUser();
+  const settings = await getSettings(true);
+  const key = accountsKey(platform);
+  const accounts: ManagedAccount[] = (settings[key] as ManagedAccount[]) ?? [];
+  await updateSettings({ [key]: accounts.filter((a) => a.id !== id) } as Partial<AppSettings>);
+  revalidatePath("/settings");
+}
+
+export async function refreshManagedAccount(
+  platform: Platform,
+  id: string,
+): Promise<{ ok?: true; error?: string }> {
+  await requireUser();
+  const settings = await getSettings(true);
+  const key = accountsKey(platform);
+  const accounts: ManagedAccount[] = (settings[key] as ManagedAccount[]) ?? [];
+  const account = accounts.find((a) => a.id === id);
+  if (!account) return { error: "Account not found" };
+
+  try {
+    const cookie = await loginManaged(platform, account);
+    const updated = accounts.map((a) =>
+      a.id === id ? { ...a, cookie, cookie_set_at: new Date().toISOString(), last_error: null } : a,
+    );
+    await updateSettings({ [key]: updated } as Partial<AppSettings>);
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    const updated = accounts.map((a) => (a.id === id ? { ...a, last_error: error } : a));
+    await updateSettings({ [key]: updated } as Partial<AppSettings>);
+    revalidatePath("/settings");
+    return { error };
+  }
+
+  revalidatePath("/settings");
+  return { ok: true };
 }

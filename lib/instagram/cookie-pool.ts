@@ -13,11 +13,17 @@ function cookieKey(cookie: string) {
 export function buildCookiePool(settings: AppSettings): string[] {
   const seen = new Set<string>();
   const pool: string[] = [];
+  // Managed accounts (auto-login) — highest priority, most likely to be fresh
+  for (const a of settings.instagram_accounts ?? []) {
+    const c = a.cookie?.trim();
+    if (c && !seen.has(c)) { seen.add(c); pool.push(c); }
+  }
+  // Manual cookies
   for (const c of settings.instagram_session_cookies ?? []) {
     const t = c.trim();
     if (t && !seen.has(t)) { seen.add(t); pool.push(t); }
   }
-  // Legacy single-cookie field as fallback (for installs that haven't migrated yet)
+  // Legacy single-cookie field
   const single = (settings.instagram_session_cookie || process.env.INSTAGRAM_SESSION_COOKIE || "").trim();
   if (single && !seen.has(single)) pool.push(single);
   return pool;
