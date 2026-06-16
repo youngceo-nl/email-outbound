@@ -16,7 +16,7 @@ type Events = {
   "crawl/profile.discovered": {
     data: {
       crawl_job_id: string;
-      seed_id: string;
+      seed_id: string | null;
       username: string;
       depth: number;
       parent_username: string | null;
@@ -25,7 +25,7 @@ type Events = {
   "crawl/recurse.requested": {
     data: {
       crawl_job_id: string;
-      seed_id: string;
+      seed_id: string | null;
       username: string;
       depth: number;
     };
