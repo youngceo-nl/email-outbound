@@ -43,7 +43,7 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
       const raw = formData.get("following_scraper_provider");
       if (raw == null) return prev.following_scraper_provider; // field not in form — keep DB value
       const v = String(raw);
-      return (["apify", "scrapingbee", "cookie", "auto"] as const).includes(v as never) ? (v as "apify" | "scrapingbee" | "cookie" | "auto") : "auto";
+      return (["playwright", "apify", "scrapingbee", "cookie", "auto"] as const).includes(v as never) ? (v as "playwright" | "apify" | "scrapingbee" | "cookie" | "auto") : "auto";
     })(),
     instagram_session_cookie: String(formData.get("instagram_session_cookie") ?? "") || null,
     scoring_provider: (() => {

@@ -13,7 +13,7 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
   crawl_job_id?: string | null;
   limitOverride?: number | null;
   startCursor?: string | null;
-}): Promise<{ items: DiscoveredFollowing[]; provider: "cookie" | "apify" | "scrapingbee"; nextCursor: string | null }> {
+}): Promise<{ items: DiscoveredFollowing[]; provider: "playwright" | "cookie" | "apify" | "scrapingbee"; nextCursor: string | null }> {
   const { username, settings, apifyToken } = opts;
   const sbKey = settings.scrapingbee_api_key || process.env.SCRAPINGBEE_API_KEY || "";
   const cookiePool = buildCookiePool(settings);
@@ -21,6 +21,15 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
   const limit = opts.limitOverride && opts.limitOverride > 0
     ? opts.limitOverride
     : settings.max_profiles_per_account;
+
+  // 0. Playwright — real Chromium browser, no 250-account cap
+  const tryPlaywright = async (): Promise<DiscoveredFollowing[]> => {
+    const available = cookiePool.filter(c => !isRateLimited(c));
+    if (available.length === 0) throw new Error("No Instagram cookies available for Playwright");
+    const cookie = available[0];
+    const { scrapeFollowingPlaywright } = await import("@/lib/instagram/playwright-scraper");
+    return scrapeFollowingPlaywright({ username, cookie, limit });
+  };
 
   // 1. Direct cookie fetch — rotates through all burner accounts, skipping rate-limited ones
   const tryCookie = async () => {
@@ -74,6 +83,9 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
   };
 
   // Explicit provider selection
+  if (provider === "playwright") {
+    return { items: await tryPlaywright(), provider: "playwright", nextCursor: null };
+  }
   if (provider === "scrapingbee") {
     return { items: await trySb(), provider: "scrapingbee", nextCursor: null };
   }
@@ -85,7 +97,20 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
     return { items: r.items, provider: "cookie", nextCursor: r.nextCursor };
   }
 
-  // Auto: cookie first, then Apify, then ScrapingBee
+  // Auto: Playwright first (no cap), then cookie, then Apify, then ScrapingBee
+  if (cookiePool.length > 0) {
+    try {
+      return { items: await tryPlaywright(), provider: "playwright", nextCursor: null };
+    } catch (err) {
+      await logError({
+        context: "playwright.following.fallback",
+        error_message: `Playwright failed, falling back to cookie: ${err instanceof Error ? err.message : String(err)}`,
+        payload: { username },
+        crawl_job_id: opts.crawl_job_id ?? null,
+      });
+    }
+  }
+
   if (cookiePool.length > 0) {
     try {
       const r = await tryCookie();

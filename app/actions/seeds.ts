@@ -122,7 +122,7 @@ export async function deleteSeed(id: string) {
   revalidatePath("/seeds");
 }
 
-export type ScrapeProvider = "auto" | "cookie" | "proxy" | "apify" | "scrapingbee";
+export type ScrapeProvider = "auto" | "playwright" | "cookie" | "apify" | "scrapingbee";
 
 export async function startCrawl(seed_id: string, providerOverride?: ScrapeProvider) {
   await requireUser();
@@ -149,7 +149,7 @@ export async function startCrawl(seed_id: string, providerOverride?: ScrapeProvi
     return { error: "Apify selected but no Apify API key is set." };
   if (provider === "scrapingbee" && !(sbOk && cookieOk))
     return { error: "ScrapingBee selected but missing API key or Instagram cookie." };
-  if ((provider === "cookie" || provider === "proxy") && !cookieOk)
+  if (provider === "cookie" && !cookieOk)
     return { error: "Cookie/proxy selected but no Instagram session cookie configured." };
   if (provider === "auto" && !apifyOk && !cookieOk)
     return { error: "No scrape provider configured. Add an Apify key or Instagram cookie in Settings." };

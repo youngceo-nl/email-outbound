@@ -93,8 +93,8 @@ export function SeedManager({
 
 const PROVIDER_OPTIONS: { value: ScrapeProvider; label: string }[] = [
   { value: "auto",        label: "Auto (best available)" },
-  { value: "cookie",      label: "Cookie only (free)" },
-  { value: "proxy",       label: "Cookie + IP rotation" },
+  { value: "playwright",  label: "Playwright (unlimited)" },
+  { value: "cookie",      label: "Cookie only (free, max ~250)" },
   { value: "apify",       label: "Apify" },
   { value: "scrapingbee", label: "ScrapingBee" },
 ];

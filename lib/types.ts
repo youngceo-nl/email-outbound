@@ -32,7 +32,7 @@ export type AppSettings = {
   min_reels_last_30_days: number;
   include_keywords: string[];
   exclude_keywords: string[];
-  following_scraper_provider: "apify" | "scrapingbee" | "cookie" | "auto";
+  following_scraper_provider: "playwright" | "apify" | "scrapingbee" | "cookie" | "auto";
   instagram_session_cookie: string | null;
   instagram_session_cookies: string[];
   scoring_provider: "openai" | "claude";
