@@ -97,11 +97,24 @@ export async function loginInstagramPlaywright(creds: {
       throw new Error("Instagram requires a challenge (CAPTCHA or identity check) — log in manually in a browser first to clear it");
     }
 
-    // Look for the username input — if it's not there, tell us what IS there
-    const usernameInput = page.locator('input[name="username"]').first();
-    const usernameFound = await usernameInput.waitFor({ state: "visible", timeout: 15_000 }).then(() => true).catch(() => false);
-
-    if (!usernameFound) {
+    // Instagram renders inputs with varying attributes across versions —
+    // try name= first, then aria-label, then placeholder.
+    const usernameSelectors = [
+      'input[name="username"]',
+      'input[aria-label*="username" i]',
+      'input[aria-label*="phone" i]',
+      'input[aria-label*="email" i]',
+      'input[placeholder*="username" i]',
+      'input[placeholder*="phone" i]',
+      'input[autocomplete="username"]',
+    ];
+    let usernameInput: import("playwright").Locator | null = null;
+    for (const sel of usernameSelectors) {
+      const loc = page.locator(sel).first();
+      const found = await loc.isVisible({ timeout: 3_000 }).catch(() => false);
+      if (found) { usernameInput = loc; break; }
+    }
+    if (!usernameInput) {
       const snippet = pageText.slice(0, 300).replace(/\s+/g, " ");
       throw new Error(`Login form not found on page. URL: ${currentUrl.slice(0, 100)} | Page text: "${snippet}"`);
     }
@@ -110,7 +123,19 @@ export async function loginInstagramPlaywright(creds: {
     await usernameInput.fill(creds.username);
     await page.waitForTimeout(400);
 
-    const passwordInput = page.locator('input[name="password"]').first();
+    const passwordSelectors = [
+      'input[name="password"]',
+      'input[aria-label*="password" i]',
+      'input[placeholder*="password" i]',
+      'input[type="password"]',
+    ];
+    let passwordInput: import("playwright").Locator | null = null;
+    for (const sel of passwordSelectors) {
+      const loc = page.locator(sel).first();
+      const found = await loc.isVisible({ timeout: 2_000 }).catch(() => false);
+      if (found) { passwordInput = loc; break; }
+    }
+    if (!passwordInput) throw new Error("Password field not found on login page");
     await passwordInput.waitFor({ state: "visible", timeout: 5_000 });
     await passwordInput.click();
     await passwordInput.fill(creds.password);
@@ -134,7 +159,7 @@ export async function loginInstagramPlaywright(creds: {
         }
       } catch { /* try next */ }
     }
-    if (!submitted) await passwordInput.press("Enter");
+    if (!submitted) await passwordInput!.press("Enter");
 
     await page.waitForTimeout(5_000);
 
