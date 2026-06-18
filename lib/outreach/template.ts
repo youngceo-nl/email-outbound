@@ -1,14 +1,18 @@
 import type { Lead } from "@/lib/types";
 
-// Tiny mustache-lite substitution. `{{name}}` and `{{name|default}}` are both
-// supported; `{{name}}` falls back to "" if missing. We intentionally do NOT
-// support nested paths or logic — outreach copy stays human-editable.
+// Mustache-lite substitution. Supports:
+//   {{program_name}}  — double braces
+//   {program name}    — single braces, spaces normalized to underscores
+//   {{name|fallback}} — optional fallback value
 export type TemplateContext = Record<string, string | number | null | undefined>;
 
-const TOKEN = /\{\{\s*([a-zA-Z0-9_]+)(?:\s*\|\s*([^}]*?))?\s*\}\}/g;
+// Matches {{key|fallback}} or {key} (single or double braces, spaces in key allowed)
+const TOKEN = /\{\{?\s*([a-zA-Z0-9_ ]+?)(?:\s*\|\s*([^}]*?))?\s*\}?\}/g;
 
 export function renderTemplate(tpl: string, ctx: TemplateContext): string {
-  return tpl.replace(TOKEN, (_match, key: string, fallback?: string) => {
+  return tpl.replace(TOKEN, (_match, rawKey: string, fallback?: string) => {
+    // Normalize spaces → underscores so "{program name}" hits "program_name"
+    const key = rawKey.trim().replace(/\s+/g, "_");
     const v = ctx[key];
     if (v == null || v === "") return (fallback ?? "").trim();
     return String(v);
@@ -32,6 +36,7 @@ export function buildLeadContext(opts: {
   const firstName = full ? full.split(/\s+/)[0] : opts.lead.username;
   return {
     first_name: firstName,
+    name: firstName,          // alias: {name} → first name
     full_name: full || opts.lead.username,
     username: opts.lead.username,
     niche: opts.lead.niche ?? "",
@@ -73,6 +78,7 @@ function htmlEsc(s: string): string {
 
 function inlineMarkdown(s: string): string {
   return s
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>");
 }

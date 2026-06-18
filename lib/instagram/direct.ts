@@ -1,5 +1,6 @@
 import "server-only";
 import type { RecentPost } from "@/lib/types";
+import { BrowserSession } from "@/lib/instagram/browser-fetch";
 
 // Free, direct-fetch profile metadata lookup against IG's own
 // `web_profile_info` endpoint. Same endpoint our ScrapingBee path hits, just
@@ -58,23 +59,40 @@ type IgUser = {
   };
 };
 
-async function igFetch(url: string, init: {
-  headers: Record<string, string>;
-  method?: string;
-  body?: string;
-  timeoutMs: number;
-  proxyUrl?: string | null;
-}): Promise<Response> {
+// Routes through Chrome's real TLS/HTTP2 stack when a browser session is
+// provided, falls back to Node.js fetch otherwise (no-cookie probes, etc.).
+async function igFetch(
+  url: string,
+  init: {
+    headers: Record<string, string>;
+    method?: string;
+    body?: string;
+    timeoutMs: number;
+    proxyUrl?: string | null;
+    session?: BrowserSession | null;
+  },
+): Promise<{ status: number; body: string }> {
+  if (init.session) {
+    return init.session.fetch(url, {
+      method: init.method,
+      headers: init.headers,
+      body: init.body,
+      timeoutMs: init.timeoutMs,
+    });
+  }
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), init.timeoutMs);
   try {
+    let res: Response;
     if (init.proxyUrl) {
       const { ProxyAgent } = await import("undici");
       const dispatcher = new ProxyAgent(init.proxyUrl);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return await (fetch as any)(url, { method: init.method ?? "GET", headers: init.headers, body: init.body, signal: ctrl.signal, dispatcher });
+      res = await (fetch as any)(url, { method: init.method ?? "GET", headers: init.headers, body: init.body, signal: ctrl.signal, dispatcher });
+    } else {
+      res = await fetch(url, { method: init.method ?? "GET", headers: init.headers, body: init.body, signal: ctrl.signal });
     }
-    return await fetch(url, { method: init.method ?? "GET", headers: init.headers, body: init.body, signal: ctrl.signal });
+    return { status: res.status, body: await res.text() };
   } finally {
     clearTimeout(t);
   }
@@ -86,10 +104,38 @@ export async function fetchProfileMetadataDirect(opts: {
   timeoutMs?: number;
   skipReels?: boolean;
   delayMs?: number;
-  proxyUrl?: string | null; // rotating proxy — only used reactively on 429
+  proxyUrl?: string | null;
+  // Pass an external BrowserSession to amortise Chrome startup across multiple
+  // profiles (e.g. a batch in backfill-metadata). When provided the session is
+  // NOT closed here — the caller owns the lifecycle.
+  session?: BrowserSession | null;
 }): Promise<ProfileMetadata | null> {
   const { username, sessionCookie, timeoutMs = 15_000 } = opts;
   if (opts.delayMs) await sleep(opts.delayMs);
+
+  const externalSession = opts.session ?? null;
+
+  // Only create a session when the caller didn't supply one.
+  const ownSession = !externalSession && sessionCookie ? new BrowserSession() : null;
+  if (ownSession) await ownSession.init(sessionCookie!, opts.proxyUrl);
+
+  const session = externalSession ?? ownSession;
+  try {
+    return await _fetchProfileMetadata({ username, sessionCookie, timeoutMs, skipReels: opts.skipReels, proxyUrl: opts.proxyUrl, session });
+  } finally {
+    await ownSession?.close(); // only close if we created it
+  }
+}
+
+async function _fetchProfileMetadata(opts: {
+  username: string;
+  sessionCookie?: string | null;
+  timeoutMs: number;
+  skipReels?: boolean;
+  proxyUrl?: string | null;
+  session: BrowserSession | null;
+}): Promise<ProfileMetadata | null> {
+  const { username, sessionCookie, timeoutMs, session } = opts;
   const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`;
   const ua = randomUA();
   const referer = `https://www.instagram.com/${encodeURIComponent(username)}/`;
@@ -97,18 +143,17 @@ export async function fetchProfileMetadataDirect(opts: {
     ? chromeHeaders(ua, sessionCookie, referer)
     : { "User-Agent": ua, "Accept": "*/*", "Accept-Language": "en-US,en;q=0.9", "X-IG-App-ID": "936619743392459", "Referer": referer };
 
-  let res: Response;
+  let res: { status: number; body: string };
   try {
-    res = await igFetch(url, { headers, timeoutMs });
+    res = await igFetch(url, { headers, timeoutMs, session });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new InstagramDirectError(`network error: ${msg}`, undefined, true);
   }
 
-  // Hit a 429 — retry once through the rotating proxy if one is configured
-  if (res.status === 429 && opts.proxyUrl) {
+  // Hit a 429 without a session — retry once through the rotating proxy
+  if (res.status === 429 && opts.proxyUrl && !session) {
     try {
-      headers["User-Agent"] = randomUA();
       res = await igFetch(url, { headers, timeoutMs, proxyUrl: opts.proxyUrl });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -117,13 +162,8 @@ export async function fetchProfileMetadataDirect(opts: {
   }
 
   if (res.status === 404) return null;
-
   if (res.status === 429) {
-    throw new InstagramDirectError(
-      "Instagram rate-limited the request (HTTP 429). Slow down or wait.",
-      429,
-      true,
-    );
+    throw new InstagramDirectError("Instagram rate-limited the request (HTTP 429). Slow down or wait.", 429, true);
   }
   if (res.status === 401 || res.status === 403) {
     throw new InstagramDirectError(
@@ -133,11 +173,9 @@ export async function fetchProfileMetadataDirect(opts: {
     );
   }
 
-  const ctype = res.headers.get("content-type") ?? "";
-  const body = await res.text();
-
+  const { body } = res;
   // IG returns HTML for login-walls and challenges, JSON for valid lookups.
-  if (!ctype.includes("application/json")) {
+  if (!body.trimStart().startsWith("{")) {
     if (body.includes("login") || body.includes("challenge")) {
       throw new InstagramDirectError(
         "Instagram returned a login/challenge page — cookie required or banned.",
@@ -145,22 +183,14 @@ export async function fetchProfileMetadataDirect(opts: {
         false,
       );
     }
-    throw new InstagramDirectError(
-      `Unexpected non-JSON response (status ${res.status})`,
-      res.status,
-      false,
-    );
+    throw new InstagramDirectError(`Unexpected non-JSON response (status ${res.status})`, res.status, false);
   }
 
   let parsed: { data?: { user?: IgUser | null } };
   try {
     parsed = JSON.parse(body);
   } catch {
-    throw new InstagramDirectError(
-      `Failed to parse JSON response: ${body.slice(0, 200)}`,
-      res.status,
-      false,
-    );
+    throw new InstagramDirectError(`Failed to parse JSON response: ${body.slice(0, 200)}`, res.status, false);
   }
 
   const user = parsed?.data?.user;
@@ -179,18 +209,13 @@ export async function fetchProfileMetadataDirect(opts: {
       is_pinned: false,
     }));
 
-  // Fetch reels separately and merge — reels drive the engagement/activity metric
-  // (reels in the last 30 days), so pull enough to cover an active month.
   let reels: RecentPost[] = [];
-  if (!opts.skipReels && opts.sessionCookie && user.id) {
+  if (!opts.skipReels && sessionCookie && user.id) {
     try {
-      reels = await fetchReelsDirect({ userId: user.id, sessionCookie: opts.sessionCookie, limit: 12 });
+      reels = await fetchReelsDirect({ userId: user.id, sessionCookie, limit: 12, session });
     } catch { /* reels are best-effort */ }
   }
 
-  // Merge: reels first (preserved for the reel count + metrics), then a few
-  // timeline posts for captions/keyword matching. Widened past the reel limit
-  // so a full month of reels isn't truncated away.
   const recent_posts = [...reels, ...timelinePosts].slice(0, 18);
 
   return {
@@ -283,13 +308,14 @@ export async function fetchReelsDirect(opts: {
   userId: string;
   sessionCookie: string;
   limit?: number;
+  session?: BrowserSession | null;
 }): Promise<RecentPost[]> {
-  const { userId, sessionCookie, limit = 12 } = opts;
+  const { userId, sessionCookie, limit = 12, session = null } = opts;
 
   const out: RecentPost[] = [];
   let maxId: string | null = null;
   let pages = 0;
-  const MAX_PAGES = 4; // page_size is ~9, so this covers the limit with headroom
+  const MAX_PAGES = 4;
 
   while (out.length < limit && pages < MAX_PAGES) {
     pages++;
@@ -303,18 +329,20 @@ export async function fetchReelsDirect(opts: {
     params.set("include_feed_video", "true");
     if (maxId) params.set("max_id", maxId);
 
-    const res = await fetch("https://www.instagram.com/api/v1/clips/user/", {
+    const res = await igFetch("https://www.instagram.com/api/v1/clips/user/", {
       method: "POST",
       headers,
       body: params.toString(),
+      timeoutMs: 15_000,
+      session,
     });
-    if (!res.ok) break;
+    if (res.status < 200 || res.status >= 300) break;
 
     let json: {
       items?: { media?: Record<string, unknown> }[];
       paging_info?: { max_id?: string; more_available?: boolean };
     };
-    try { json = await res.json(); } catch { break; }
+    try { json = JSON.parse(res.body); } catch { break; }
 
     const items = json.items ?? [];
     if (items.length === 0) break;
@@ -383,27 +411,34 @@ const BACKOFF_MAX_RETRIES = 2;
 async function resolveUserIdDirect(opts: {
   username: string;
   sessionCookie: string;
+  session: BrowserSession | null;
 }): Promise<string | null> {
-  // Small pre-request delay — looks more human than instant lookup
   await sleep(jitter(300, 900));
 
   const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(opts.username)}`;
-  let headers = chromeHeaders(randomUA(), opts.sessionCookie, `https://www.instagram.com/${encodeURIComponent(opts.username)}/`);
-  let res = await fetch(url, { headers });
+  const referer = `https://www.instagram.com/${encodeURIComponent(opts.username)}/`;
+
+  let res = await igFetch(url, {
+    headers: chromeHeaders(randomUA(), opts.sessionCookie, referer),
+    timeoutMs: 15_000,
+    session: opts.session,
+  });
 
   if (res.status === 429) {
     await sleep(jitter(BACKOFF_MIN_MS, BACKOFF_MAX_MS));
-    headers = chromeHeaders(randomUA(), opts.sessionCookie, `https://www.instagram.com/${encodeURIComponent(opts.username)}/`);
-    res = await fetch(url, { headers });
+    res = await igFetch(url, {
+      headers: chromeHeaders(randomUA(), opts.sessionCookie, referer),
+      timeoutMs: 15_000,
+      session: opts.session,
+    });
   }
 
   if (res.status === 429) throw new InstagramDirectError("Rate-limited resolving user_id", 429, true);
   if (res.status === 401 || res.status === 403)
     throw new InstagramDirectError(`Cookie rejected resolving user_id (HTTP ${res.status})`, res.status, false);
   if (res.status === 404) return null;
-  const body = await res.text();
   try {
-    const j = JSON.parse(body);
+    const j = JSON.parse(res.body);
     return j?.data?.user?.id ? String(j.data.user.id) : null;
   } catch {
     return null;
@@ -416,12 +451,29 @@ export async function fetchFollowingDirect(opts: {
   limit: number;
   startCursor?: string | null;
 }): Promise<{ items: DiscoveredFollowingDirect[]; nextCursor: string | null }> {
-  const userId = await resolveUserIdDirect({ username: opts.username, sessionCookie: opts.sessionCookie });
+  // One browser session for the whole paginated scrape — Chrome start cost is
+  // paid once and amortised across all page requests.
+  const session = new BrowserSession();
+  await session.init(opts.sessionCookie);
+  try {
+    return await _fetchFollowingPages({ ...opts, session });
+  } finally {
+    await session.close();
+  }
+}
+
+async function _fetchFollowingPages(opts: {
+  username: string;
+  sessionCookie: string;
+  limit: number;
+  startCursor?: string | null;
+  session: BrowserSession;
+}): Promise<{ items: DiscoveredFollowingDirect[]; nextCursor: string | null }> {
+  const { session } = opts;
+  const userId = await resolveUserIdDirect({ username: opts.username, sessionCookie: opts.sessionCookie, session });
   if (!userId) throw new InstagramDirectError(`Could not resolve user_id for @${opts.username}`, undefined, false);
 
   const referer = `https://www.instagram.com/${encodeURIComponent(opts.username)}/following/`;
-  let headers = chromeHeaders(randomUA(), opts.sessionCookie, referer);
-
   const out: DiscoveredFollowingDirect[] = [];
   const seen = new Set<string>();
   let maxId: string | null = opts.startCursor ?? null;
@@ -430,22 +482,27 @@ export async function fetchFollowingDirect(opts: {
 
   while (out.length < opts.limit) {
     if (pages > 0) await sleep(jitter(FOLLOWING_DELAY_MIN_MS, FOLLOWING_DELAY_MAX_MS));
-    // Rebuild headers each page: rotates UA + keeps all Sec-* headers consistent
-    headers = chromeHeaders(randomUA(), opts.sessionCookie, referer);
     pages++;
 
     const u = new URL(`https://www.instagram.com/api/v1/friendships/${userId}/following/`);
     u.searchParams.set("count", String(FOLLOWING_PAGE_SIZE));
     if (maxId) u.searchParams.set("max_id", maxId);
 
-    // Fetch with exponential backoff on 429 before giving up
-    let res = await fetch(u.toString(), { headers });
+    let res = await igFetch(u.toString(), {
+      headers: chromeHeaders(randomUA(), opts.sessionCookie, referer),
+      timeoutMs: 15_000,
+      session,
+    });
+
     if (res.status === 429) {
       let retries = BACKOFF_MAX_RETRIES;
       while (retries-- > 0 && res.status === 429) {
         await sleep(jitter(BACKOFF_MIN_MS, BACKOFF_MAX_MS));
-        headers["User-Agent"] = randomUA();
-        res = await fetch(u.toString(), { headers });
+        res = await igFetch(u.toString(), {
+          headers: chromeHeaders(randomUA(), opts.sessionCookie, referer),
+          timeoutMs: 15_000,
+          session,
+        });
       }
     }
 
@@ -454,17 +511,17 @@ export async function fetchFollowingDirect(opts: {
     if (res.status === 401 || res.status === 403)
       throw new InstagramDirectError(`Cookie rejected at page ${pages} (HTTP ${res.status})`, res.status, false);
 
-    const body = await res.text();
     let json: { users?: IgFollowingUser[]; next_max_id?: string };
     try {
-      json = JSON.parse(body);
+      json = JSON.parse(res.body);
     } catch {
       throw new InstagramDirectError(
-        `Non-JSON response at page ${pages}: ${body.slice(0, 200)}`,
+        `Non-JSON response at page ${pages}: ${res.body.slice(0, 200)}`,
         res.status,
         false,
       );
     }
+
     const users = json.users ?? [];
     if (users.length === 0) break;
     for (const u of users) {

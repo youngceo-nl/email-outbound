@@ -131,7 +131,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const { count: pendingCount } = await sb
     .from("leads")
     .select("id", { count: "exact", head: true })
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .not("followers", "is", null);
 
   // Count rejected leads that still have a score (leftover from before the pipeline fix)
   const { count: rejectedWithScore } = await sb
@@ -139,6 +140,14 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     .select("id", { count: "exact", head: true })
     .eq("status", "rejected")
     .not("overall_score", "is", null);
+
+  // Count leads with no profile metadata yet (need backfill)
+  const { count: backfillCount } = await sb
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .is("followers", null)
+    .is("backfill_error", null)
+    .neq("status", "rejected");
 
   return (
     <div className="p-6 space-y-6">
@@ -155,6 +164,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             scoreableCount={scoreableCount ?? 0}
             rejectedWithScore={rejectedWithScore ?? 0}
             missingProgramNames={missingProgramNames ?? 0}
+            backfillCount={backfillCount ?? 0}
             exportHref={exportHref}
           />
         </div>
@@ -233,7 +243,11 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     )}
                   </TableCell>
                   <TableCell className="text-xs" data-col="niche">{l.niche ?? "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums" data-col="followers">{formatNumber(l.followers)}</TableCell>
+                  <TableCell className="text-right tabular-nums" data-col="followers">
+                    {l.backfill_error
+                      ? <span title={`Scraping blocked: ${l.backfill_error}`} className="text-amber-500 text-xs">blocked</span>
+                      : formatNumber(l.followers)}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums" data-col="engagement">{formatPct(l.engagement_rate)}</TableCell>
                   <TableCell className="text-right tabular-nums" data-col="reels">{l.reels_last_30_days ?? "—"}</TableCell>
                   <TableCell className="text-right" data-col="score">

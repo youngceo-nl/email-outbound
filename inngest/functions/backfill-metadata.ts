@@ -1,7 +1,9 @@
 import { inngest } from "@/inngest/client";
-import { getSettings, resolveApifyToken } from "@/lib/config/settings";
+import { getSettings, resolveApifyTokens } from "@/lib/config/settings";
 import { scrapeProfiles } from "@/lib/apify/actors";
 import { fetchProfileMetadataDirect, InstagramDirectError, sleep } from "@/lib/instagram/direct";
+import { BrowserSession } from "@/lib/instagram/browser-fetch";
+import { buildCookiePool, pickCookie, markRateLimited } from "@/lib/instagram/cookie-pool";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logCrawl, logError } from "@/lib/pipeline/persist";
 
@@ -17,8 +19,8 @@ import { logCrawl, logError } from "@/lib/pipeline/persist";
 //
 // Path is chosen at runtime by checking `settings.instagram_session_cookie`.
 
-const APIFY_BATCH = 50;
-const COOKIE_BATCH = 25;
+const APIFY_BATCH = 100;
+const COOKIE_BATCH = 100;
 // Base 1.0s between profiles, jittered to look human (700–1800ms range, mean
 // ~1.25s). Every ~15 requests we inject a longer "thinking pause" (2–5s) to
 // mimic someone scrolling and reading. Bot-detection on IG looks at
@@ -63,8 +65,14 @@ export const backfillMetadata = inngest.createFunction(
     if (!usernames || usernames.length === 0) return { processed: 0 };
 
     const settings = await step.run("load-settings", () => getSettings());
-    const cookie = settings.instagram_session_cookie?.trim() || process.env.INSTAGRAM_SESSION_COOKIE?.trim() || null;
+    const apifyTokens = resolveApifyTokens(settings);
+    const cookiePool = buildCookiePool(settings);
+    const cookie = pickCookie(cookiePool);
+
+    // Cookie path is preferred — free, no external quota.
+    // Apify is the fallback when no IG cookie is available.
     const useFreePath = !!cookie;
+    const useApify = !useFreePath && apifyTokens.length > 0;
 
     if (useFreePath) {
       // -------- FREE: direct fetch with IG burner cookie --------
@@ -82,55 +90,62 @@ export const backfillMetadata = inngest.createFunction(
         if (halt) break;
         const batch = batches[bi];
         const result = await step.run(`cookie-batch-${bi}`, async () => {
+          // Pick a fresh cookie each batch — rotates through the pool.
+          const activeCookie = pickCookie(buildCookiePool(settings));
+          if (!activeCookie) return { s: 0, u: 0, updatedLeadIds: [], halt: true };
+          // One Chrome instance for the whole batch — pays startup cost once.
+          const session = new BrowserSession();
+          await session.init(activeCookie);
           const sb = createAdminClient();
           const updatedLeadIds: string[] = [];
           let s = 0, u = 0;
-          for (const username of batch) {
-            try {
-              const p = await fetchProfileMetadataDirect({ username, sessionCookie: cookie });
-              if (!p) {
-                await sleep(jitteredDelay(COOKIE_DELAY_BASE_MS) + maybeLongPause());
-                continue;
+          try {
+            for (const username of batch) {
+              try {
+                const p = await fetchProfileMetadataDirect({ username, sessionCookie: activeCookie, session });
+                if (!p) {
+                  await sleep(jitteredDelay(COOKIE_DELAY_BASE_MS) + maybeLongPause());
+                  continue;
+                }
+                s++;
+                const { data, error } = await sb
+                  .from("leads")
+                  .update({
+                    full_name: p.full_name,
+                    bio: p.bio,
+                    external_link: p.external_link,
+                    followers: p.followers,
+                    following: p.following,
+                    posts: p.posts,
+                    is_private: p.is_private,
+                    is_verified: p.is_verified,
+                    recent_posts: p.recent_posts,
+                  })
+                  .eq("username", p.username)
+                  .select("id")
+                  .single();
+                if (!error && data?.id) {
+                  u++;
+                  updatedLeadIds.push(data.id);
+                }
+              } catch (err) {
+                const direct = err instanceof InstagramDirectError ? err : null;
+                const msg = direct ? direct.message : (err as Error).message;
+                await logError({
+                  context: "backfill.metadata.cookie",
+                  error_message: msg,
+                  payload: { username, batch_index: bi, status: direct?.status },
+                  crawl_job_id: crawl_job_id ?? null,
+                });
+                if (direct?.status === 429) markRateLimited(activeCookie);
+                if (direct && !direct.retryable) {
+                  return { s, u, updatedLeadIds, halt: true };
+                }
               }
-              s++;
-              const { data, error } = await sb
-                .from("leads")
-                .update({
-                  full_name: p.full_name,
-                  bio: p.bio,
-                  external_link: p.external_link,
-                  followers: p.followers,
-                  following: p.following,
-                  posts: p.posts,
-                  is_private: p.is_private,
-                  is_verified: p.is_verified,
-                  recent_posts: p.recent_posts,
-                })
-                .eq("username", p.username)
-                .select("id")
-                .single();
-              if (!error && data?.id) {
-                u++;
-                // Auto-score every enriched lead — no follower gate. The hard
-                // filter in score-lead still rejects out-of-range accounts.
-                updatedLeadIds.push(data.id);
-              }
-            } catch (err) {
-              const direct = err instanceof InstagramDirectError ? err : null;
-              const msg = direct ? direct.message : (err as Error).message;
-              await logError({
-                context: "backfill.metadata.cookie",
-                error_message: msg,
-                payload: { username, batch_index: bi, status: direct?.status },
-                crawl_job_id: crawl_job_id ?? null,
-              });
-              // Non-retryable IG error (cookie expired / challenge) → stop the
-              // whole backfill so we don't burn the cookie or trigger more bans.
-              if (direct && !direct.retryable) {
-                return { s, u, updatedLeadIds, halt: true };
-              }
+              await sleep(jitteredDelay(COOKIE_DELAY_BASE_MS) + maybeLongPause());
             }
-            await sleep(jitteredDelay(COOKIE_DELAY_BASE_MS) + maybeLongPause());
+          } finally {
+            await session.close();
           }
           return { s, u, updatedLeadIds, halt: false };
         });
@@ -164,9 +179,8 @@ export const backfillMetadata = inngest.createFunction(
       return { processed: usernames.length, scraped, updated, batches: batches.length, mode: "cookie", halted: halt };
     }
 
-    // -------- PAID: Apify profile actor in batches --------
-    const token = resolveApifyToken(settings);
-    if (!token) {
+    // -------- FAST: Apify profile actor in batches --------
+    if (!apifyToken) {
       await logError({
         context: "backfill.metadata",
         error_message: "No IG cookie AND no Apify token — cannot backfill metadata.",
@@ -175,6 +189,7 @@ export const backfillMetadata = inngest.createFunction(
       return { processed: 0, error: "no-cookie-no-apify-token" };
     }
 
+    const token = apifyTokens;
     const batches: string[][] = [];
     for (let i = 0; i < usernames.length; i += APIFY_BATCH) {
       batches.push(usernames.slice(i, i + APIFY_BATCH));
@@ -190,22 +205,55 @@ export const backfillMetadata = inngest.createFunction(
           return await scrapeProfiles({ token, usernames: batch });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
+          const isExhausted = msg.includes("403") || msg.includes("platform-feature-disabled");
           await logError({
             context: "backfill.metadata.batch",
-            error_message: msg,
-            payload: { batch, batch_index: bi },
+            error_message: isExhausted ? `Apify token exhausted (403) — stopping backfill. ${msg}` : msg,
+            payload: { batch, batch_index: bi, exhausted: isExhausted },
             crawl_job_id: crawl_job_id ?? null,
           });
+          if (isExhausted) {
+            // Mark remaining unprocessed accounts with a retriable error, not "blocked"
+            const sb = createAdminClient();
+            const remaining = usernames.slice(bi * APIFY_BATCH);
+            await sb
+              .from("leads")
+              .update({ backfill_error: "apify_exhausted" })
+              .in("username", remaining)
+              .is("followers", null);
+            throw new Error(`APIFY_EXHAUSTED: ${msg}`);
+          }
           return [];
         }
       });
       scraped += result.length;
 
       const wrote = await step.run(`update-apify-batch-${bi}`, async () => {
-        if (result.length === 0) return { count: 0, ids: [] as string[] };
         const sb = createAdminClient();
         let wroteCount = 0;
         const ids: string[] = [];
+
+        if (result.length === 0) {
+          // Entire batch blocked — mark all as blocked so they're skipped next run
+          await sb
+            .from("leads")
+            .update({ backfill_error: "blocked" })
+            .in("username", batch)
+            .is("followers", null);
+          return { count: 0, ids };
+        }
+
+        // Mark any usernames the actor returned no data for as blocked
+        const returnedUsernames = new Set(result.map((p) => p.username));
+        const missing = batch.filter((u) => !returnedUsernames.has(u));
+        if (missing.length > 0) {
+          await sb
+            .from("leads")
+            .update({ backfill_error: "blocked" })
+            .in("username", missing)
+            .is("followers", null);
+        }
+
         for (const p of result) {
           const { data, error } = await sb
             .from("leads")
@@ -219,6 +267,7 @@ export const backfillMetadata = inngest.createFunction(
               is_private: p.is_private,
               is_verified: p.is_verified,
               recent_posts: p.recent_posts,
+              backfill_error: null,
             })
             .eq("username", p.username)
             .select("id")

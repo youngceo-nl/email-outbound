@@ -11,12 +11,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { CsvImportButton } from "@/components/leads/csv-import-button";
 import {
-  MoreHorizontal, RefreshCw, XCircle, SearchCode, Upload, Download, Play,
+  MoreHorizontal, RefreshCw, XCircle, SearchCode, Upload, Download, Play, DatabaseZap,
 } from "lucide-react";
 import {
   rescoreAllLeads,
   clearRejectedScores,
   retryFunnelEnrichment,
+  triggerBulkBackfill,
 } from "@/app/actions/leads";
 import { analyzeAllPending } from "@/app/actions/process-lead";
 
@@ -28,6 +29,7 @@ type Props = {
   scoreableCount: number;
   rejectedWithScore: number;
   missingProgramNames: number;
+  backfillCount: number;
   exportHref: string;
 };
 
@@ -36,6 +38,7 @@ export function LeadsActionsMenu({
   scoreableCount,
   rejectedWithScore,
   missingProgramNames,
+  backfillCount,
   exportHref,
 }: Props) {
   const router = useRouter();
@@ -52,7 +55,7 @@ export function LeadsActionsMenu({
     });
   };
 
-  const hasBulk = pendingCount > 0 || scoreableCount > 0 || rejectedWithScore > 0 || missingProgramNames > 0;
+  const hasBulk = pendingCount > 0 || scoreableCount > 0 || rejectedWithScore > 0 || missingProgramNames > 0 || backfillCount > 0;
 
   return (
     <>
@@ -78,6 +81,13 @@ export function LeadsActionsMenu({
           </DropdownMenuItem>
 
           {hasBulk && <DropdownMenuSeparator />}
+
+          {backfillCount > 0 && (
+            <DropdownMenuItem onClick={() => run(() => triggerBulkBackfill(), { label: "Backfilling metadata", total: backfillCount, type: "backfill" })}>
+              <DatabaseZap className="h-4 w-4 mr-2" />
+              Backfill metadata ({backfillCount.toLocaleString()})
+            </DropdownMenuItem>
+          )}
 
           {pendingCount > 0 && (
             <DropdownMenuItem onClick={() => run(() => analyzeAllPending(), { label: "Analyzing leads", total: pendingCount, type: "analyze" })}>

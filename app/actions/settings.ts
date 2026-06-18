@@ -195,19 +195,18 @@ async function testInstagramCookieString(
   cookie: string,
   username?: string,
 ): Promise<{ ok: boolean; message: string }> {
-  const { fetchProfileMetadataDirect, InstagramDirectError } = await import("@/lib/instagram/direct");
-  // Probe the account's own profile — much less rate-limited than mega-accounts like @instagram
   const probe = username ?? "natgeo";
   try {
-    const p = await fetchProfileMetadataDirect({ username: probe, sessionCookie: cookie });
-    if (!p) return { ok: false, message: "Cookie may be invalid — Instagram returned no data" };
-    return { ok: true, message: `Cookie valid — successfully fetched @${probe}` };
+    const { fetchProfileMetadataDirect } = await import("@/lib/instagram/direct");
+    const meta = await fetchProfileMetadataDirect({ username: probe, sessionCookie: cookie, skipReels: true });
+    if (!meta) return { ok: false, message: "Cookie may be invalid — Instagram returned no user data" };
+    return { ok: true, message: `Cookie valid — fetched @${probe} (${meta.followers?.toLocaleString()} followers)` };
   } catch (err) {
-    if (err instanceof InstagramDirectError && err.status === 429) {
-      // Rate-limited on the probe doesn't mean the cookie is bad
-      return { ok: true, message: "Cookie looks valid (rate-limited on probe, but session is present)" };
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("429")) return { ok: true, message: "Cookie looks valid (rate-limited on probe, but session is active)" };
+    if (msg.includes("401") || msg.includes("403") || msg.includes("login_required")) {
+      return { ok: false, message: "Cookie rejected by Instagram — session expired or invalid" };
     }
-    const msg = err instanceof InstagramDirectError ? err.message : (err instanceof Error ? err.message : String(err));
     return { ok: false, message: `Cookie rejected: ${msg}` };
   }
 }
@@ -376,7 +375,16 @@ export async function testManagedAccountCookie(
   if (!account?.cookie) return { ok: false, message: "No cookie saved for this account" };
 
   if (platform === "instagram") {
-    return testInstagramCookieString(account.cookie, account.label);
+    const result = await testInstagramCookieString(account.cookie, account.label);
+    if (result.ok) {
+      // Clear stale last_error so the badge goes back to "Active"
+      const updated = accounts.map((a) =>
+        a.id === id ? { ...a, last_error: null } : a,
+      );
+      await updateSettings({ [key]: updated } as Partial<AppSettings>);
+      revalidatePath("/settings");
+    }
+    return result;
   }
 
   return { ok: false, message: "Test not supported for this platform" };

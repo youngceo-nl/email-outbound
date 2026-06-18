@@ -4,8 +4,8 @@ import { ScrollText, X, AlertTriangle, CheckCircle2, Clock } from "lucide-react"
 import { formatDistanceToNow } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { actionLabel, actionIsPositive } from "@/lib/labels";
-import { getPendingCount, getRescoreProgress } from "@/app/actions/leads";
-import { cancelCrawl } from "@/app/actions/crawl-jobs";
+import { getPendingCount, getRescoreProgress, getBackfillProgress } from "@/app/actions/leads";
+import { cancelCrawl, getCrawlJobProgress } from "@/app/actions/crawl-jobs";
 
 type CrawlLog = {
   id: string;
@@ -37,9 +37,20 @@ export function ActivityDrawerButton() {
   const [crawl, setCrawl] = useState<CrawlLog[]>([]);
   const [errors, setErrors] = useState<ErrorLog[]>([]);
   const [tab, setTab] = useState<"activity" | "errors">("activity");
-  const [bulkJob, setBulkJob] = useState<BulkJob | null>(null);
+  const [bulkJob, setBulkJob] = useState<BulkJob | null>(() => {
+    try {
+      const saved = localStorage.getItem("bulk_job");
+      return saved ? (JSON.parse(saved) as BulkJob) : null;
+    } catch { return null; }
+  });
   const drawerRef = useRef<HTMLDivElement>(null);
   const bulkPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const saveBulkJob = (job: BulkJob | null) => {
+    setBulkJob(job);
+    if (job) localStorage.setItem("bulk_job", JSON.stringify(job));
+    else localStorage.removeItem("bulk_job");
+  };
 
   const newest = crawl[0]?.created_at;
   const active = newest ? Date.now() - new Date(newest).getTime() < 30_000 : false;
@@ -71,7 +82,7 @@ export function ActivityDrawerButton() {
       setOpen(true);
       setTab("activity");
       if (detail?.total && detail?.label && detail?.startedAt) {
-        setBulkJob({ label: detail.label, total: detail.total, type: detail.type ?? "", startedAt: detail.startedAt, done: 0, crawl_job_id: detail.crawl_job_id as string | undefined });
+        saveBulkJob({ label: detail.label, total: detail.total, type: detail.type ?? "", startedAt: detail.startedAt, done: 0, crawl_job_id: detail.crawl_job_id as string | undefined });
       }
     };
     window.addEventListener("open-activity-drawer", handler);
@@ -91,11 +102,33 @@ export function ActivityDrawerButton() {
       } else if (bulkJob.type === "rescore") {
         const p = await getRescoreProgress(new Date(bulkJob.startedAt).toISOString());
         done = p.processed;
+      } else if (bulkJob.type === "backfill") {
+        const remaining = await getBackfillProgress();
+        done = bulkJob.total - remaining;
+      } else if (bulkJob.type === "crawl" && bulkJob.crawl_job_id) {
+        const p = await getCrawlJobProgress(bulkJob.crawl_job_id);
+        done = p.scraped;
+        // Update total dynamically as Instagram reveals how many it will return
+        if (p.total > 0) {
+          setBulkJob((prev) => prev ? { ...prev, total: Math.max(prev.total, p.total), done: Math.max(prev.done, done) } : null);
+          if (p.status === "completed" || p.status === "failed" || p.status === "cancelled") {
+            clearInterval(bulkPollRef.current!);
+            bulkPollRef.current = null;
+            localStorage.removeItem("bulk_job");
+          }
+          return;
+        }
       }
-      setBulkJob((prev) => prev ? { ...prev, done: Math.max(prev.done, done) } : null);
-      if (done >= bulkJob.total) {
+      const updated = (prev: BulkJob | null) => prev ? { ...prev, done: Math.max(prev.done, done) } : null;
+      setBulkJob((prev) => {
+        const next = updated(prev);
+        if (next) localStorage.setItem("bulk_job", JSON.stringify(next));
+        return next;
+      });
+      if (bulkJob.type !== "crawl" && done >= bulkJob.total) {
         clearInterval(bulkPollRef.current!);
         bulkPollRef.current = null;
+        localStorage.removeItem("bulk_job");
       }
     };
 
@@ -191,7 +224,7 @@ export function ActivityDrawerButton() {
 
         {/* Bulk job progress */}
         {tab === "activity" && bulkJob && bulkJob.done < bulkJob.total && (
-          <BulkProgress job={bulkJob} onCancel={() => setBulkJob(null)} />
+          <BulkProgress job={bulkJob} onCancel={() => saveBulkJob(null)} />
         )}
 
         {/* Log list */}

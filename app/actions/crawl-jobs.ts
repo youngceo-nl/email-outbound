@@ -10,6 +10,21 @@ async function requireUser() {
   if (!user) throw new Error("unauthorized");
 }
 
+export async function getCrawlJobProgress(job_id: string): Promise<{ scraped: number; total: number; status: string }> {
+  await requireUser();
+  const sb = createAdminClient();
+  const { data } = await sb
+    .from("crawl_jobs")
+    .select("profiles_scraped, expected_profiles, status")
+    .eq("id", job_id)
+    .single();
+  return {
+    scraped: data?.profiles_scraped ?? 0,
+    total: data?.expected_profiles ?? 0,
+    status: data?.status ?? "unknown",
+  };
+}
+
 export async function cancelCrawl(job_id: string) {
   await requireUser();
   const sb = createAdminClient();

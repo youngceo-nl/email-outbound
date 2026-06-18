@@ -126,53 +126,89 @@ export async function scrapeFollowingPlaywright(opts: {
       }
     });
 
-    // Validate cookie before navigating
+    // Visit homepage first — more natural user flow, avoids session conflicts
     try {
-      const apiRes = await ctx.request.get(
-        "https://i.instagram.com/api/v1/accounts/current_user/?edit=true",
-        { headers: { "X-IG-App-ID": "936619743392459" } },
-      );
-      const body = await apiRes.text().catch(() => "");
-      if (apiRes.status() === 401 || body.includes('"require_login"')) {
-        throw new Error(`IG session cookie invalid or expired (status=${apiRes.status()})`);
-      }
-    } catch (err) {
-      const msg = (err as Error).message;
-      if (msg.includes("cookie invalid") || msg.includes("expired")) throw err;
-      // network blip on the check — proceed anyway
-    }
-
-    try {
-      await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: "networkidle", timeout: 30_000 });
+      await page.goto("https://www.instagram.com/", { waitUntil: "domcontentloaded", timeout: 20_000 });
     } catch {
-      // networkidle timeout is fine — page is usually ready
+      // timeout fine
+    }
+    await page.waitForTimeout(1_500);
+
+    // Dismiss cookie consent banner if present
+    try {
+      const cookieBtn = page.locator('button:has-text("Allow all cookies"), button:has-text("Accept all"), button._asz1').first();
+      await cookieBtn.waitFor({ state: "visible", timeout: 4_000 });
+      await cookieBtn.click();
+      await page.waitForTimeout(800);
+    } catch {
+      // no banner
     }
 
-    await Promise.race([
-      page.waitForSelector("header, main article, [data-testid], ._aaqt, section", { timeout: 10_000 }),
-      page.waitForTimeout(6_000),
-    ]).catch(() => {});
-    await page.waitForTimeout(1_000);
+    // Check login state on homepage
+    const homeUrl = page.url();
+    if (homeUrl.includes("/accounts/login")) {
+      throw new Error("Cookie invalid or expired — Instagram redirected to login page.");
+    }
+    const hasLoginForm = await page.locator('input[name="username"]').count() > 0;
+    if (hasLoginForm) {
+      throw new Error("Cookie invalid or expired — Instagram showed login form.");
+    }
+    // "Log in" link in nav = not authenticated
+    const hasLoginNav = await page.locator('a[href="/accounts/login/"]').count() > 0;
+    if (hasLoginNav) {
+      throw new Error("Cookie not accepted by Instagram — session may have expired. Update the cookie in Settings.");
+    }
+
+    // Navigate to target profile
+    try {
+      await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: "domcontentloaded", timeout: 20_000 });
+    } catch {
+      // timeout fine
+    }
+    await page.waitForTimeout(1_500);
+
+    // Dismiss "See photos/videos" sign-up modal if present (shown to logged-out users)
+    try {
+      const signupModal = page.locator('[role="dialog"]:has-text("Sign up"), [role="dialog"]:has-text("Log in")').first();
+      const closeBtn = signupModal.locator('[aria-label="Close"], button:has-text("×"), svg[aria-label="Close"]').first();
+      await closeBtn.waitFor({ state: "visible", timeout: 3_000 });
+      await closeBtn.click();
+      await page.waitForTimeout(500);
+    } catch {
+      // no modal
+    }
 
     const pageUrl = page.url();
     if (pageUrl.includes("/accounts/login")) {
-      throw new Error(`Instagram redirected to login — cookie expired or invalid.`);
+      throw new Error("Instagram redirected to login — cookie expired or invalid.");
     }
     if (await page.locator('input[name="username"]').count() > 0) {
-      throw new Error(`Instagram showed a login form — cookie expired or invalid.`);
+      throw new Error("Instagram showed login form on profile — cookie expired or invalid.");
     }
 
-    // Open the Following modal
+    // Wait for profile header stats to render
+    await Promise.race([
+      page.waitForSelector('header section ul, header ul li, section ul li', { timeout: 8_000 }),
+      page.waitForTimeout(5_000),
+    ]).catch(() => {});
+
+    // Open the Following modal — try <a>, <button>, and text-based selectors
     let clicked = false;
-    for (const sel of [
+    const followingSelectors = [
       `a[href="/${username}/following/"]`,
       `a[href="/${username}/following"]`,
+      `a[href*="/following/"]`,
       `a[href*="/following"]`,
+      // Instagram sometimes renders this as a button (modal trigger)
+      `button:has-text("following")`,
       `span:has-text("following")`,
-    ]) {
+      // The li containing the count+label
+      `li:has-text("following")`,
+    ];
+    for (const sel of followingSelectors) {
       try {
         const el = page.locator(sel).first();
-        await el.waitFor({ state: "visible", timeout: 5_000 });
+        await el.waitFor({ state: "visible", timeout: 3_000 });
         await el.click();
         clicked = true;
         break;

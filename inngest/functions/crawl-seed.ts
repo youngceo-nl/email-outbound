@@ -1,5 +1,5 @@
 import { inngest } from "@/inngest/client";
-import { getSettings, resolveApifyToken } from "@/lib/config/settings";
+import { getSettings } from "@/lib/config/settings";
 import { scrapeFollowingDetailedWithFallback } from "@/lib/pipeline/scrape-following";
 import { bulkUpsertDiscoveredLeads, logCrawl, logError } from "@/lib/pipeline/persist";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -28,7 +28,6 @@ export const crawlSeed = inngest.createFunction(
     });
 
     const settings = await step.run("load-settings", () => getSettings(true));
-    const token = resolveApifyToken(settings);
     const targetNew = profile_limit ?? settings.max_profiles_per_account;
 
     const effectiveSettings = provider_override
@@ -48,9 +47,11 @@ export const crawlSeed = inngest.createFunction(
           scrapeFollowingDetailedWithFallback({
             username: seed_username,
             settings: effectiveSettings,
-            apifyToken: token,
+            apifyToken: null,
             crawl_job_id,
-            limitOverride: PAGE_SIZE,
+            // Playwright scrolls to the full target in one session; cookie API
+            // pages naturally at ~50 per call with cursor continuation.
+            limitOverride: targetNew - totalNew,
             startCursor: cursor,
           }),
         );

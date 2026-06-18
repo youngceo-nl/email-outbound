@@ -31,7 +31,23 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
 // Apify is OPTIONAL — required only if `following_scraper_provider` is "apify"
 // or "auto" without ScrapingBee configured.
 export function resolveApifyToken(s: AppSettings): string | null {
-  return s.apify_api_key || process.env.APIFY_TOKEN || null;
+  return process.env.APIFY_TOKEN || s.apify_api_key || null;
+}
+
+// Returns all configured tokens (env list first, DB key appended if not already present).
+// Used for rotation: caller tries each in order until one succeeds.
+export function resolveApifyTokens(s: AppSettings): string[] {
+  const fromEnv = (process.env.APIFY_TOKENS ?? "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const fallback = s.apify_api_key?.trim();
+  if (fallback && !fromEnv.includes(fallback)) fromEnv.push(fallback);
+  if (fromEnv.length === 0) {
+    const single = process.env.APIFY_TOKEN?.trim();
+    if (single) fromEnv.push(single);
+  }
+  return fromEnv;
 }
 export function resolveClaudeKey(s: AppSettings): string {
   const k = s.claude_api_key || process.env.ANTHROPIC_API_KEY || "";

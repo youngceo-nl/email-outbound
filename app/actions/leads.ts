@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { toUsername, profileUrl } from "@/lib/pipeline/normalize";
 import { processLead } from "@/app/actions/process-lead";
+import { inngest } from "@/inngest/client";
 
 async function requireUser() {
   const sb = await createClient();
@@ -285,7 +286,21 @@ export async function getPendingCount(): Promise<number> {
   const { count } = await createAdminClient()
     .from("leads")
     .select("id", { count: "exact", head: true })
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .not("followers", "is", null);
+  return count ?? 0;
+}
+
+// Count leads that still need backfill (followers IS NULL).
+// Returns the remaining count so the activity drawer can compute done = total - remaining.
+export async function getBackfillProgress(): Promise<number> {
+  await requireUser();
+  const { count } = await createAdminClient()
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .is("followers", null)
+    .is("backfill_error", null)
+    .neq("status", "rejected");
   return count ?? 0;
 }
 
@@ -383,4 +398,79 @@ export async function deleteLeads(ids: string[]): Promise<DeleteLeadsResult> {
 
   revalidatePath("/leads");
   return { ok: true, deleted: count ?? clean.length };
+}
+
+// ─── Bulk backfill ────────────────────────────────────────────────────────────
+
+// Fan out backfill for all leads that still lack profile metadata.
+// Splits into at most 3 parallel Inngest invocations so concurrent runs hit the
+// global concurrency limit and progress in parallel without hammering IG.
+export async function triggerBulkBackfill(): Promise<{ ok: boolean; queued: number; events: number; error?: string }> {
+  await requireUser();
+  const sb = createAdminClient();
+
+  const { data, error } = await sb
+    .from("leads")
+    .select("username")
+    .is("followers", null)
+    .not("backfill_error", "eq", "blocked")  // skip permanently unreachable; retry apify_exhausted
+    .neq("status", "rejected");
+
+  if (error) return { ok: false, queued: 0, events: 0, error: error.message };
+  const usernames = (data ?? []).map((r) => r.username).filter(Boolean);
+  if (usernames.length === 0) return { ok: true, queued: 0, events: 0 };
+
+  // Split into ≤3 chunks so Inngest can run them concurrently (concurrency limit: 3).
+  const PARALLEL = 3;
+  const chunkSize = Math.ceil(usernames.length / PARALLEL);
+  const events: { name: "leads/backfill.metadata.requested"; data: { usernames: string[]; crawl_job_id: null } }[] = [];
+  for (let i = 0; i < usernames.length; i += chunkSize) {
+    events.push({
+      name: "leads/backfill.metadata.requested",
+      data: { usernames: usernames.slice(i, i + chunkSize), crawl_job_id: null },
+    });
+  }
+
+  await inngest.send(events);
+  return { ok: true, queued: usernames.length, events: events.length };
+}
+
+export async function getPipelineStats(): Promise<{
+  byStatus: Record<string, number>;
+  byBlockReason: Record<string, number>;
+}> {
+  await requireUser();
+  const sb = createAdminClient();
+
+  const [{ data: statuses }, { data: blocked }] = await Promise.all([
+    sb.from("leads").select("status"),
+    sb.from("leads").select("backfill_error").not("backfill_error", "is", null),
+  ]);
+
+  const byStatus: Record<string, number> = {};
+  for (const r of statuses ?? []) {
+    byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+  }
+
+  const byBlockReason: Record<string, number> = {};
+  for (const r of blocked ?? []) {
+    const key = r.backfill_error as string;
+    byBlockReason[key] = (byBlockReason[key] ?? 0) + 1;
+  }
+
+  return { byStatus, byBlockReason };
+}
+
+export async function resetApifyExhausted(): Promise<{ ok: boolean; reset: number }> {
+  await requireUser();
+  const sb = createAdminClient();
+  const { data, error } = await sb
+    .from("leads")
+    .update({ backfill_error: null })
+    .eq("backfill_error", "apify_exhausted")
+    .is("followers", null)
+    .select("id");
+  if (error) return { ok: false, reset: 0 };
+  revalidatePath("/logs");
+  return { ok: true, reset: data?.length ?? 0 };
 }

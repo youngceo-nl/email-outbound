@@ -155,6 +155,7 @@ export type Lead = {
   outreach_count: number;
   last_outreach_at: string | null;
   last_outreach_error: string | null;
+  backfill_error: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -242,5 +242,5 @@ export async function startCrawl(seed_id: string, providerOverride?: ScrapeProvi
 
   revalidatePath("/seeds");
   revalidatePath("/");
-  return { ok: true, crawl_job_id: job.id };
+  return { ok: true, crawl_job_id: job.id, profile_limit: seed.max_profiles_to_scrape ?? settings.max_profiles_per_account ?? 100, seed_username: seed.username };
 }

@@ -228,7 +228,20 @@ function SeedRow({
         onClick={() =>
           start(async () => {
             const res = await startCrawl(seed.id, provider);
-            setMsg("error" in res && res.error ? `Error: ${res.error}` : `Search started (${provider}).`);
+            if ("error" in res && res.error) {
+              setMsg(`Error: ${res.error}`);
+            } else if ("ok" in res && res.ok) {
+              setMsg(`Search started (${provider}).`);
+              window.dispatchEvent(new CustomEvent("open-activity-drawer", {
+                detail: {
+                  label: `Scraping @${res.seed_username}`,
+                  total: res.profile_limit,
+                  type: "crawl",
+                  startedAt: Date.now(),
+                  crawl_job_id: res.crawl_job_id,
+                },
+              }));
+            }
           })
         }
       >

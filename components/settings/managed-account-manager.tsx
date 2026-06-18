@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useRouter } from "next/navigation";
-import { addManagedAccount, refreshManagedAccount, submitCheckpointCode, setManagedAccountEmail, testManagedAccountCookie } from "@/app/actions/settings";
+import { addManagedAccount, refreshManagedAccount, submitCheckpointCode, setManagedAccountEmail, testManagedAccountCookie, setManagedAccountCookie } from "@/app/actions/settings";
 import type { ManagedAccountDisplay } from "@/lib/types";
 
 function relativeTime(iso: string | null): string {
@@ -68,6 +68,19 @@ function AccountCard({
   const [submittingCode, setSubmittingCode] = useState(false);
   const [emailDraft, setEmailDraft] = useState(account.account_email ?? "");
   const [savingEmail, setSavingEmail] = useState(false);
+  const [savingCookie, setSavingCookie] = useState(false);
+  const [cookieError, setCookieError] = useState<string | null>(null);
+
+  // Parse existing cookie string into individual fields
+  function parseCookieField(cookie: string | null | undefined, key: string): string {
+    if (!cookie) return "";
+    const m = cookie.match(new RegExp(`(?:^|;\\s*)${key}=([^;]*)`));
+    return m ? m[1].trim().replace(/^"|"$/g, "") : "";
+  }
+  const [sessionId, setSessionId] = useState(() => parseCookieField(account.cookie, "sessionid"));
+  const [csrfToken, setCsrfToken] = useState(() => parseCookieField(account.cookie, "csrftoken"));
+  const [dsUserId, setDsUserId] = useState(() => parseCookieField(account.cookie, "ds_user_id"));
+  const [rur, setRur] = useState(() => parseCookieField(account.cookie, "rur"));
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
   const router = useRouter();
@@ -77,6 +90,29 @@ function AccountCard({
     await setManagedAccountEmail(platform, account.id, emailDraft);
     setSavingEmail(false);
     router.refresh();
+  };
+
+  const assembleCookie = () => {
+    const parts: string[] = [];
+    if (sessionId.trim()) parts.push(`sessionid=${sessionId.trim()}`);
+    if (csrfToken.trim()) parts.push(`csrftoken=${csrfToken.trim()}`);
+    if (dsUserId.trim()) parts.push(`ds_user_id=${dsUserId.trim()}`);
+    if (rur.trim()) parts.push(`rur="${rur.trim().replace(/^"|"$/g, "")}"`);
+    return parts.join("; ");
+  };
+
+  const cookieChanged = assembleCookie() !== (account.cookie ?? "");
+
+  const handleSaveCookie = async () => {
+    setSavingCookie(true);
+    setCookieError(null);
+    const result = await setManagedAccountCookie(platform, account.id, assembleCookie());
+    setSavingCookie(false);
+    if (result.error) {
+      setCookieError(result.error);
+    } else {
+      router.refresh();
+    }
   };
 
   const handleTest = async () => {
@@ -168,14 +204,50 @@ function AccountCard({
         </div>
 
         {expanded && (
-          <div className="mt-2">
-            {account.cookie ? (
-              <p className="font-mono text-xs text-foreground/80 break-all leading-relaxed">
-                {account.cookie}
-              </p>
+          <div className="mt-2 space-y-2">
+            {platform === "instagram" ? (
+              <>
+                {([
+                  { label: "Session ID", value: sessionId, set: setSessionId, placeholder: "395860815%3ADkb0mm…" },
+                  { label: "CSRF Token", value: csrfToken, set: setCsrfToken, placeholder: "RID2FZQRbCj…" },
+                  { label: "User ID", value: dsUserId, set: setDsUserId, placeholder: "395860815" },
+                  { label: "RUR", value: rur, set: setRur, placeholder: "CLN\\054…" },
+                ] as const).map(({ label, value, set, placeholder }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-20 shrink-0">{label}</span>
+                    <Input
+                      value={value}
+                      onChange={(e) => { (set as (v: string) => void)(e.target.value); setCookieError(null); }}
+                      placeholder={placeholder}
+                      className="h-7 text-xs font-mono flex-1"
+                    />
+                  </div>
+                ))}
+              </>
             ) : (
-              <p className="text-xs text-muted-foreground italic">No cookie — log in to generate one</p>
+              <textarea
+                value={assembleCookie()}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSessionId(v);
+                  setCookieError(null);
+                }}
+                placeholder="Paste full cookie string"
+                rows={3}
+                className="w-full font-mono text-xs text-foreground/80 bg-background border rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+              />
             )}
+            {cookieError && <p className="text-xs text-destructive">{cookieError}</p>}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              disabled={savingCookie || !cookieChanged}
+              onClick={handleSaveCookie}
+            >
+              {savingCookie ? "Saving…" : "Save cookie"}
+            </Button>
           </div>
         )}
 
@@ -287,8 +359,20 @@ export function ManagedAccountManager({
 
   const [label, setLabel] = useState("");
   const [accountEmail, setAccountEmail] = useState("");
-  const [cookiePaste, setCookiePaste] = useState("");
+  const [newSessionId, setNewSessionId] = useState("");
+  const [newCsrfToken, setNewCsrfToken] = useState("");
+  const [newDsUserId, setNewDsUserId] = useState("");
+  const [newRur, setNewRur] = useState("");
   const [password, setPassword] = useState("");
+
+  const assembleNewCookie = () => {
+    const parts: string[] = [];
+    if (newSessionId.trim()) parts.push(`sessionid=${newSessionId.trim()}`);
+    if (newCsrfToken.trim()) parts.push(`csrftoken=${newCsrfToken.trim()}`);
+    if (newDsUserId.trim()) parts.push(`ds_user_id=${newDsUserId.trim()}`);
+    if (newRur.trim()) parts.push(`rur="${newRur.trim().replace(/^"|"$/g, "")}"`);
+    return parts.join("; ");
+  };
   const [showPw, setShowPw] = useState(false);
   const [addPending, startAdd] = useTransition();
   const [addResult, setAddResult] = useState<{ ok?: true; error?: string } | null>(null);
@@ -321,19 +405,19 @@ export function ManagedAccountManager({
 
   const handleAdd = () => {
     if (!label.trim()) return;
-    if (isIg && !cookiePaste.trim()) return;
+    if (isIg && !newSessionId.trim()) return;
     if (!isIg && !password.trim()) return;
     setAddResult(null);
     startAdd(async () => {
       const res = await addManagedAccount(platform, {
         label: label.trim(),
         account_email: accountEmail.trim() || undefined,
-        cookie: isIg ? cookiePaste.trim() : undefined,
+        cookie: isIg ? assembleNewCookie() : undefined,
         password: !isIg ? password.trim() : undefined,
       });
       setAddResult(res ?? { ok: true });
       if (res.ok) {
-        setLabel(""); setAccountEmail(""); setCookiePaste(""); setPassword("");
+        setLabel(""); setAccountEmail(""); setNewSessionId(""); setNewCsrfToken(""); setNewDsUserId(""); setNewRur(""); setPassword("");
         window.location.reload();
       }
     });
@@ -390,23 +474,32 @@ export function ManagedAccountManager({
           )}
         </div>
 
-        {/* Primary flow: paste cookie from browser */}
+        {/* Cookie fields — Chrome: F12 → Application → Cookies → instagram.com */}
         {isIg && (
-          <div className="space-y-1">
-            <Label htmlFor={`${platform}-cookie-paste`} className="text-xs">
+          <div className="space-y-1.5">
+            <Label className="text-xs">
               Session cookie{" "}
-              <span className="text-muted-foreground font-normal">
-                — Chrome: F12 → Application → Cookies → instagram.com → copy <code className="text-xs">sessionid</code>
-              </span>
+              <span className="text-muted-foreground font-normal">— F12 → Application → Cookies → instagram.com</span>
             </Label>
-            <Input
-              id={`${platform}-cookie-paste`}
-              value={cookiePaste}
-              onChange={(e) => setCookiePaste(e.target.value)}
-              placeholder="Paste sessionid value or full cookie string…"
-              autoComplete="off"
-              className="h-8 text-sm font-mono"
-            />
+            {([
+              { label: "Session ID", id: "sessionid", value: newSessionId, set: setNewSessionId, placeholder: "395860815%3ADkb0mm…", required: true },
+              { label: "CSRF Token", id: "csrftoken", value: newCsrfToken, set: setNewCsrfToken, placeholder: "RID2FZQRbCj…", required: false },
+              { label: "User ID",    id: "ds_user_id", value: newDsUserId, set: setNewDsUserId, placeholder: "395860815", required: false },
+              { label: "RUR",        id: "rur",        value: newRur,      set: setNewRur,      placeholder: "CLN\\054…", required: false },
+            ] as const).map(({ label, id, value, set, placeholder, required }) => (
+              <div key={id} className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-20 shrink-0">
+                  {label}{required && <span className="text-destructive ml-0.5">*</span>}
+                </span>
+                <Input
+                  value={value}
+                  onChange={(e) => (set as (v: string) => void)(e.target.value)}
+                  placeholder={placeholder}
+                  autoComplete="off"
+                  className="h-7 text-xs font-mono flex-1"
+                />
+              </div>
+            ))}
           </div>
         )}
 
@@ -437,7 +530,7 @@ export function ManagedAccountManager({
             type="button"
             size="sm"
             variant="secondary"
-            disabled={addPending || !label.trim() || (isIg ? !cookiePaste.trim() : !password.trim())}
+            disabled={addPending || !label.trim() || (isIg ? !newSessionId.trim() : !password.trim())}
             onClick={handleAdd}
           >
             <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${addPending ? "animate-spin" : ""}`} />

@@ -1,5 +1,5 @@
 import "server-only";
-import { runActorSync } from "./client";
+import { runActorSync, runActorAsync } from "./client";
 import type { RecentPost, ScrapedProfile } from "@/lib/types";
 
 const FOLLOWING_ACTOR = process.env.APIFY_FOLLOWING_ACTOR || "apify~instagram-follower-scraper";
@@ -36,14 +36,13 @@ export async function scrapeFollowingDetailed(opts: {
   limit: number;
 }): Promise<DiscoveredFollowing[]> {
   const resultsLimit = Math.max(100, Math.min(500000, opts.limit));
-  const items = await runActorSync<AnyRec>({
+  const items = await runActorAsync<AnyRec>({
     token: opts.token,
     actorId: FOLLOWING_ACTOR,
     input: {
       Account: [opts.username],
       resultsLimit,
       dataToScrape: "Followings",
-      // legacy alt names kept for backwards compat with other community actors
       usernames: [opts.username],
       maxResults: resultsLimit,
     },
@@ -91,12 +90,13 @@ export async function scrapeProfiles(opts: {
   usernames: string[];
 }): Promise<ScrapedProfile[]> {
   if (opts.usernames.length === 0) return [];
-  const items = await runActorSync<AnyRec>({
+  // Use async run+poll: the sync endpoint caps at 300s and returns 201 (not items)
+  // for batches that take longer, causing .map() to fail on the run metadata object.
+  const items = await runActorAsync<AnyRec>({
     token: opts.token,
     actorId: PROFILE_ACTOR,
     input: {
       usernames: opts.usernames,
-      // some actors expect URLs:
       directUrls: opts.usernames.map((u) => `https://www.instagram.com/${u}/`),
       resultsType: "details",
       resultsLimit: opts.usernames.length,

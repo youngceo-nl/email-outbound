@@ -1,5 +1,5 @@
 import { inngest } from "@/inngest/client";
-import { getSettings, resolveApifyToken } from "@/lib/config/settings";
+import { getSettings } from "@/lib/config/settings";
 import { scrapeProfileWithFallback } from "@/lib/pipeline/scrape-profile";
 import { hardFilter, metricsGate } from "@/lib/pipeline/filter";
 import { computeMetrics } from "@/lib/pipeline/metrics";
@@ -28,13 +28,12 @@ export const processProfile = inngest.createFunction(
     }
 
     const settings = await step.run("load-settings", () => getSettings());
-    const apifyToken = resolveApifyToken(settings);
 
-    // 1. Scrape profile + posts (provider-aware; respects following_scraper_provider)
+    // 1. Scrape profile via direct cookie (Playwright fallback handled inside)
     let profile;
     try {
       const r = await step.run("scrape-profile", () =>
-        scrapeProfileWithFallback({ username, settings, apifyToken, crawl_job_id }),
+        scrapeProfileWithFallback({ username, settings, apifyToken: null, crawl_job_id }),
       );
       profile = r.profile;
     } catch (err) {

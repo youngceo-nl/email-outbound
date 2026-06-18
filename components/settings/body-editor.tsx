@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState, useEffect } from "react";
-import { Bold, Italic, List, Eye, EyeOff } from "lucide-react";
+import { Bold, Italic, List, Eye, EyeOff, Link } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 // Mirrors textToHtml for live preview (no server import needed).
@@ -25,6 +25,7 @@ function esc(s: string) {
 }
 function inlineMd(s: string) {
   return s
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:inherit">$1</a>')
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>");
 }
@@ -40,6 +41,18 @@ function computeWrap(
   const selected = val.slice(selStart, selEnd) || "text";
   const next = val.slice(0, selStart) + before + selected + after + val.slice(selEnd);
   return { value: next, start: selStart + before.length, end: selStart + before.length + selected.length };
+}
+
+function computeLink(
+  val: string,
+  selStart: number,
+  selEnd: number,
+  url: string,
+): { value: string; start: number; end: number } {
+  const selected = val.slice(selStart, selEnd) || "link text";
+  const insert = `[${selected}](${url})`;
+  const next = val.slice(0, selStart) + insert + val.slice(selEnd);
+  return { value: next, start: selStart, end: selStart + insert.length };
 }
 
 function computeBullet(
@@ -92,6 +105,17 @@ export function BodyEditor({
     el.focus();
   };
 
+  const applyLink = () => {
+    const el = ref.current;
+    if (!el) return;
+    const url = window.prompt("Link URL:");
+    if (!url) return;
+    const result = computeLink(value, el.selectionStart, el.selectionEnd, url);
+    pendingCursor.current = { start: result.start, end: result.end };
+    setValue(result.value);
+    el.focus();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "b") {
       e.preventDefault();
@@ -100,6 +124,10 @@ export function BodyEditor({
     if ((e.metaKey || e.ctrlKey) && e.key === "i") {
       e.preventDefault();
       applyFormat((v, s, end) => computeWrap(v, s, end, "*", "*"));
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      e.preventDefault();
+      applyLink();
     }
   };
 
@@ -115,6 +143,9 @@ export function BodyEditor({
         </ToolbarBtn>
         <ToolbarBtn label="Bullet list" onClick={() => applyFormat((v, s, e) => computeBullet(v, s, e))}>
           <List className="h-3.5 w-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn label="Link (⌘K)" onClick={applyLink}>
+          <Link className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <div className="ml-auto">
           <ToolbarBtn label={preview ? "Edit" : "Preview"} onClick={() => setPreview((v) => !v)} active={preview}>
@@ -148,7 +179,7 @@ export function BodyEditor({
       )}
 
       <p className="text-xs text-muted-foreground pt-1.5">
-        <strong>**bold**</strong> · <em>*italic*</em> · <code>- item</code> for bullets · <kbd>⌘B</kbd>/<kbd>⌘I</kbd> shortcuts
+        <strong>**bold**</strong> · <em>*italic*</em> · <code>- item</code> for bullets · <code>[text](url)</code> for links · <kbd>⌘B</kbd>/<kbd>⌘I</kbd>/<kbd>⌘K</kbd>
       </p>
     </div>
   );

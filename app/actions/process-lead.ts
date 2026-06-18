@@ -70,15 +70,11 @@ export async function analyzeAllPending(): Promise<AnalyzeAllPendingResponse> {
   const admin = createAdminClient();
   const { data: leads, error } = await admin
     .from("leads")
-    .select("id, username, crawl_depth, source_seed_id, parent_username, bio")
+    .select("id, crawl_depth, source_seed_id, parent_username")
     .eq("status", "pending")
+    .not("followers", "is", null)
     .order("created_at", { ascending: true });
   if (error || !leads?.length) return { ok: false, queued: 0, error: error?.message ?? "no pending leads" };
-
-  // Leads that already have a bio (e.g. from CSV import) skip the expensive
-  // Apify scrape and go straight to AI scoring — seconds instead of minutes.
-  const withBio    = leads.filter((l) => l.bio);
-  const withoutBio = leads.filter((l) => !l.bio);
 
   const { data: job, error: jobErr } = await admin
     .from("crawl_jobs")
@@ -96,28 +92,13 @@ export async function analyzeAllPending(): Promise<AnalyzeAllPendingResponse> {
 
   const CHUNK = 500;
 
-  // Fast path: already have bio → just score
-  for (let i = 0; i < withBio.length; i += CHUNK) {
+  // Always go straight to AI scoring — backfill is a separate step responsible
+  // for data collection. Analyze should never trigger a scrape.
+  for (let i = 0; i < leads.length; i += CHUNK) {
     await inngest.send(
-      withBio.slice(i, i + CHUNK).map((lead) => ({
+      leads.slice(i, i + CHUNK).map((lead) => ({
         name: "lead/score.requested" as const,
         data: { lead_id: lead.id, crawl_job_id: job.id, force: false },
-      })),
-    );
-  }
-
-  // Slow path: no bio → full scrape pipeline
-  for (let i = 0; i < withoutBio.length; i += CHUNK) {
-    await inngest.send(
-      withoutBio.slice(i, i + CHUNK).map((lead) => ({
-        name: "crawl/profile.discovered" as const,
-        data: {
-          crawl_job_id: job.id,
-          seed_id: lead.source_seed_id ?? null,
-          username: lead.username,
-          depth: lead.crawl_depth ?? 0,
-          parent_username: lead.parent_username ?? null,
-        },
       })),
     );
   }
