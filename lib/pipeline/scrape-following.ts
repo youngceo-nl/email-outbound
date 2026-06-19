@@ -54,9 +54,15 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
     throw lastErr ?? new Error("All Instagram cookies rate-limited");
   };
 
-  // Try Playwright first, fall back to direct cookie
+  // Try Playwright first (hard 5-min cap), fall back to direct cookie
+  const PLAYWRIGHT_TIMEOUT_MS = 5 * 60 * 1000;
   try {
-    return await tryPlaywright();
+    return await Promise.race([
+      tryPlaywright(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Playwright timed out after 5 minutes")), PLAYWRIGHT_TIMEOUT_MS)
+      ),
+    ]);
   } catch (err) {
     await logError({
       context: "playwright.following.fallback",

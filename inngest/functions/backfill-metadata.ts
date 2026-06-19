@@ -111,6 +111,7 @@ export const backfillMetadata = inngest.createFunction(
           const updatedLeadIds: string[] = [];
           let s = 0, u = 0;
           let cancelledMid = false;
+          const reachedUsernames = new Set<string>();
           for (const username of batch) {
               // Check stop flag every profile — cheap read, avoids 15s lag before honoring stop.
               const check = await sb.from("app_settings").select("backfill_cancel_requested").eq("id", 1).single();
@@ -119,7 +120,16 @@ export const backfillMetadata = inngest.createFunction(
                 cancelledMid = true;
                 break;
               }
+              reachedUsernames.add(username);
               try {
+                // Skip if another concurrent backfill job already filled this account
+                // (e.g. auto-backfill from crawl-seed overlapping with a manual trigger).
+                const { data: already } = await sb.from("leads").select("followers").eq("username", username).maybeSingle();
+                if (already?.followers != null) {
+                  await sleep(50); // tiny yield, no IG call needed
+                  continue;
+                }
+
                 // session: null → use Node.js fetch + undici ProxyAgent (no Playwright).
                 // Playwright's APIRequestContext doesn't reliably route through the launch-time
                 // proxy, causing persistent 407s. undici handles http://user:pass@host:port natively.
@@ -170,6 +180,16 @@ export const backfillMetadata = inngest.createFunction(
                 }
               }
               await sleep(jitteredDelay(COOKIE_DELAY_BASE_MS));
+          }
+          // Accounts we never reached because we broke mid-batch (rate-limited or
+          // hard error) — mark them so they drain out of the "remaining" queue
+          // instead of silently staying stuck with followers=null forever.
+          const skipped = batch.filter((u) => !reachedUsernames.has(u));
+          if (skipped.length > 0) {
+            await sb.from("leads")
+              .update({ backfill_error: "rate_limited" })
+              .in("username", skipped)
+              .is("followers", null);
           }
           return { s, u, updatedLeadIds, halt: cancelledMid };
         });
