@@ -413,7 +413,7 @@ export async function triggerBulkBackfill(): Promise<{ ok: boolean; queued: numb
     .from("leads")
     .select("username")
     .is("followers", null)
-    .not("backfill_error", "eq", "blocked")  // skip permanently unreachable; retry apify_exhausted
+    .or("backfill_error.is.null,backfill_error.eq.apify_exhausted")
     .neq("status", "rejected");
 
   if (error) return { ok: false, queued: 0, events: 0, error: error.message };
@@ -473,4 +473,120 @@ export async function resetApifyExhausted(): Promise<{ ok: boolean; reset: numbe
   if (error) return { ok: false, reset: 0 };
   revalidatePath("/logs");
   return { ok: true, reset: data?.length ?? 0 };
+}
+
+export async function resetBlocked(): Promise<{ ok: boolean; reset: number }> {
+  await requireUser();
+  const sb = createAdminClient();
+  const { data, error } = await sb
+    .from("leads")
+    .update({ backfill_error: null })
+    .eq("backfill_error", "blocked")
+    .is("followers", null)
+    .select("id");
+  if (error) return { ok: false, reset: 0 };
+  revalidatePath("/logs");
+  return { ok: true, reset: data?.length ?? 0 };
+}
+
+export type OperationStatus = {
+  isRunning: boolean;
+  operation: "backfill" | "analyze" | "crawl" | null;
+  method: string | null;
+  succeeded: number;
+  failed: number;
+  remaining: number;
+  total: number;
+  perMin: number;
+  etaMin: number | null;
+};
+
+export async function getOperationStatus(): Promise<OperationStatus> {
+  const sb = createAdminClient();
+  const ONE_HOUR = new Date(Date.now() - 60 * 60_000).toISOString();
+  const NINETY_SEC = new Date(Date.now() - 90_000).toISOString();
+  const FIVE_MIN = new Date(Date.now() - 5 * 60_000).toISOString();
+
+  const [
+    { data: methodLog },
+    // Leads that got followers filled in the last hour = succeeded this session
+    { count: succeededCount },
+    // Leads definitively failed (blocked/private) in the last hour
+    { count: blockedCount },
+    // Leads still needing backfill
+    { count: remainingCount },
+    // Any lead filled in last 90s → backfill is live
+    { count: recentUpdates },
+    // Pending leads with metadata (for analyze detection)
+    { count: pendingCount },
+    { count: recentPendingUpdates },
+    // For perMin calculation
+    { count: recentFiveMin },
+  ] = await Promise.all([
+    sb.from("crawl_logs")
+      .select("detail")
+      .in("action", ["backfill_metadata"])
+      .gte("created_at", ONE_HOUR)
+      .order("created_at", { ascending: false })
+      .limit(1),
+    sb.from("leads")
+      .select("*", { count: "exact", head: true })
+      .not("followers", "is", null)
+      .gte("updated_at", ONE_HOUR),
+    sb.from("leads")
+      .select("*", { count: "exact", head: true })
+      .not("backfill_error", "is", null)
+      .not("backfill_error", "eq", "apify_exhausted")
+      .gte("updated_at", ONE_HOUR),
+    sb.from("leads")
+      .select("*", { count: "exact", head: true })
+      .is("followers", null)
+      .or("backfill_error.is.null,backfill_error.eq.apify_exhausted"),
+    sb.from("leads")
+      .select("*", { count: "exact", head: true })
+      .not("followers", "is", null)
+      .gte("updated_at", NINETY_SEC),
+    sb.from("leads")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending")
+      .not("followers", "is", null),
+    sb.from("leads")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending")
+      .not("followers", "is", null)
+      .gte("updated_at", NINETY_SEC),
+    sb.from("leads")
+      .select("*", { count: "exact", head: true })
+      .not("followers", "is", null)
+      .gte("updated_at", FIVE_MIN),
+  ]);
+
+  const backfillRunning = (recentUpdates ?? 0) > 0 && (remainingCount ?? 0) > 0;
+  const analyzeRunning = (recentPendingUpdates ?? 0) > 0 && (pendingCount ?? 0) > 0;
+
+  const succeeded = succeededCount ?? 0;
+  const failed = blockedCount ?? 0;
+
+  const method = methodLog?.[0]?.detail?.match(/mode=(\w+)/)?.[1] ?? null;
+
+  const perMin = (recentFiveMin ?? 0) / 5;
+  const total = succeeded + failed + (remainingCount ?? 0);
+  const etaMin = backfillRunning && perMin > 0 ? Math.round((remainingCount ?? 0) / perMin) : null;
+
+  let operation: OperationStatus["operation"] = null;
+  if (backfillRunning) operation = "backfill";
+  else if (analyzeRunning) operation = "analyze";
+  else if (methodLog?.[0] && (remainingCount ?? 0) === 0) operation = "backfill";
+
+  return {
+    isRunning: backfillRunning || analyzeRunning,
+    operation,
+    method,
+    succeeded,
+    failed,
+    remaining: remainingCount ?? 0,
+    total,
+    perMin,
+    etaMin,
+  };
 }

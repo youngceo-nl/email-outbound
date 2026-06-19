@@ -25,6 +25,73 @@ export async function getCrawlJobProgress(job_id: string): Promise<{ scraped: nu
   };
 }
 
+export type ActiveJob = {
+  id: string;
+  type: "crawl" | "backfill";
+  label: string;
+  status: string;
+  scraped: number;
+  total: number;
+  startedAt: string | null;
+};
+
+export async function getActiveJobs(): Promise<ActiveJob[]> {
+  await requireUser();
+  const sb = createAdminClient();
+
+  const [{ data: crawlJobs }, { count: backfillRemaining }, { count: recentUpdates }] = await Promise.all([
+    sb.from("crawl_jobs")
+      .select("id, status, profiles_scraped, expected_profiles, started_at, seeds(username)")
+      .in("status", ["queued", "running"])
+      .order("started_at", { ascending: false })
+      .limit(5),
+    sb.from("leads")
+      .select("*", { count: "exact", head: true })
+      .is("followers", null)
+      .or("backfill_error.is.null,backfill_error.eq.apify_exhausted")
+      .neq("status", "rejected"),
+    sb.from("leads")
+      .select("*", { count: "exact", head: true })
+      .not("followers", "is", null)
+      .gte("updated_at", new Date(Date.now() - 45_000).toISOString()),
+  ]);
+
+  const jobs: ActiveJob[] = [];
+
+  for (const j of crawlJobs ?? []) {
+    const seed = (j.seeds as unknown as { username: string } | null);
+    const scraped = j.profiles_scraped ?? 0;
+    const total = j.expected_profiles ?? 0;
+    const isPlaywright = scraped === 0 && j.status === "running";
+    jobs.push({
+      id: j.id,
+      type: "crawl",
+      label: isPlaywright
+        ? `Scraping @${seed?.username ?? "account"} with Playwright…`
+        : `Scraping @${seed?.username ?? "account"}`,
+      status: j.status,
+      scraped,
+      total,
+      startedAt: j.started_at ?? null,
+    });
+  }
+
+  const backfillActive = (recentUpdates ?? 0) > 0 && (backfillRemaining ?? 0) > 0;
+  if (backfillActive) {
+    jobs.push({
+      id: "backfill",
+      type: "backfill",
+      label: "Backfilling metadata",
+      status: "running",
+      scraped: 0,
+      total: backfillRemaining ?? 0,
+      startedAt: null,
+    });
+  }
+
+  return jobs;
+}
+
 export async function cancelCrawl(job_id: string) {
   await requireUser();
   const sb = createAdminClient();

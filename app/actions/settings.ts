@@ -278,6 +278,7 @@ export async function addManagedAccount(
       cookie_set_at: new Date().toISOString(),
       last_error: cookieError,
       checkpoint_state: null,
+      proxy_url: null,
     };
     await updateSettings({ [key]: [...accounts, newAccount] } as Partial<AppSettings>);
     revalidatePath("/settings");
@@ -296,6 +297,7 @@ export async function addManagedAccount(
     cookie_set_at: null,
     last_error: null,
     checkpoint_state: null,
+    proxy_url: null,
   };
 
   // Save the account first so it shows up in the list even if login fails.
@@ -414,6 +416,16 @@ export async function setManagedAccountEmail(platform: Platform, id: string, ema
   const key = accountsKey(platform);
   const accounts: ManagedAccount[] = (settings[key] as ManagedAccount[]) ?? [];
   const updated = accounts.map((a) => a.id === id ? { ...a, account_email: email.trim() || null } : a);
+  await updateSettings({ [key]: updated } as Partial<AppSettings>);
+  revalidatePath("/settings");
+}
+
+export async function setManagedAccountProxy(platform: Platform, id: string, proxyUrl: string): Promise<void> {
+  await requireUser();
+  const settings = await getSettings(true);
+  const key = accountsKey(platform);
+  const accounts: ManagedAccount[] = (settings[key] as ManagedAccount[]) ?? [];
+  const updated = accounts.map((a) => a.id === id ? { ...a, proxy_url: proxyUrl.trim() || null } : a);
   await updateSettings({ [key]: updated } as Partial<AppSettings>);
   revalidatePath("/settings");
 }

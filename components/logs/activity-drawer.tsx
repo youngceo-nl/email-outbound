@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { ScrollText, X, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
+import { ScrollText, X, AlertTriangle, CheckCircle2, Clock, LayoutDashboard, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { actionLabel, actionIsPositive } from "@/lib/labels";
 import { getPendingCount, getRescoreProgress, getBackfillProgress } from "@/app/actions/leads";
-import { cancelCrawl, getCrawlJobProgress } from "@/app/actions/crawl-jobs";
+import { cancelCrawl, getCrawlJobProgress, getActiveJobs, type ActiveJob } from "@/app/actions/crawl-jobs";
 
 type CrawlLog = {
   id: string;
@@ -37,12 +38,16 @@ export function ActivityDrawerButton() {
   const [crawl, setCrawl] = useState<CrawlLog[]>([]);
   const [errors, setErrors] = useState<ErrorLog[]>([]);
   const [tab, setTab] = useState<"activity" | "errors">("activity");
-  const [bulkJob, setBulkJob] = useState<BulkJob | null>(() => {
+  const [bulkJob, setBulkJob] = useState<BulkJob | null>(null);
+  const [activeJobs, setActiveJobs] = useState<ActiveJob[]>([]);
+
+  // Restore persisted job after mount — localStorage is client-only
+  useEffect(() => {
     try {
       const saved = localStorage.getItem("bulk_job");
-      return saved ? (JSON.parse(saved) as BulkJob) : null;
-    } catch { return null; }
-  });
+      if (saved) setBulkJob(JSON.parse(saved) as BulkJob);
+    } catch { /* ignore */ }
+  }, []);
   const drawerRef = useRef<HTMLDivElement>(null);
   const bulkPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -54,24 +59,32 @@ export function ActivityDrawerButton() {
 
   const newest = crawl[0]?.created_at;
   const active = newest ? Date.now() - new Date(newest).getTime() < 30_000 : false;
+  const hasRunningJobs = activeJobs.length > 0;
 
-  // Fetch logs on mount and poll while open
+  // Fetch logs + auto-detect running jobs
   useEffect(() => {
     const sb = createClient();
     let cancelled = false;
 
     const tick = async () => {
-      const [{ data: c }, { data: e }] = await Promise.all([
+      const [{ data: c }, { data: e }, jobs] = await Promise.all([
         sb.from("crawl_logs").select("*").order("created_at", { ascending: false }).limit(100),
         sb.from("error_logs").select("*").order("created_at", { ascending: false }).limit(50),
+        getActiveJobs(),
       ]);
       if (cancelled) return;
       if (c) setCrawl(c as CrawlLog[]);
       if (e) setErrors(e as ErrorLog[]);
+      setActiveJobs(jobs);
+
+      // Auto-open drawer when a job starts (and it's not already open)
+      if (jobs.length > 0 && !open) {
+        // don't auto-open — user controls that — but do pulse the button
+      }
     };
 
     tick();
-    const id = setInterval(tick, open ? 2500 : 10_000);
+    const id = setInterval(tick, open ? 2500 : 5000);
     return () => { cancelled = true; clearInterval(id); };
   }, [open]);
 
@@ -108,7 +121,6 @@ export function ActivityDrawerButton() {
       } else if (bulkJob.type === "crawl" && bulkJob.crawl_job_id) {
         const p = await getCrawlJobProgress(bulkJob.crawl_job_id);
         done = p.scraped;
-        // Update total dynamically as Instagram reveals how many it will return
         if (p.total > 0) {
           setBulkJob((prev) => prev ? { ...prev, total: Math.max(prev.total, p.total), done: Math.max(prev.done, done) } : null);
           if (p.status === "completed" || p.status === "failed" || p.status === "cancelled") {
@@ -162,12 +174,12 @@ export function ActivityDrawerButton() {
       >
         <span className="relative">
           <ScrollText className="h-4 w-4" />
-          {active && (
+          {(active || hasRunningJobs) && (
             <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500">
               <span className="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-75" />
             </span>
           )}
-          {errors.length > 0 && !active && (
+          {errors.length > 0 && !active && !hasRunningJobs && (
             <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-500" />
           )}
         </span>
@@ -189,16 +201,26 @@ export function ActivityDrawerButton() {
         <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
           <div className="flex items-center gap-2">
             <h2 className="font-semibold text-sm">Activity</h2>
-            {active && (
+            {(active || hasRunningJobs) && (
               <span className="flex items-center gap-1 text-[10px] font-medium text-green-600 bg-green-50 dark:bg-green-950 px-1.5 py-0.5 rounded-full">
                 <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
                 Live
               </span>
             )}
           </div>
-          <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground p-1 rounded" aria-label="Close">
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <Link
+              href="/logs"
+              onClick={() => setOpen(false)}
+              className="text-muted-foreground hover:text-foreground p-1 rounded"
+              title="Go to Pipeline page"
+            >
+              <LayoutDashboard className="h-4 w-4" />
+            </Link>
+            <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground p-1 rounded" aria-label="Close">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -222,7 +244,16 @@ export function ActivityDrawerButton() {
           </button>
         </div>
 
-        {/* Bulk job progress */}
+        {/* Auto-detected running jobs */}
+        {tab === "activity" && activeJobs.length > 0 && (
+          <div className="border-b shrink-0">
+            {activeJobs.map((job) => (
+              <ActiveJobRow key={job.id} job={job} />
+            ))}
+          </div>
+        )}
+
+        {/* Bulk job progress (localStorage-backed) */}
         {tab === "activity" && bulkJob && bulkJob.done < bulkJob.total && (
           <BulkProgress job={bulkJob} onCancel={() => saveBulkJob(null)} />
         )}
@@ -286,6 +317,37 @@ export function ActivityDrawerButton() {
         </div>
       </div>
     </>
+  );
+}
+
+function ActiveJobRow({ job }: { job: ActiveJob }) {
+  const isPlaywright = job.type === "crawl" && job.scraped === 0 && job.status === "running";
+  const pct = job.total > 0 ? Math.min(100, Math.round((job.scraped / job.total) * 100)) : null;
+
+  return (
+    <div className="px-4 py-3 bg-blue-50/50 dark:bg-blue-950/30 space-y-1.5">
+      <div className="flex items-center gap-2">
+        <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin shrink-0" />
+        <span className="text-xs font-medium flex-1 truncate">{job.label}</span>
+        {job.total > 0 && (
+          <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+            {job.scraped} / {job.total}
+          </span>
+        )}
+      </div>
+      {isPlaywright ? (
+        <p className="text-[11px] text-muted-foreground pl-5">
+          Playwright browser is open — this takes 1–3 min, hang tight
+        </p>
+      ) : pct !== null ? (
+        <div className="pl-5 space-y-1">
+          <div className="h-1 bg-blue-100 dark:bg-blue-900 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+          </div>
+          <p className="text-[10px] text-muted-foreground">{pct}% done</p>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

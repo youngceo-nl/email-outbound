@@ -19,6 +19,7 @@ import { buildKeywordOr } from "@/lib/leads/keyword-filter";
 import { statusLabel } from "@/lib/labels";
 import { ChevronLeft, ChevronRight, ExternalLink, Youtube, Linkedin } from "lucide-react";
 import { LeadsActionsMenu } from "@/components/leads/actions-menu";
+import { LeadsSearchBar } from "@/components/leads/search-bar";
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 50;
@@ -41,24 +42,13 @@ type Search = {
   has_outreach?: string;
   sort?: string;
   page?: string;
+  search?: string;
 };
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const sb = createAdminClient();
-
-  const { data: seeds } = await sb.from("seeds").select("id, username");
-  const seedMap = new Map((seeds ?? []).map((s) => [s.id, s.username]));
-
-  const { data: seedCounts } = await sb
-    .from("leads")
-    .select("source_seed_id")
-    .not("source_seed_id", "is", null);
-  const countMap = new Map<string, number>();
-  for (const row of seedCounts ?? []) {
-    if (row.source_seed_id) countMap.set(row.source_seed_id, (countMap.get(row.source_seed_id) ?? 0) + 1);
-  }
 
   // Build the filtered + sorted query. In `safe` mode we drop anything that
   // depends on a column which may not exist yet (e.g. reels_last_30_days before
@@ -68,6 +58,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
     const keywordOr = buildKeywordOr(sp.q);
     if (keywordOr) q = q.or(keywordOr);
+    if (sp.search) q = q.or(`username.ilike.%${sp.search}%,full_name.ilike.%${sp.search}%`);
     if (sp.status && sp.status !== "all") q = q.eq("status", sp.status);
     if (sp.niche) q = q.ilike("niche", `%${sp.niche}%`);
     if (sp.business_model) q = q.eq("business_model", sp.business_model);
@@ -94,12 +85,45 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   };
 
   const sort = sp.sort ?? "created_at.desc";
-  const primary = await buildQuery(sort, false);
+
+  // Fire all independent queries in parallel — previously sequential, causing ~400-800ms of
+  // unnecessary wait per page load.
+  const [
+    primary,
+    { data: seeds },
+    { data: seedCounts },
+    { count: missingProgramNames },
+    { count: scoreableCount },
+    { count: pendingCount },
+    { count: rejectedWithScore },
+    { count: backfillCount },
+  ] = await Promise.all([
+    buildQuery(sort, false),
+    sb.from("seeds").select("id, username"),
+    sb.from("leads").select("source_seed_id").not("source_seed_id", "is", null),
+    sb.from("leads").select("id", { count: "exact", head: true })
+      .eq("status", "qualified").not("email", "is", null)
+      .is("funnel_program_name", null).not("external_link", "is", null),
+    sb.from("leads").select("id", { count: "exact", head: true })
+      .not("bio", "is", null).in("status", ["qualified", "review"]),
+    sb.from("leads").select("id", { count: "exact", head: true })
+      .eq("status", "pending").not("followers", "is", null),
+    sb.from("leads").select("id", { count: "exact", head: true })
+      .eq("status", "rejected").not("overall_score", "is", null),
+    sb.from("leads").select("id", { count: "exact", head: true })
+      .is("followers", null).or("backfill_error.is.null,backfill_error.eq.apify_exhausted")
+      .neq("status", "rejected"),
+  ]);
+
+  const seedMap = new Map((seeds ?? []).map((s) => [s.id, s.username]));
+  const countMap = new Map<string, number>();
+  for (const row of seedCounts ?? []) {
+    if (row.source_seed_id) countMap.set(row.source_seed_id, (countMap.get(row.source_seed_id) ?? 0) + 1);
+  }
+
   let leads = primary.data;
   let count = primary.count;
   if (primary.error) {
-    // Most likely a column referenced by the sort/filter isn't migrated yet.
-    // Fall back to a safe sort and drop the reels filter so the page still works.
     const safeSort = sort.startsWith("reels_last_30_days") ? "created_at.desc" : sort;
     const fallback = await buildQuery(safeSort, true);
     leads = fallback.data;
@@ -111,51 +135,14 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   const exportHref = `/api/leads/export?${new URLSearchParams(sp as Record<string, string>).toString()}`;
 
-  // Count leads that have email but no program name — shown as hint to re-enrich
-  const { count: missingProgramNames } = await sb
-    .from("leads")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "qualified")
-    .not("email", "is", null)
-    .is("funnel_program_name", null)
-    .not("external_link", "is", null);
-
-  // Count qualified + review leads for the rescore button
-  const { count: scoreableCount } = await sb
-    .from("leads")
-    .select("id", { count: "exact", head: true })
-    .not("bio", "is", null)
-    .in("status", ["qualified", "review"]);
-
-  // Count unanalyzed (pending) leads
-  const { count: pendingCount } = await sb
-    .from("leads")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "pending")
-    .not("followers", "is", null);
-
-  // Count rejected leads that still have a score (leftover from before the pipeline fix)
-  const { count: rejectedWithScore } = await sb
-    .from("leads")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "rejected")
-    .not("overall_score", "is", null);
-
-  // Count leads with no profile metadata yet (need backfill)
-  const { count: backfillCount } = await sb
-    .from("leads")
-    .select("id", { count: "exact", head: true })
-    .is("followers", null)
-    .is("backfill_error", null)
-    .neq("status", "rejected");
-
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
           <p className="text-sm text-muted-foreground">{formatNumber(total)} total · page {page} of {totalPages}</p>
         </div>
+        <LeadsSearchBar initial={sp.search} />
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <AddLeadButton />
           <ColumnVisibility />

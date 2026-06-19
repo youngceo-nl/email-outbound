@@ -21,6 +21,7 @@ export type ManagedAccount = {
   cookie_set_at: string | null; // ISO timestamp of last successful login
   last_error: string | null;
   checkpoint_state: CheckpointState | null;
+  proxy_url: string | null; // dedicated residential proxy for this account, e.g. http://user:pass@host:port
 };
 
 // Password-stripped view sent to client components.

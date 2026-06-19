@@ -21,29 +21,30 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
 
   // 1. Playwright — real Chromium, best success rate, no hard cap
   const tryPlaywright = async () => {
-    const available = cookiePool.filter(c => !isRateLimited(c));
+    const available = cookiePool.filter(e => !isRateLimited(e.cookie));
     if (available.length === 0) throw new Error("No Instagram cookies available for Playwright");
-    const cookie = available[0];
+    const entry = available[0];
     const { scrapeFollowingPlaywright } = await import("@/lib/instagram/playwright-scraper");
-    const items = await scrapeFollowingPlaywright({ username, cookie, limit });
+    const proxyUrl = entry.proxyUrl ?? settings.instagram_proxy_url ?? process.env.INSTAGRAM_PROXY_URL ?? null;
+    const items = await scrapeFollowingPlaywright({ username, cookie: entry.cookie, limit, proxyUrl });
     return { items, provider: "playwright" as const, nextCursor: null };
   };
 
   // 2. Direct cookie — rotates through pool, tracks rate limits
   const tryCookie = async () => {
     if (cookiePool.length === 0) throw new Error("No Instagram session cookies configured");
-    const available = cookiePool.filter(c => !isRateLimited(c));
+    const available = cookiePool.filter(e => !isRateLimited(e.cookie));
     if (available.length === 0) {
       throw new Error(`All ${cookiePool.length} Instagram cookie(s) are rate-limited — wait ~2h or add more accounts`);
     }
     let lastErr: Error | null = null;
-    for (const cookie of available) {
+    for (const entry of available) {
       try {
-        const r = await fetchFollowingDirect({ username, sessionCookie: cookie, limit, startCursor: opts.startCursor });
+        const r = await fetchFollowingDirect({ username, sessionCookie: entry.cookie, limit, startCursor: opts.startCursor });
         return { items: r.items, provider: "cookie" as const, nextCursor: r.nextCursor };
       } catch (err) {
         if (err instanceof InstagramDirectError && err.status === 429) {
-          markRateLimited(cookie);
+          markRateLimited(entry.cookie);
           lastErr = err;
           continue;
         }

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { resetApifyExhausted } from "@/app/actions/leads";
+import { resetApifyExhausted, resetBlocked } from "@/app/actions/leads";
 import { useRouter } from "next/navigation";
 
 type Stats = {
@@ -28,17 +28,18 @@ const BLOCK_LABELS: Record<string, string> = {
 };
 
 export function PipelineStats({ stats }: { stats: Stats }) {
-  const [resetting, setResetting] = useState(false);
+  const [resetting, setResetting] = useState<string | null>(null);
   const [resetMsg, setResetMsg] = useState<string | null>(null);
   const router = useRouter();
 
   const exhaustedCount = stats.byBlockReason["apify_exhausted"] ?? 0;
+  const blockedCount = stats.byBlockReason["blocked"] ?? 0;
   const total = Object.values(stats.byStatus).reduce((a, b) => a + b, 0);
 
-  const handleReset = async () => {
-    setResetting(true);
-    const r = await resetApifyExhausted();
-    setResetting(false);
+  const handleReset = async (type: "apify_exhausted" | "blocked") => {
+    setResetting(type);
+    const r = type === "apify_exhausted" ? await resetApifyExhausted() : await resetBlocked();
+    setResetting(null);
     if (r.ok) {
       setResetMsg(`Reset ${r.reset} accounts — run backfill to retry them.`);
       router.refresh();
@@ -72,20 +73,20 @@ export function PipelineStats({ stats }: { stats: Stats }) {
             ))}
 
             {exhaustedCount > 0 && (
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs"
-                  disabled={resetting}
-                  onClick={handleReset}
-                >
-                  <RefreshCw className={`h-3 w-3 mr-1 ${resetting ? "animate-spin" : ""}`} />
-                  Reset & retry {exhaustedCount} when token refreshes
-                </Button>
-                {resetMsg && <span className="text-xs text-green-600">{resetMsg}</span>}
-              </div>
+              <Button size="sm" variant="outline" className="h-7 text-xs"
+                disabled={!!resetting} onClick={() => handleReset("apify_exhausted")}>
+                <RefreshCw className={`h-3 w-3 mr-1 ${resetting === "apify_exhausted" ? "animate-spin" : ""}`} />
+                Reset & retry {exhaustedCount} (Apify exhausted)
+              </Button>
             )}
+            {blockedCount > 0 && (
+              <Button size="sm" variant="outline" className="h-7 text-xs"
+                disabled={!!resetting} onClick={() => handleReset("blocked")}>
+                <RefreshCw className={`h-3 w-3 mr-1 ${resetting === "blocked" ? "animate-spin" : ""}`} />
+                Retry {blockedCount} blocked with cookie
+              </Button>
+            )}
+            {resetMsg && <span className="text-xs text-green-600">{resetMsg}</span>}
           </div>
         </div>
       )}

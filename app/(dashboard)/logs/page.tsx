@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LogsLive } from "@/components/logs/logs-live";
 import { PipelineStats } from "@/components/logs/pipeline-stats";
+import { LiveOperationCard } from "@/components/logs/live-operation-card";
 import { getPipelineStats } from "@/app/actions/leads";
 import { Separator } from "@/components/ui/separator";
 
@@ -20,6 +21,8 @@ export default async function LogsPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Activity</h1>
         <p className="text-sm text-muted-foreground">Pipeline state, errors, and a live feed of everything running.</p>
       </div>
+
+      <LiveOperationCard />
 
       <PipelineStats stats={stats} />
 

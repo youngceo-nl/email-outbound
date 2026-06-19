@@ -64,15 +64,24 @@ export const backfillMetadata = inngest.createFunction(
     };
     if (!usernames || usernames.length === 0) return { processed: 0 };
 
-    const settings = await step.run("load-settings", () => getSettings());
+    const settings = await step.run("load-settings", () => getSettings(true));
     const apifyTokens = resolveApifyTokens(settings);
     const cookiePool = buildCookiePool(settings);
-    const cookie = pickCookie(cookiePool);
+    const entry = pickCookie(cookiePool);
 
     // Cookie path is preferred — free, no external quota.
     // Apify is the fallback when no IG cookie is available.
-    const useFreePath = !!cookie;
+    const useFreePath = !!entry;
     const useApify = !useFreePath && apifyTokens.length > 0;
+
+    if (!useFreePath && !useApify) {
+      await logError({
+        context: "backfill.metadata",
+        error_message: `No cookies available (pool size: ${cookiePool.length}, all rate-limited or empty) and no Apify token configured — cannot backfill ${usernames.length} accounts.`,
+        crawl_job_id: crawl_job_id ?? null,
+      });
+      return { processed: 0, error: "no-cookie-no-apify-token" };
+    }
 
     if (useFreePath) {
       // -------- FREE: direct fetch with IG burner cookie --------
@@ -91,19 +100,23 @@ export const backfillMetadata = inngest.createFunction(
         const batch = batches[bi];
         const result = await step.run(`cookie-batch-${bi}`, async () => {
           // Pick a fresh cookie each batch — rotates through the pool.
-          const activeCookie = pickCookie(buildCookiePool(settings));
-          if (!activeCookie) return { s: 0, u: 0, updatedLeadIds: [], halt: true };
+          const activeEntry = pickCookie(buildCookiePool(settings));
+          if (!activeEntry) return { s: 0, u: 0, updatedLeadIds: [], halt: true };
+          const { cookie: activeCookie, proxyUrl: activeProxy } = activeEntry;
           // One Chrome instance for the whole batch — pays startup cost once.
           const session = new BrowserSession();
-          await session.init(activeCookie);
+          await session.init(activeCookie, activeProxy);
           const sb = createAdminClient();
           const updatedLeadIds: string[] = [];
           let s = 0, u = 0;
           try {
             for (const username of batch) {
               try {
-                const p = await fetchProfileMetadataDirect({ username, sessionCookie: activeCookie, session });
+                const p = await fetchProfileMetadataDirect({ username, sessionCookie: activeCookie, session, proxyUrl: activeProxy });
                 if (!p) {
+                  // No data returned — account is private, deleted, or the API returned nothing.
+                  // Mark it blocked so it drains out of the "remaining" queue instead of staying stuck.
+                  await sb.from("leads").update({ backfill_error: "blocked" }).eq("username", username).is("followers", null);
                   await sleep(jitteredDelay(COOKIE_DELAY_BASE_MS) + maybeLongPause());
                   continue;
                 }
@@ -180,16 +193,7 @@ export const backfillMetadata = inngest.createFunction(
     }
 
     // -------- FAST: Apify profile actor in batches --------
-    if (!apifyToken) {
-      await logError({
-        context: "backfill.metadata",
-        error_message: "No IG cookie AND no Apify token — cannot backfill metadata.",
-        crawl_job_id: crawl_job_id ?? null,
-      });
-      return { processed: 0, error: "no-cookie-no-apify-token" };
-    }
-
-    const token = apifyTokens;
+    const token = apifyTokens[0];
     const batches: string[][] = [];
     for (let i = 0; i < usernames.length; i += APIFY_BATCH) {
       batches.push(usernames.slice(i, i + APIFY_BATCH));

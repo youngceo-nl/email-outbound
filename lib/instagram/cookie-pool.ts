@@ -12,33 +12,54 @@ function cookieKey(cookie: string) {
   return cookie.slice(-16);
 }
 
-export function buildCookiePool(settings: AppSettings): string[] {
+export type PoolEntry = {
+  cookie: string;
+  proxyUrl: string | null;
+};
+
+export function buildCookiePool(settings: AppSettings): PoolEntry[] {
   const seen = new Set<string>();
-  const pool: string[] = [];
+  const pool: PoolEntry[] = [];
+
+  // Managed accounts — carry their per-account proxy if set
   for (const a of settings.instagram_accounts ?? []) {
     const c = a.cookie?.trim();
-    if (c && !seen.has(c)) { seen.add(c); pool.push(c); }
+    if (c && !seen.has(c)) {
+      seen.add(c);
+      pool.push({ cookie: c, proxyUrl: a.proxy_url?.trim() || null });
+    }
   }
+
+  // Legacy multi-cookie list — use global proxy as fallback
+  const globalProxy = settings.instagram_proxy_url?.trim() || process.env.INSTAGRAM_PROXY_URL || null;
   for (const c of settings.instagram_session_cookies ?? []) {
     const t = c.trim();
-    if (t && !seen.has(t)) { seen.add(t); pool.push(t); }
+    if (t && !seen.has(t)) {
+      seen.add(t);
+      pool.push({ cookie: t, proxyUrl: globalProxy });
+    }
   }
+
+  // Legacy single cookie
   const single = (settings.instagram_session_cookie || process.env.INSTAGRAM_SESSION_COOKIE || "").trim();
-  if (single && !seen.has(single)) pool.push(single);
+  if (single && !seen.has(single)) {
+    pool.push({ cookie: single, proxyUrl: globalProxy });
+  }
+
   return pool;
 }
 
 // Round-robin pick: start from where we left off, skip rate-limited cookies.
-export function pickCookie(pool: string[]): string | null {
+export function pickCookie(pool: PoolEntry[]): PoolEntry | null {
   if (pool.length === 0) return null;
   const now = Date.now();
   for (let i = 0; i < pool.length; i++) {
     const idx = (rrIndex + i) % pool.length;
-    const cookie = pool[idx];
-    const exp = rateLimitedUntil.get(cookieKey(cookie));
+    const entry = pool[idx];
+    const exp = rateLimitedUntil.get(cookieKey(entry.cookie));
     if (!exp || now > exp) {
-      rrIndex = (idx + 1) % pool.length; // advance for next caller
-      return cookie;
+      rrIndex = (idx + 1) % pool.length;
+      return entry;
     }
   }
   return null; // all rate-limited
@@ -53,10 +74,10 @@ export function markRateLimited(cookie: string) {
   rateLimitedUntil.set(cookieKey(cookie), Date.now() + RATE_LIMIT_TTL_MS);
 }
 
-export function availableCookieCount(pool: string[]): number {
+export function availableCookieCount(pool: PoolEntry[]): number {
   const now = Date.now();
-  return pool.filter((c) => {
-    const exp = rateLimitedUntil.get(cookieKey(c));
+  return pool.filter((e) => {
+    const exp = rateLimitedUntil.get(cookieKey(e.cookie));
     return !exp || now > exp;
   }).length;
 }

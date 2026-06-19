@@ -13,16 +13,15 @@ export async function scrapeProfileWithFallback(opts: {
 }): Promise<{ profile: ScrapedProfile; provider: "direct" }> {
   const { username, settings } = opts;
   const pool = buildCookiePool(settings);
-  const cookie = pickCookie(pool);
-  if (!cookie) throw new Error("No available Instagram session cookie in pool");
+  const entry = pickCookie(pool);
+  if (!entry) throw new Error("No available Instagram session cookie in pool");
 
   try {
-    const proxyUrl = settings.instagram_proxy_url || process.env.INSTAGRAM_PROXY_URL || null;
     const meta = await fetchProfileMetadataDirect({
       username,
-      sessionCookie: cookie,
+      sessionCookie: entry.cookie,
       delayMs: Math.floor(Math.random() * 2000) + 500,
-      proxyUrl,
+      proxyUrl: entry.proxyUrl,
     });
     if (!meta) throw new Error(`Profile not found for ${username}`);
     return {
@@ -43,7 +42,7 @@ export async function scrapeProfileWithFallback(opts: {
     };
   } catch (err) {
     if (err instanceof InstagramDirectError && err.status === 429) {
-      markRateLimited(cookie);
+      markRateLimited(entry.cookie);
     }
     const msg = err instanceof Error ? err.message : String(err);
     await logError({

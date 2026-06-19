@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useRouter } from "next/navigation";
-import { addManagedAccount, refreshManagedAccount, submitCheckpointCode, setManagedAccountEmail, testManagedAccountCookie, setManagedAccountCookie } from "@/app/actions/settings";
+import { addManagedAccount, refreshManagedAccount, submitCheckpointCode, setManagedAccountEmail, testManagedAccountCookie, setManagedAccountCookie, setManagedAccountProxy } from "@/app/actions/settings";
 import type { ManagedAccountDisplay } from "@/lib/types";
 
 function relativeTime(iso: string | null): string {
@@ -70,6 +70,8 @@ function AccountCard({
   const [savingEmail, setSavingEmail] = useState(false);
   const [savingCookie, setSavingCookie] = useState(false);
   const [cookieError, setCookieError] = useState<string | null>(null);
+  const [proxyDraft, setProxyDraft] = useState(account.proxy_url ?? "");
+  const [savingProxy, setSavingProxy] = useState(false);
 
   // Parse existing cookie string into individual fields
   function parseCookieField(cookie: string | null | undefined, key: string): string {
@@ -210,7 +212,7 @@ function AccountCard({
                 {([
                   { label: "Session ID", value: sessionId, set: setSessionId, placeholder: "395860815%3ADkb0mm…" },
                   { label: "CSRF Token", value: csrfToken, set: setCsrfToken, placeholder: "RID2FZQRbCj…" },
-                  { label: "User ID", value: dsUserId, set: setDsUserId, placeholder: "395860815" },
+                  { label: "ds_user_id", value: dsUserId, set: setDsUserId, placeholder: "395860815" },
                   { label: "RUR", value: rur, set: setRur, placeholder: "CLN\\054…" },
                 ] as const).map(({ label, value, set, placeholder }) => (
                   <div key={label} className="flex items-center gap-2">
@@ -271,6 +273,33 @@ function AccountCard({
               onClick={handleSaveEmail}
             >
               {savingEmail ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        )}
+
+        {/* Per-account proxy — routes all requests for this account through a dedicated residential IP */}
+        {platform === "instagram" && (
+          <div className="flex items-center gap-2 mt-2">
+            <Input
+              value={proxyDraft}
+              onChange={(e) => setProxyDraft(e.target.value)}
+              placeholder="Proxy: http://user:pass@host:port (optional)"
+              className="h-7 text-xs flex-1 font-mono"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              disabled={savingProxy || proxyDraft === (account.proxy_url ?? "")}
+              onClick={async () => {
+                setSavingProxy(true);
+                await setManagedAccountProxy(platform, account.id, proxyDraft);
+                setSavingProxy(false);
+                router.refresh();
+              }}
+            >
+              {savingProxy ? "Saving…" : "Save"}
             </Button>
           </div>
         )}
@@ -484,7 +513,7 @@ export function ManagedAccountManager({
             {([
               { label: "Session ID", id: "sessionid", value: newSessionId, set: setNewSessionId, placeholder: "395860815%3ADkb0mm…", required: true },
               { label: "CSRF Token", id: "csrftoken", value: newCsrfToken, set: setNewCsrfToken, placeholder: "RID2FZQRbCj…", required: false },
-              { label: "User ID",    id: "ds_user_id", value: newDsUserId, set: setNewDsUserId, placeholder: "395860815", required: false },
+              { label: "ds_user_id", id: "ds_user_id", value: newDsUserId, set: setNewDsUserId, placeholder: "395860815", required: false },
               { label: "RUR",        id: "rur",        value: newRur,      set: setNewRur,      placeholder: "CLN\\054…", required: false },
             ] as const).map(({ label, id, value, set, placeholder, required }) => (
               <div key={id} className="flex items-center gap-2">
