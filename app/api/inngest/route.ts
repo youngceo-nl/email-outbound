@@ -9,8 +9,12 @@ import { backfillMetadata } from "@/inngest/functions/backfill-metadata";
 import { scoreLead } from "@/inngest/functions/score-lead";
 import { refreshYtCookie } from "@/inngest/functions/refresh-yt-cookie";
 import { refreshIgCookies } from "@/inngest/functions/refresh-ig-cookies";
+import { sendOutreachBatch } from "@/inngest/functions/send-outreach-batch";
+import { dailyScrape } from "@/inngest/functions/daily-scrape";
+import { dailySend } from "@/inngest/functions/daily-send";
+import { dailyBounceCheck } from "@/inngest/functions/daily-bounce-check";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [crawlSeed, processProfile, recurseFollowing, enrichFunnel, enrichEmail, backfillMetadata, scoreLead, refreshYtCookie, refreshIgCookies],
+  functions: [crawlSeed, processProfile, recurseFollowing, enrichFunnel, enrichEmail, backfillMetadata, scoreLead, refreshYtCookie, refreshIgCookies, sendOutreachBatch, dailyScrape, dailySend, dailyBounceCheck],
 });

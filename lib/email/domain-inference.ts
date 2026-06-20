@@ -13,9 +13,28 @@ export function extractDomain(url: string | null | undefined): string | null {
     const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
     const host = parsed.hostname.replace(/^www\./, "").toLowerCase();
     // Skip known link-in-bio aggregators and social platforms — not the person's own domain
-    const blocklist = ["linktree.com", "beacons.ai", "bio.link", "linktr.ee", "stan.store",
-      "instagram.com", "youtube.com", "tiktok.com", "twitter.com", "x.com",
-      "facebook.com", "linkedin.com", "taplink.cc", "koji.to", "campsite.bio"];
+    const blocklist = [
+      // Social platforms
+      "instagram.com", "youtube.com", "youtu.be", "tiktok.com", "twitter.com", "x.com",
+      "facebook.com", "linkedin.com", "snapchat.com", "pinterest.com", "threads.net",
+      // Link-in-bio aggregators
+      "linktree.com", "linktr.ee", "beacons.ai", "bio.link", "stan.store", "taplink.cc",
+      "koji.to", "campsite.bio", "later.com", "allmylinks.com", "linkinbio.com", "linktw.in",
+      "lnk.bio", "contactinbio.com", "milkshake.app",
+      // Course / community platforms
+      "whop.com", "gumroad.com", "patreon.com", "substack.com", "kajabi.com",
+      "teachable.com", "thinkific.com", "podia.com", "skool.com", "circle.so",
+      "clickfunnels.com", "gohighlevel.com", "systeme.io", "kartra.com",
+      // E-commerce / storefronts
+      "shopify.com", "etsy.com", "squarespace.com", "wixsite.com", "wordpress.com",
+      "webflow.io", "webflow.com",
+      // URL shorteners
+      "bit.ly", "t.co", "ow.ly", "buff.ly", "rb.gy", "tinyurl.com", "short.io",
+      "go.to", "amzn.to",
+      // Misc platforms
+      "calendly.com", "typeform.com", "notion.so", "spotify.com", "apple.com",
+      "anchor.fm", "buzzsprout.com", "open.spotify.com",
+    ];
     if (blocklist.some((b) => host === b || host.endsWith("." + b))) return null;
     return host;
   } catch {

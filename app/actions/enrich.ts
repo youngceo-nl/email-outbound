@@ -1,7 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { enrichLeadPipeline } from "@/lib/pipeline/enrich-pipeline";
+import { logCrawl } from "@/lib/pipeline/persist";
 import { inngest } from "@/inngest/client";
 
 export type EnrichLeadResponse = {
@@ -22,7 +24,22 @@ export async function enrichLead(leadId: string): Promise<EnrichLeadResponse> {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return { ok: false, error: "unauthorized" };
 
+  const { data: lead } = await createAdminClient()
+    .from("leads")
+    .select("username, crawl_depth, parent_username")
+    .eq("id", leadId)
+    .single();
+
   const r = await enrichLeadPipeline({ leadId, force: true });
+
+  await logCrawl({
+    crawl_job_id: null,
+    profile_username: lead?.username ?? leadId,
+    parent_username: lead?.parent_username ?? null,
+    action: r.email ? "email_found" : "email_not_found",
+    depth: lead?.crawl_depth ?? 0,
+    detail: r.email ? `${r.email} (${r.source})` : (r.error ?? "no public email found"),
+  });
 
   revalidatePath("/leads");
   revalidatePath(`/leads/${leadId}`);

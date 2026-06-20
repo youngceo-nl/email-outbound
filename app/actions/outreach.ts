@@ -155,6 +155,29 @@ export async function sendOutreach(opts: {
   }
 }
 
+export async function sendOutreachBatch(opts: {
+  leadIds: string[];
+  intervalMinutes?: number;
+}): Promise<{ ok: boolean; queued: number; error?: string }> {
+  const sb = await createClient();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return { ok: false, queued: 0, error: "unauthorized" };
+
+  if (!(await gmailReady())) {
+    return { ok: false, queued: 0, error: "Gmail not connected — set up OAuth in Settings → Outreach." };
+  }
+
+  const ids = Array.from(new Set(opts.leadIds.filter(Boolean)));
+  if (ids.length === 0) return { ok: true, queued: 0 };
+
+  await inngest.send({
+    name: "outreach/batch.requested",
+    data: { lead_ids: ids, interval_minutes: opts.intervalMinutes ?? 20 },
+  });
+
+  return { ok: true, queued: ids.length };
+}
+
 export type CheckBouncesResult = {
   ok: boolean;
   bounced: number;

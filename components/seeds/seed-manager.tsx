@@ -28,10 +28,12 @@ type LatestJob = {
 
 export function SeedManager({
   seeds,
+  exhaustedSeeds = [],
   jobs,
   defaultLimit,
 }: {
   seeds: Seed[];
+  exhaustedSeeds?: Seed[];
   jobs: LatestJob[];
   defaultLimit: number;
 }) {
@@ -118,6 +120,13 @@ export function SeedManager({
           />
         ))}
       </div>
+
+      {exhaustedSeeds.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {exhaustedSeeds.length} seed{exhaustedSeeds.length !== 1 ? "s" : ""} exhausted and hidden from auto-scrape:{" "}
+          {exhaustedSeeds.map((s) => `@${s.username}`).join(", ")}
+        </p>
+      )}
     </div>
   );
 }

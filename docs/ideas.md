@@ -1,23 +1,173 @@
 # Ideas
 
-## IP Rotator for Instagram scraping
+## [ ] Instagram Burner Cookie Strategy (minimizing suspension risk)
 
-Wire up a rotating proxy to `fetchProfileMetadataDirect` so the backfill never hits IP-level rate limits.
+### Why accounts get suspended
+Instagram bans based on behavioral patterns, not just volume:
+- Too many API calls through one session in a short window
+- Calls coming from a server IP (not residential)
+- No natural pauses between requests (inhuman cadence)
+- Repeatedly fetching the same accounts
+- New accounts with zero organic activity
 
-**What we have:**
-- Cookie pool with round-robin rotation (`lib/instagram/cookie-pool.ts`)
-- Free direct fetch scraper (`lib/instagram/direct.ts`)
-- Cookie-based provider in `scrape-profile.ts` (just added)
+### Volume math
+A typical scrape of 1 source account at 1000 profiles = ~20 batch API calls (50 accounts per page).
+10 source accounts = ~200 calls per full run.
+At 1 cookie: 200 calls through one session → high detection risk.
+At 5 cookies: ~40 calls each per run → much safer.
+At 10 cookies: ~20 calls each per run → very safe for daily runs.
 
-**What's missing:**
-- `instagram_proxy_url` field in `AppSettings` (`lib/types.ts`)
-- DB migration for the new column
-- `undici` `ProxyAgent` in `fetchProfileMetadataDirect` — pass the proxy URL per-request so each fetch goes through a different IP
-- Settings form field for the proxy URL
-- The Playwright scraper already handles `proxyUrl` (same format), so that path is already covered
+### Recommended pool size by usage
 
-**Expected format:** `http://user:pass@rotating-proxy-host:port`
+| Sources scraping daily | Min cookies | Comfortable | Ideal |
+|---|---|---|---|
+| 1–3 sources | 2 | 3 | 5 |
+| 4–10 sources | 3 | 5 | 8 |
+| 10+ sources | 5 | 10 | 15+ |
 
-**Why:** With 10-20 cookies + IP rotation, there's no practical rate limit ceiling. The backfill of 2500+ leads could finish in under an hour at zero Apify cost.
+**Current setup:** we have 1 seed (joshsklein active) — 3 cookies is the minimum to start safely.
 
-**Cheapness angle:** Only route through the proxy when Instagram returns a 429 (reactive), instead of using it for every request (proactive). This minimizes proxy bandwidth cost while still breaking through rate limits when they hit.
+### Account quality matters more than quantity
+- **New accounts** (<30 days old): higher ban rate, shorter cookie TTL (~7–14 days), more CAPTCHAs
+- **Aged accounts** (6+ months, some posts/follows): treated like real users, cookies last weeks, far lower ban rate
+- **Ratio:** better to have 3 aged accounts than 10 fresh ones
+
+### Practical rules
+1. ✅ Never scrape the same source twice within 2 hours on the same cookie — 2h rate-limit TTL is implemented
+2. ❌ Don't run all seeds simultaneously — daily scrape fires all 4 seeds at once, stagger of 10–15 min not yet implemented
+3. ❌ Add a small random delay (1–3s) between paginated batch calls — not implemented
+4. ❌ If an account gets a 401/403 (not just 429), retire that cookie immediately — not automated
+5. Each burner account should follow ~20–50 real accounts and have a profile pic to look human (operational, not code)
+
+### Phase plan
+- **Now (testing):** 2–3 fresh accounts, expect occasional 429s, monitor for 401s
+- **Month 1:** Replace with 3–5 aged accounts (buy or grow organically)
+- **Long term:** 5–10 aged accounts, run on a remote server with residential proxies per cookie
+
+---
+
+## [ ] Automated Seed Discovery
+
+> **Partially implemented differently:** "Discover from Google" via Serper exists on the seeds page, but it's manual — the user triggers it. The idea here was fully automatic: search, filter, and auto-add seeds with no human click. That part is not done.
+
+**Concept:** Info operators are the best seed accounts (e.g. @joshsklein, @pierree) because they follow other info operators — which is exactly the ICP. Instead of manually adding seeds, automate finding them.
+
+**How it would work:**
+1. Use Serper to search Instagram for accounts with bio keywords like "info operator", "course creator", "online business", "coaching program"
+2. Filter by follower count (above a threshold)
+3. Auto-add qualifying accounts as seeds
+4. They run through the normal scrape → backfill → score pipeline
+
+**Why it works:** An info operator's following list is a goldmine of ICP leads.
+
+---
+
+## [x] Manual Lead Input
+
+> **Implemented:** "Add lead" button on the leads page — enter a username or URL, optionally scrape & score immediately. Activity drawer shows progress.
+
+**Concept:** When you come across an account organically (e.g. someone you see in comments, a DM, a recommendation), manually submit their username and let the app check if they're ICP.
+
+---
+
+## [x] Seed Discovery from Existing Datapool
+
+> **Implemented differently:** Live in the "Suggested seed accounts" panel on the seeds page — shows top qualified leads grouped by niche (top 2 per niche, 15 total), with a one-click "Add as seed" button. There's no button on the individual lead profile page, but the seeds page panel covers the use case.
+
+**Concept:** Instead of always finding seeds externally, use the leads already in the database. Qualified leads who themselves follow a lot of info operators are good seed accounts — they're already vetted ICP and their following list is likely full of similar profiles.
+
+---
+
+## [x] Churn Bucket (No Email Found, ICP Qualified)
+
+> **Implemented:** `/churn` page — qualified leads with no email after enrichment, sorted by score. Retry email, dismiss, or look them up manually.
+
+---
+
+## [x] Scrape visibility
+
+> **Implemented differently:** Active Searches card on the dashboard shows per-job progress (scraped, qualified, % done). The activity tab shows every pipeline action (scraped, filtered, scored, email found/not found) in real time. The original idea asked for a single-line summary per scrape — the dashboard card is more granular than that.
+
+Being able to see what the scrape is doing (e.g. 148 accounts found, 140 duplicates, 8 new accounts added to the database).
+
+---
+
+## [ ] Efficient & Cheap Lead Analysis
+
+**Context:** The LLM is already only used for classification (niche, business model, offer type) — all numeric scores are computed locally for free. The bottleneck is how many leads unnecessarily reach the LLM.
+
+### Levers (cheapest first):
+
+**1. [x] Tight `include_keywords` (free, biggest impact)**
+Already configurable in settings — no code needed. Keeping keywords like "coach, course, info operator, online business" tight cuts LLM spend at zero engineering cost.
+
+**2. [x] Metric fast-reject before LLM (free)**
+`metricsGate` already runs before `scoreProfileRouted` in `process-profile.ts` — dead accounts are rejected without an LLM call.
+
+**3. [ ] Bio hash caching (near-free)**
+Many accounts copy-paste the same bio template. Store a `sha256(bio)` → classification result in a DB table. Cache hit = zero LLM cost. Cache miss = normal LLM call + store result.
+
+**4. [ ] OpenAI Batch API (50% cheaper)**
+Queue classification calls and submit them via OpenAI's Batch API instead of per-lead real-time calls. Results come back async (up to 24h), but for background enrichment this is fine. Halves LLM cost with no quality change.
+
+**5. [ ] Two-tier model routing**
+Use haiku/gpt-4o-mini for obviously borderline cases and a stronger model only when the bio is rich/ambiguous. Simple heuristic: bio length < 50 chars → mini model; longer/more complex → normal model.
+
+---
+
+## [ ] Email finder waterfall
+
+> **Partially implemented:** Hunter.io is already integrated as an email finder. The waterfall approach (try multiple providers in sequence) is not implemented — Hunter is the only one wired up.
+
+Clay's email finder waterfall (work email, based on domain + full name):
+Findymail, Hunter, Prospeo, Kitt, Datagma, Wiza, Icypeas, Enrow, Leadmagic
+
+For personal email:
+rb2b.com, Mixrank, RocketReach, Data Labs, Aviato, ContactOut, Limadata, Forager
+
+GetProspect API: https://getprospect.readme.io/reference/publicapiemailcontroller_publicfindemail
+
+Check if these tools are cheaper than Clay's per-email rate before integrating.
+
+---
+
+## [ ] Unified account-based cookie management (Instagram + YouTube)
+
+Both Instagram and YouTube cookie management should follow the same pattern:
+
+- User enters account credentials (email/username + password, optionally TOTP secret) for one or more accounts
+- The system logs in automatically, catches the resulting cookie, and displays it in the corresponding cookie box — so the user can always see which cookie is active for each account
+- If a cookie expires or gets invalidated, it is refreshed automatically in the background without manual intervention
+- A manual cookie option stays available as a fallback (paste a raw cookie directly)
+
+This applies to both Instagram burner accounts and YouTube/Google accounts.
+
+---
+
+## [ ] YouTube Google Account Strategy (for cookie-based email reveal)
+
+**Context:** The headless Chromium + CapSolver flow needs a logged-in Google/YouTube session cookie. The quality of that account affects how long the cookie stays valid and whether YouTube flags the scraping activity.
+
+### New account vs aged profile
+
+**New account (fresh Gmail)**
+- Free to create, no risk to existing identity
+- YouTube may require phone verification or show more CAPTCHAs for new accounts
+- Higher chance of getting flagged/suspended faster because no watch history, subscriptions, or normal usage patterns
+- Cookie TTL may be shorter (Google refreshes sessions more aggressively for inactive accounts)
+- Good for initial testing — low stakes if it gets banned
+
+**Aged profile (older Gmail with activity)**
+- Google trusts older accounts with established activity more
+- Fewer CAPTCHAs, more stable cookies, longer session TTL
+- Much harder to get flagged for occasional scraping if the account looks like a real user
+- Can buy aged accounts (~$5–20) or use a personal secondary Gmail
+- Long-term this is the better option
+
+**Goal:** Run remotely (server/worker) without needing the laptop on, with a stable long-lived cookie.
+
+---
+
+## [x] IP Rotator for Instagram scraping
+
+> **Implemented:** Reactive 429 fallback is live in `direct.ts` — when Instagram rate-limits a sessionless request, it retries through the configured proxy. Playwright scraper also supports `proxyUrl`. Per-account proxy URLs are configurable in the cookie pool. The "what's missing" list from when this was written is now done.

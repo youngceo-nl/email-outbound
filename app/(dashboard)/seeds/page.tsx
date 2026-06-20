@@ -13,28 +13,49 @@ export const dynamic = "force-dynamic";
 
 export default async function SeedsPage() {
   const sb = createAdminClient();
-  const [{ data: seeds }, { data: jobs }, settings, coverage] = await Promise.all([
+  const [{ data: allSeeds }, { data: jobs }, settings, coverage] = await Promise.all([
     sb.from("seeds").select("*").order("created_at", { ascending: false }),
     sb.from("crawl_jobs").select("*, seeds(username)").order("created_at", { ascending: false }).limit(15),
     getSettings(),
     getBioCoverage(),
   ]);
 
-  const existingUsernames = (seeds ?? []).map((s) => s.username);
+  const seeds = (allSeeds ?? []).filter((s) => !(s.exhausted_providers as string[])?.includes("cookie"));
+  const exhaustedSeeds = (allSeeds ?? []).filter((s) => (s.exhausted_providers as string[])?.includes("cookie"));
+  const existingUsernames = (allSeeds ?? []).map((s) => s.username);
 
-  // Qualified leads not already used as seeds, sorted by follower count — these
-  // are the highest-signal seed candidates since they've already passed scoring.
+  // Suggested seeds: qualified leads not already seeds, diversified by niche.
+  // Fetch a broad pool, then pick the top 2 by followers per niche so no single
+  // niche (e.g. fitness coaching) dominates the suggestions.
   let candidateQuery = sb
     .from("leads")
     .select("username, profile_url, followers, overall_score, niche")
     .eq("status", "qualified")
     .not("followers", "is", null)
+    .not("niche", "is", null)
     .order("followers", { ascending: false })
-    .limit(15);
+    .limit(200);
   if (existingUsernames.length > 0) {
     candidateQuery = candidateQuery.not("username", "in", `(${existingUsernames.join(",")})`);
   }
-  const { data: suggestedCandidates } = await candidateQuery;
+  const { data: candidatePool } = await candidateQuery;
+
+  // Pick top 2 per niche, up to 15 total
+  const byNiche: Record<string, typeof candidatePool> = {};
+  for (const c of candidatePool ?? []) {
+    const niche = (c.niche as string) || "other";
+    if (!byNiche[niche]) byNiche[niche] = [];
+    if (byNiche[niche]!.length < 2) byNiche[niche]!.push(c);
+  }
+  // Interleave niches so the list doesn't block by niche
+  const suggestedCandidates: typeof candidatePool = [];
+  const nicheQueues = Object.values(byNiche);
+  let i = 0;
+  while (suggestedCandidates.length < 15 && nicheQueues.some((q) => q && q.length > 0)) {
+    const queue = nicheQueues[i % nicheQueues.length];
+    if (queue && queue.length > 0) suggestedCandidates.push(queue.shift()!);
+    i++;
+  }
 
   const cookieSet = !!(settings.instagram_session_cookie?.trim() || process.env.INSTAGRAM_SESSION_COOKIE?.trim());
   const serperConfigured = !!(settings.serper_api_key?.trim() || process.env.SERPER_API_KEY?.trim());
@@ -61,6 +82,7 @@ export default async function SeedsPage() {
         <CardContent>
           <SeedManager
             seeds={seeds ?? []}
+            exhaustedSeeds={exhaustedSeeds}
             jobs={jobs ?? []}
             defaultLimit={settings.max_profiles_per_account}
           />

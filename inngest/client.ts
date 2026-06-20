@@ -57,6 +57,12 @@ type Events = {
       force?: boolean;
     };
   };
+  "outreach/batch.requested": {
+    data: {
+      lead_ids: string[];
+      interval_minutes?: number;
+    };
+  };
 };
 
 // Decide dev vs. cloud deterministically instead of letting the SDK guess.

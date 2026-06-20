@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Trash2, Loader2, AlertCircle, Mail, Check } from "lucide-react";
 import { deleteLeads } from "@/app/actions/leads";
 import { enrichLeadsBulk } from "@/app/actions/enrich";
+import { sendOutreachBatch } from "@/app/actions/outreach";
 
 type Ctx = {
   allIds: string[];
@@ -113,6 +114,7 @@ export function BulkDeleteBar() {
   const { selected, clear } = useContext(SelectionContext);
   const [pending, start] = useTransition();
   const [enriching, startEnrich] = useTransition();
+  const [sending, startSend] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const router = useRouter();
@@ -129,6 +131,27 @@ export function BulkDeleteBar() {
       if (r.ok) {
         setNotice(`Queued ${r.queued} — emails will appear as they're found. Refresh in a bit.`);
         router.refresh();
+      } else {
+        setError(r.error ?? "couldn't queue");
+      }
+    });
+  };
+
+  const onSend = () => {
+    const ids = [...selected];
+    const hrs = Math.round((ids.length * 20) / 60 * 10) / 10;
+    const ok = window.confirm(
+      `Send emails to ${ids.length} lead${ids.length === 1 ? "" : "s"} with 20 min intervals?\n` +
+      `Estimated duration: ~${hrs}h. Each send will appear in the Activity tab.`
+    );
+    if (!ok) return;
+    setError(null);
+    setNotice(null);
+    startSend(async () => {
+      const r = await sendOutreachBatch({ leadIds: ids, intervalMinutes: 20 });
+      if (r.ok) {
+        setNotice(`Queued ${r.queued} email${r.queued === 1 ? "" : "s"} — sending over ~${hrs}h.`);
+        clear();
       } else {
         setError(r.error ?? "couldn't queue");
       }
@@ -154,12 +177,14 @@ export function BulkDeleteBar() {
     });
   };
 
+  const busy = pending || enriching || sending;
+
   return (
     <div className="flex items-center gap-3 rounded-md border bg-muted/40 px-3 py-2">
       <span className="text-sm font-medium tabular-nums">
         {count} selected
       </span>
-      <Button variant="default" size="sm" onClick={onEnrich} disabled={enriching || pending}>
+      <Button variant="default" size="sm" onClick={onEnrich} disabled={busy}>
         {enriching ? (
           <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
         ) : (
@@ -167,7 +192,15 @@ export function BulkDeleteBar() {
         )}
         {enriching ? "Queuing…" : "Find emails"}
       </Button>
-      <Button variant="destructive" size="sm" onClick={onDelete} disabled={pending || enriching}>
+      <Button variant="default" size="sm" onClick={onSend} disabled={busy}>
+        {sending ? (
+          <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+        ) : (
+          <Mail className="h-3.5 w-3.5 mr-1.5" />
+        )}
+        {sending ? "Queuing…" : "Send emails"}
+      </Button>
+      <Button variant="destructive" size="sm" onClick={onDelete} disabled={busy}>
         {pending ? (
           <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
         ) : (
@@ -175,7 +208,7 @@ export function BulkDeleteBar() {
         )}
         {pending ? "Deleting…" : "Delete selected"}
       </Button>
-      <Button variant="ghost" size="sm" onClick={clear} disabled={pending || enriching}>
+      <Button variant="ghost" size="sm" onClick={clear} disabled={busy}>
         Clear
       </Button>
       {notice && (
