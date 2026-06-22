@@ -61,6 +61,9 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     gmail_app_password: String(formData.get("gmail_app_password") ?? "") || null,
     gmail_from_name: String(formData.get("gmail_from_name") ?? "") || null,
     capsolver_api_key: String(formData.get("capsolver_api_key") ?? "") || null,
+    hunter_api_key: String(formData.get("hunter_api_key") ?? "") || null,
+    zerobounce_api_key: String(formData.get("zerobounce_api_key") ?? "") || null,
+    neverbounce_api_key: String(formData.get("neverbounce_api_key") ?? "") || null,
     yt_google_cookie: String(formData.get("yt_google_cookie") ?? "") || null,
   };
   await updateSettings(patch);
@@ -266,7 +269,7 @@ async function loginManaged(platform: Platform, account: ManagedAccount): Promis
 
 export async function addManagedAccount(
   platform: Platform,
-  data: { label: string; account_email?: string; password?: string; totp_secret?: string; cookie?: string },
+  data: { label: string; account_email?: string; password?: string; totp_secret?: string; cookie?: string; group?: string },
 ): Promise<{ ok?: true; error?: string; checkpoint?: boolean }> {
   await requireUser();
   const settings = await getSettings(true);
@@ -305,6 +308,7 @@ export async function addManagedAccount(
       last_error: cookieError,
       checkpoint_state: null,
       proxy_url: null,
+      group: data.group || null,
     };
     await updateSettings({ [key]: [...accounts, newAccount] } as Partial<AppSettings>);
     revalidatePath("/settings");
@@ -324,6 +328,7 @@ export async function addManagedAccount(
     last_error: null,
     checkpoint_state: null,
     proxy_url: null,
+    group: data.group || null,
   };
 
   // Save the account first so it shows up in the list even if login fails.
@@ -534,6 +539,24 @@ export async function removeManagedAccount(platform: Platform, id: string): Prom
   const key = accountsKey(platform);
   const accounts: ManagedAccount[] = (settings[key] as ManagedAccount[]) ?? [];
   await updateSettings({ [key]: accounts.filter((a) => a.id !== id) } as Partial<AppSettings>);
+  revalidatePath("/settings");
+}
+
+export async function addInstagramGroup(name: string): Promise<void> {
+  await requireUser();
+  const settings = await getSettings(true);
+  const groups = settings.instagram_groups ?? [];
+  if (!groups.includes(name)) {
+    await updateSettings({ instagram_groups: [...groups, name] });
+  }
+  revalidatePath("/settings");
+}
+
+export async function removeInstagramGroup(name: string): Promise<void> {
+  await requireUser();
+  const settings = await getSettings(true);
+  const groups = (settings.instagram_groups ?? []).filter((g) => g !== name);
+  await updateSettings({ instagram_groups: groups });
   revalidatePath("/settings");
 }
 

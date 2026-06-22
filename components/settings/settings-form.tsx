@@ -11,6 +11,7 @@ import { AlertTriangle } from "lucide-react";
 import { saveSettings, removeManagedAccount } from "@/app/actions/settings";
 import { YtCookieManager } from "@/components/settings/yt-cookie-manager";
 import { ManagedAccountManager } from "@/components/settings/managed-account-manager";
+import { GroupManager } from "@/components/settings/group-manager";
 import { EmailKeyManager } from "@/components/settings/email-key-manager";
 import { BodyEditor } from "@/components/settings/body-editor";
 import type { AppSettings, ManagedAccountDisplay } from "@/lib/types";
@@ -106,6 +107,9 @@ export function SettingsForm({
               <p className="text-xs text-muted-foreground">Email finder fallback after Findymail. Free tier: 75 searches/month per account. Stack accounts to multiply free quota.</p>
               <EmailKeyManager provider="prospeo" keys={initial.prospeo_api_keys ?? []} placeholder="prospeo_…" />
             </div>
+            <Separator />
+            <Field label="Zerobounce API key (optional)" name="zerobounce_api_key" defaultValue={initial.zerobounce_api_key ?? ""} type="password" hint="Verifies found emails before saving — reduces bounce rates. Falls back to ZEROBOUNCE_API_KEY env var." />
+            <Field label="Neverbounce API key (optional)" name="neverbounce_api_key" defaultValue={initial.neverbounce_api_key ?? ""} type="password" hint="Used when Zerobounce is not configured. Falls back to NEVERBOUNCE_API_KEY env var." />
             <Field label="Instagram proxy URL (optional)" name="instagram_proxy_url" defaultValue={initial.instagram_proxy_url ?? ""} hint="Rotating proxy for Instagram scraping. Format: http://user:pass@host:port — only used as fallback when a 429 rate-limit is hit. Falls back to INSTAGRAM_PROXY_URL env var." />
           </CardContent>
         </Card>
@@ -116,11 +120,11 @@ export function SettingsForm({
             <div className="space-y-2">
               <p className="text-sm font-medium">Instagram accounts</p>
               <p className="text-xs text-muted-foreground">
-                Add Instagram accounts with their session cookie. The scraper rotates between accounts automatically when one gets rate-limited.
+                Organise accounts into groups of 5. Activate a group to use only those accounts for scraping — switch groups when one gets flagged.
               </p>
-              <ManagedAccountManager
+              <GroupManager
                 key={igResetKey}
-                platform="instagram"
+                groups={initial.instagram_groups ?? []}
                 accounts={igAccounts}
                 activeGroup={initial.active_account_group ?? null}
                 proxyPool={initial.instagram_proxy_pool ?? []}

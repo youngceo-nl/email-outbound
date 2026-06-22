@@ -2,6 +2,32 @@ export type ProspeoResult =
   | { email: string }
   | { email: null; reason: string };
 
+// https://prospeo.io — POST /linkedin-email-finder
+// Auth: X-KEY: {key}
+// Body: { url: "https://www.linkedin.com/in/..." }
+export async function findEmailWithProspeoLinkedin(opts: {
+  apiKey: string;
+  linkedinUrl: string;
+}): Promise<ProspeoResult> {
+  try {
+    const res = await fetch("https://api.prospeo.io/linkedin-email-finder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-KEY": opts.apiKey },
+      body: JSON.stringify({ url: opts.linkedinUrl }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (res.status === 401 || res.status === 403) return { email: null, reason: "invalid_api_key" };
+    if (res.status === 429) return { email: null, reason: "rate_limited" };
+    if (!res.ok) return { email: null, reason: `http_${res.status}` };
+    const body = await res.json() as { error: boolean; message?: string; response?: { email?: string | null } };
+    if (body.error) return { email: null, reason: body.message ?? "api_error" };
+    const email = body.response?.email ?? null;
+    return email ? { email } : { email: null, reason: "no_email_found" };
+  } catch (err) {
+    return { email: null, reason: err instanceof Error ? err.message.slice(0, 60) : "fetch_error" };
+  }
+}
+
 // https://prospeo.io — POST /email-finder
 // Auth: X-KEY: {key}
 // Body: { first_name, last_name, domain }

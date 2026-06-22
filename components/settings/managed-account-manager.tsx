@@ -48,7 +48,7 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
-function AccountCard({
+export function AccountCard({
   account,
   platform,
   onRefresh,

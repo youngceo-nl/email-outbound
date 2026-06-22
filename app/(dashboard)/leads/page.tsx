@@ -61,7 +61,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
     const keywordOr = buildKeywordOr(sp.q);
     if (keywordOr) q = q.or(keywordOr);
-    if (sp.search) q = q.or(`username.ilike.%${sp.search}%,full_name.ilike.%${sp.search}%`);
+    if (sp.search) q = q.or(`username.ilike.%${sp.search}%,full_name.ilike.%${sp.search}%,email.ilike.%${sp.search}%`);
     if (sp.status && sp.status !== "all") q = q.eq("status", sp.status);
     if (sp.niche) q = q.ilike("niche", `%${sp.niche}%`);
     if (sp.business_model) q = q.eq("business_model", sp.business_model);

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ExternalLink, Youtube, Linkedin, Mail } from "lucide-react";
+import { ExternalLink, Youtube, Linkedin, Mail, Download } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChurnActions } from "@/components/leads/churn-actions";
@@ -37,7 +37,19 @@ export default async function ChurnPage() {
           anything, hit <strong>Dismiss</strong> to clear them out.
         </p>
       </div>
-      <RetryChurnButton total={rows.length} />
+      <div className="flex items-center gap-2 shrink-0">
+        {rows.length > 0 && (
+          <a
+            href="/api/churn/export"
+            download
+            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export CSV
+          </a>
+        )}
+        <RetryChurnButton total={rows.length} />
+      </div>
       </div>
 
       {rows.length === 0 ? (

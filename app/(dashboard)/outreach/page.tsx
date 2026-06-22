@@ -31,6 +31,7 @@ export default async function OutreachPreviewPage() {
     .not("email", "is", null)
     .ilike("email", "%@%")
     .neq("email_status", "bounced")
+    .neq("email_status", "invalid")
     .eq("outreach_count", 0)
     .order("overall_score", { ascending: false })
     .limit(DAILY_TARGET);

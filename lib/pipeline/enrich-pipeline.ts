@@ -10,9 +10,12 @@ import { refreshAndSaveYoutubeCookie, youtubeLoginConfigured, checkYoutubeCookie
 import { extractEmailFromText } from "@/lib/leads/email-extract";
 import { inferEmailFromDomain, extractDomain } from "@/lib/email/domain-inference";
 import { findEmailWithHunter } from "@/lib/email/hunter";
-import { findEmailWithFindymail } from "@/lib/email/findymail";
-import { findEmailWithProspeo } from "@/lib/email/prospeo";
+import { findEmailWithFindymail, findEmailWithFindymailLinkedin } from "@/lib/email/findymail";
+import { findEmailWithProspeo, findEmailWithProspeoLinkedin } from "@/lib/email/prospeo";
 import { pickKey, markRateLimited, markQuotaExhausted, isQuotaReason } from "@/lib/email/key-pool";
+import { verifyEmail, verifyStatusToEmailStatus } from "@/lib/email/verify";
+import { findLinkedInUrl } from "@/lib/linkedin/find";
+import { extractLinkedInProfileUrl } from "@/lib/linkedin/profile-url";
 import type { EnrichProgress } from "@/lib/pipeline/enrich-progress";
 
 export type EnrichPipelineResult = {
@@ -21,7 +24,7 @@ export type EnrichPipelineResult = {
   youtube_url: string | null;
   email: string | null;
   email_status: string;
-  source: "cached" | "ig_bio" | "website" | "youtube" | "domain_inference" | "hunter" | "findymail" | "prospeo" | "skipped";
+  source: "cached" | "ig_bio" | "website" | "youtube" | "linkedin" | "domain_inference" | "hunter" | "findymail" | "prospeo" | "skipped";
   // User-facing summary of what happened when no email was found.
   error: string | null;
   // Full step-by-step trace, surfaced behind a "details" affordance in the UI.
@@ -68,6 +71,13 @@ export async function enrichLeadPipeline(opts: {
   // tells the user exactly what ran and why each step came up empty.
   const steps: string[] = [];
 
+  const settings = await getSettings();
+  const serperKey = settings.serper_api_key || process.env.SERPER_API_KEY || "";
+  const capsolverKey = settings.capsolver_api_key || process.env.CAPSOLVER_API_KEY || "";
+  const openAiKey = settings.openai_api_key || process.env.OPENAI_API_KEY || "";
+  const zerobounceKey = settings.zerobounce_api_key || process.env.ZEROBOUNCE_API_KEY || null;
+  const neverbounceKey = settings.neverbounce_api_key || process.env.NEVERBOUNCE_API_KEY || null;
+
   // ── Step 1: email already published in the Instagram bio (free). ──────────
   emit({ stage: "bio", state: "start", label: "Instagram bio…" });
   const bioEmail = extractEmailFromText(lead.bio as string | null);
@@ -84,14 +94,10 @@ export async function enrichLeadPipeline(opts: {
         enrichment_error: null,
       },
       result: { ok: true, linkedin_url: existingLinkedin, youtube_url: existingYoutube, email: bioEmail, email_status: "found", source: "ig_bio", error: null },
+      verify: { email: bioEmail, zerobounceKey, neverbounceKey },
     });
   }
   steps.push("bio: none");
-
-  const settings = await getSettings();
-  const serperKey = settings.serper_api_key || process.env.SERPER_API_KEY || "";
-  const capsolverKey = settings.capsolver_api_key || process.env.CAPSOLVER_API_KEY || "";
-  const openAiKey = settings.openai_api_key || process.env.OPENAI_API_KEY || "";
 
   // Build YT cookie pool: managed accounts first (most likely fresh), then manual cookies.
   const ytCookiePool: string[] = [];
@@ -227,6 +233,7 @@ export async function enrichLeadPipeline(opts: {
           enrichment_error: null,
         },
         result: { ok: true, linkedin_url: existingLinkedin, youtube_url: youtubeUrl, email: attempt.email, email_status: "found", source: "youtube", error: null },
+        verify: { email: attempt.email, zerobounceKey, neverbounceKey },
       });
     }
     youtubeError = youtubeError ?? attempt.youtubeError;
@@ -240,7 +247,106 @@ export async function enrichLeadPipeline(opts: {
     steps.push("yt_cookie_scrape: skipped (no channel found)");
   }
 
-  // ── Step 3: email finder waterfall — Hunter → Findymail → Prospeo → domain inference ──
+  // ── Step 3: LinkedIn — find profile URL, then ask Prospeo/Findymail for the email ──
+  // LinkedIn email finders are more accurate than domain+name guessing because they
+  // look up the person directly, not pattern-match against a domain.
+  let linkedinUrl: string | null = existingLinkedin;
+  {
+    const findymailKeys = [
+      ...(settings.findymail_api_keys ?? []),
+      ...(process.env.FINDYMAIL_API_KEY ? [process.env.FINDYMAIL_API_KEY] : []),
+    ].filter(Boolean);
+    const prospeoKeys = [
+      ...(settings.prospeo_api_keys ?? []),
+      ...(process.env.PROSPEO_API_KEY ? [process.env.PROSPEO_API_KEY] : []),
+    ].filter(Boolean);
+    const hasLinkedInFinder = findymailKeys.length > 0 || prospeoKeys.length > 0;
+
+    if (hasLinkedInFinder) {
+      emit({ stage: "linkedin", state: "start", label: "LinkedIn…" });
+
+      // 3a. Resolve LinkedIn URL if we don't already have it
+      if (!linkedinUrl) {
+        // Check bio and external link first (free)
+        for (const src of [lead.bio as string | null, externalLink]) {
+          const extracted = extractLinkedInProfileUrl(src);
+          if (extracted) { linkedinUrl = extracted; steps.push("li_url: from_bio_or_link"); break; }
+        }
+      }
+      if (!linkedinUrl && serperKey) {
+        const lookup = await findLinkedInUrl({
+          apiKey: serperKey,
+          fullName: fullName,
+          username: username,
+          hints: (lead.niche as string | null) ?? (lead.bio as string | null)?.slice(0, 60) ?? null,
+        });
+        linkedinUrl = lookup.url;
+        steps.push(`li_serper: ${linkedinUrl ?? (lookup.error ?? "not_found")}`);
+      } else if (!linkedinUrl && !serperKey) {
+        steps.push("li_serper: skipped (no Serper key)");
+      }
+
+      // Save LinkedIn URL to DB now even if email lookup fails — it's useful on its own
+      if (linkedinUrl && linkedinUrl !== existingLinkedin) {
+        await sb.from("leads").update({ linkedin_url: linkedinUrl }).eq("id", opts.leadId);
+      }
+
+      // 3b. LinkedIn email lookup — Prospeo first (more reliable), then Findymail
+      if (linkedinUrl) {
+        if (prospeoKeys.length > 0) {
+          const key = pickKey("prospeo", prospeoKeys);
+          if (key) {
+            const r = await findEmailWithProspeoLinkedin({ apiKey: key, linkedinUrl });
+            if (r.email) {
+              emit({ stage: "linkedin", state: "hit", label: "Found via LinkedIn (Prospeo)" });
+              return persistAndReturn({
+                leadId: opts.leadId,
+                patch: { linkedin_url: linkedinUrl, email: r.email, email_status: "found", email_provider: "prospeo_linkedin", email_verifier: null, enriched_at: new Date().toISOString(), enrichment_error: null },
+                result: { ok: true, linkedin_url: linkedinUrl, youtube_url: youtubeUrl, email: r.email, email_status: "found", source: "linkedin", error: null },
+                verify: { email: r.email, zerobounceKey, neverbounceKey },
+              });
+            }
+            const reason = "reason" in r ? r.reason : "no_email";
+            if (reason === "rate_limited") markRateLimited("prospeo", key);
+            else if (isQuotaReason(reason)) markQuotaExhausted("prospeo", key);
+            steps.push(`li_prospeo: ${reason}`);
+          } else {
+            steps.push("li_prospeo: skipped (all keys exhausted)");
+          }
+        }
+
+        if (findymailKeys.length > 0) {
+          const key = pickKey("findymail", findymailKeys);
+          if (key) {
+            const r = await findEmailWithFindymailLinkedin({ apiKey: key, linkedinUrl });
+            if (r.email) {
+              emit({ stage: "linkedin", state: "hit", label: "Found via LinkedIn (Findymail)" });
+              return persistAndReturn({
+                leadId: opts.leadId,
+                patch: { linkedin_url: linkedinUrl, email: r.email, email_status: "found", email_provider: "findymail_linkedin", email_verifier: null, enriched_at: new Date().toISOString(), enrichment_error: null },
+                result: { ok: true, linkedin_url: linkedinUrl, youtube_url: youtubeUrl, email: r.email, email_status: "found", source: "linkedin", error: null },
+                verify: { email: r.email, zerobounceKey, neverbounceKey },
+              });
+            }
+            const reason = "reason" in r ? r.reason : "no_email";
+            if (reason === "rate_limited") markRateLimited("findymail", key);
+            else if (isQuotaReason(reason)) markQuotaExhausted("findymail", key);
+            steps.push(`li_findymail: ${reason}`);
+          } else {
+            steps.push("li_findymail: skipped (all keys exhausted)");
+          }
+        }
+        emit({ stage: "linkedin", state: "miss", label: "LinkedIn — no email" });
+      } else {
+        emit({ stage: "linkedin", state: "miss", label: "LinkedIn not found" });
+        steps.push("li_email: skipped (no profile url)");
+      }
+    } else {
+      steps.push("linkedin: skipped (no findymail/prospeo keys)");
+    }
+  }
+
+  // ── Step 4: email finder waterfall — Hunter → Findymail → Prospeo → domain inference ──
   // Each paid provider runs only when its key is configured. Domain inference
   // (free DNS pattern guess) is always the last resort.
   {
@@ -350,13 +456,14 @@ export async function enrichLeadPipeline(opts: {
           },
           result: {
             ok: true,
-            linkedin_url: existingLinkedin,
+            linkedin_url: linkedinUrl,
             youtube_url: youtubeUrl,
             email: inferredEmail,
             email_status: "inferred",
             source: inferSource,
             error: null,
           },
+          verify: { email: inferredEmail, zerobounceKey, neverbounceKey },
         });
       }
     } else {
@@ -467,8 +574,24 @@ async function persistAndReturn(opts: {
   leadId: string;
   patch: Record<string, unknown>;
   result: EnrichPipelineResult;
+  // When provided, run verification before saving and update email_status + email_verifier
+  verify?: { email: string; zerobounceKey: string | null; neverbounceKey: string | null };
 }): Promise<EnrichPipelineResult> {
   const sb = createAdminClient();
+
+  if (opts.verify) {
+    const vr = await verifyEmail({
+      email: opts.verify.email,
+      zerobounceKey: opts.verify.zerobounceKey,
+      neverbounceKey: opts.verify.neverbounceKey,
+    });
+    if (vr) {
+      opts.patch.email_status = verifyStatusToEmailStatus(vr);
+      opts.patch.email_verifier = "provider" in vr ? vr.provider : null;
+      opts.result.email_status = opts.patch.email_status as string;
+    }
+  }
+
   await sb.from("leads").update(opts.patch).eq("id", opts.leadId);
   return opts.result;
 }

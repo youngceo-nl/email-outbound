@@ -44,7 +44,7 @@ export function LeadsSearchBar({ initial }: { initial?: string }) {
       <Input
         value={value}
         onChange={(e) => handleChange(e.target.value)}
-        placeholder="Search by handle or name…"
+        placeholder="Search by handle, name, or email…"
         className="pl-8 pr-7 h-9 text-sm"
         onKeyDown={(e) => {
           if (e.key === "Escape") clear();

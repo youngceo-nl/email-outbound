@@ -4,12 +4,12 @@
 // is being checked right now. Kept in its own module (no "server-only" import)
 // so both the server pipeline and the client button can import the type.
 
-export type EnrichStage = "bio" | "website" | "youtube" | "domain_inference";
+export type EnrichStage = "bio" | "website" | "youtube" | "linkedin" | "domain_inference";
 
 export type EnrichProgress = {
   stage: EnrichStage;
-  // "start" = now checking this source; "hit" = email found here.
-  state: "start" | "hit";
+  // "start" = now checking this source; "hit" = email found here; "miss" = checked, nothing found.
+  state: "start" | "hit" | "miss";
   // Short, user-facing label shown inline on the button (keep it tight).
   label: string;
 };

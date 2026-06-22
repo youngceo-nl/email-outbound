@@ -2,6 +2,37 @@ export type FindymailResult =
   | { email: string; score: number }
   | { email: null; reason: string };
 
+// https://app.findymail.com — POST /api/search/linkedin
+// Auth: Authorization: Bearer {key}
+// Body: { linkedin_url: "https://www.linkedin.com/in/..." }
+export async function findEmailWithFindymailLinkedin(opts: {
+  apiKey: string;
+  linkedinUrl: string;
+}): Promise<FindymailResult> {
+  try {
+    const res = await fetch("https://app.findymail.com/api/search/linkedin", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${opts.apiKey}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: JSON.stringify({ linkedin_url: opts.linkedinUrl }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (res.status === 401) return { email: null, reason: "invalid_api_key" };
+    if (res.status === 429) return { email: null, reason: "rate_limited" };
+    if (res.status === 422) return { email: null, reason: "no_email_found" };
+    if (!res.ok) return { email: null, reason: `http_${res.status}` };
+    const body = await res.json() as { email?: string | null; score?: number; emails?: Array<{ email: string; score: number }> };
+    const email = body.email ?? body.emails?.[0]?.email ?? null;
+    const score = body.score ?? body.emails?.[0]?.score ?? 0;
+    return email ? { email, score } : { email: null, reason: "no_email_found" };
+  } catch (err) {
+    return { email: null, reason: err instanceof Error ? err.message.slice(0, 60) : "fetch_error" };
+  }
+}
+
 // https://app.findymail.com — POST /api/search/name
 // Auth: Authorization: Bearer {key}
 // Body: { name: "Full Name", domain: "example.com" }

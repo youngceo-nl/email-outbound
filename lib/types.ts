@@ -79,7 +79,10 @@ export type AppSettings = {
   hunter_api_key: string | null;
   findymail_api_keys: string[];
   prospeo_api_keys: string[];
+  zerobounce_api_key: string | null;
+  neverbounce_api_key: string | null;
   instagram_proxy_url: string | null;
+  instagram_groups: string[];           // ordered list of group names; groups can exist with no accounts
   active_account_group: string | null; // which group is currently active for scraping; null = use all
   instagram_proxy_pool: string[];      // shared IP pool — assigned by slot position to accounts in active group
   yt_google_cookie: string | null;

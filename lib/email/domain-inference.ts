@@ -17,6 +17,8 @@ export function extractDomain(url: string | null | undefined): string | null {
       // Social platforms
       "instagram.com", "youtube.com", "youtu.be", "tiktok.com", "twitter.com", "x.com",
       "facebook.com", "linkedin.com", "snapchat.com", "pinterest.com", "threads.net",
+      "kick.com", "twitch.tv", "discord.com", "discord.gg", "telegram.me", "t.me",
+      "rumble.com", "odysee.com", "triller.co",
       // Link-in-bio aggregators
       "linktree.com", "linktr.ee", "beacons.ai", "bio.link", "stan.store", "taplink.cc",
       "koji.to", "campsite.bio", "later.com", "allmylinks.com", "linkinbio.com", "linktw.in",
