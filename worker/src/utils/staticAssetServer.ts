@@ -12,24 +12,35 @@ const MIME: Record<string, string> = {
 };
 
 export type StaticAssetServer = {
-  baseUrl: string;
+  /** Returns the http(s) URL to serve `absoluteFilePath` at. */
+  urlFor: (absoluteFilePath: string) => string;
   close: () => Promise<void>;
 };
 
 /**
  * Remotion's <Img>/<Video> are loaded via the browser DOM, which refuses
  * file:// resources even with web security disabled — only <Audio> goes
- * through Node-side asset extraction. Per-job generated assets (screenshots,
- * TTS audio, rendered clips) therefore need to be served over plain HTTP for
- * the duration of a render. See remotion/src/types.ts (toMediaSrc).
+ * through Node-side asset extraction. Assets therefore need to be served
+ * over plain HTTP for the duration of a render. See remotion/src/types.ts
+ * (toMediaSrc).
+ *
+ * Serves an explicit file map (key -> absolute path) rather than a directory
+ * tree, since the assets for one render can live in different places — e.g.
+ * per-job generated files under tmp/<jobId>/ alongside the shared base pitch
+ * video that lives outside any job directory.
  */
-export async function startStaticAssetServer(rootDir: string): Promise<StaticAssetServer> {
+export async function startStaticAssetServer(filePaths: string[]): Promise<StaticAssetServer> {
+  const files = new Map<string, string>();
+  for (const absolutePath of filePaths) {
+    const key = `${files.size}${path.extname(absolutePath)}`;
+    files.set(key, absolutePath);
+  }
+
   const server: Server = createServer(async (req, res) => {
     try {
-      const requestPath = decodeURIComponent((req.url ?? "").split("?")[0]);
-      const absoluteRoot = path.resolve(rootDir);
-      const filePath = path.resolve(absoluteRoot, `.${requestPath}`);
-      if (!filePath.startsWith(absoluteRoot)) throw new Error("path traversal");
+      const key = decodeURIComponent((req.url ?? "").split("?")[0]).replace(/^\//, "");
+      const filePath = files.get(key);
+      if (!filePath) throw new Error("unknown asset");
       const body = await readFile(filePath);
       res.writeHead(200, { "Content-Type": MIME[path.extname(filePath).toLowerCase()] ?? "application/octet-stream" });
       res.end(body);
@@ -42,9 +53,16 @@ export async function startStaticAssetServer(rootDir: string): Promise<StaticAss
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("static asset server failed to bind");
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+
+  const urlByPath = new Map(Array.from(files.entries()).map(([key, absolutePath]) => [absolutePath, `${baseUrl}/${key}`]));
 
   return {
-    baseUrl: `http://127.0.0.1:${address.port}`,
+    urlFor: (absoluteFilePath) => {
+      const url = urlByPath.get(absoluteFilePath);
+      if (!url) throw new Error(`urlFor: ${absoluteFilePath} was not registered with startStaticAssetServer`);
+      return url;
+    },
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }

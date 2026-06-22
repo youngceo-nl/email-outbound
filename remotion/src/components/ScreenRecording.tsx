@@ -1,4 +1,4 @@
-import { AbsoluteFill, Img, Video, interpolate, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Img, OffthreadVideo, interpolate, useCurrentFrame } from "remotion";
 import { toMediaSrc } from "../types";
 
 type Props = {
@@ -20,7 +20,7 @@ export function ScreenRecording({ screenAssetPath, durationInFrames }: Props) {
   return (
     <AbsoluteFill style={{ transform: `scale(${scale})`, transformOrigin: "center" }}>
       {isVideo ? (
-        <Video src={toMediaSrc(screenAssetPath)} muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <OffthreadVideo src={toMediaSrc(screenAssetPath)} muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
         <Img src={toMediaSrc(screenAssetPath)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       )}

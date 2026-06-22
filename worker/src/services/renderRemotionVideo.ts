@@ -14,14 +14,13 @@ const HOOK_MIN_DURATION_IN_FRAMES = 8 * FPS;
 
 export type RenderRemotionVideoInput = {
   jobId: string;
-  jobDir: string;
   firstName: string;
   companyName: string;
-  /** Local absolute path to the generated hook MP3 (must live under jobDir). */
+  /** Local absolute path to the generated hook MP3. */
   hookAudioPath: string;
-  /** Local absolute path to the prospect screenshot/recording (must live under jobDir). */
+  /** Local absolute path to the prospect screenshot/recording. */
   screenAssetPath: string;
-  /** Optional — no base pitch has been recorded yet (see project plan). */
+  /** Optional — local absolute path; may live outside the job's tmp dir (e.g. a shared asset). */
   basePitchVideoPath?: string;
   ctaText?: string;
   brandColor?: string;
@@ -38,12 +37,7 @@ function getBundleLocation(): Promise<string> {
 }
 
 export async function renderRemotionVideo(input: RenderRemotionVideoInput): Promise<string> {
-  const { jobId, jobDir, hookAudioPath, screenAssetPath, basePitchVideoPath } = input;
-  for (const p of [hookAudioPath, screenAssetPath, basePitchVideoPath].filter(Boolean) as string[]) {
-    if (!path.resolve(p).startsWith(path.resolve(jobDir))) {
-      throw new Error(`renderRemotionVideo: asset ${p} must live under jobDir ${jobDir}`);
-    }
-  }
+  const { jobId, hookAudioPath, screenAssetPath, basePitchVideoPath } = input;
 
   const hookSeconds = await getMediaDurationSeconds(hookAudioPath);
   const hookDurationInFrames = Math.max(HOOK_MIN_DURATION_IN_FRAMES, Math.ceil(hookSeconds * FPS));
@@ -55,16 +49,17 @@ export async function renderRemotionVideo(input: RenderRemotionVideoInput): Prom
   }
   const durationInFrames = hookDurationInFrames + pitchDurationInFrames;
 
-  const server = await startStaticAssetServer(jobDir);
+  const assetPaths = [hookAudioPath, screenAssetPath, ...(basePitchVideoPath ? [basePitchVideoPath] : [])].map((p) =>
+    path.resolve(p),
+  );
+  const server = await startStaticAssetServer(assetPaths);
   try {
-    const toUrl = (absPath: string) => `${server.baseUrl}/${path.relative(jobDir, absPath)}`;
-
     const inputProps = {
       firstName: input.firstName,
       companyName: input.companyName,
-      hookAudioPath: toUrl(hookAudioPath),
-      screenAssetPath: toUrl(screenAssetPath),
-      basePitchVideoPath: basePitchVideoPath ? toUrl(basePitchVideoPath) : undefined,
+      hookAudioPath: server.urlFor(path.resolve(hookAudioPath)),
+      screenAssetPath: server.urlFor(path.resolve(screenAssetPath)),
+      basePitchVideoPath: basePitchVideoPath ? server.urlFor(path.resolve(basePitchVideoPath)) : undefined,
       ctaText: input.ctaText,
       brandColor: input.brandColor,
       hookDurationInFrames,

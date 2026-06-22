@@ -43,7 +43,7 @@ export async function processJob(sb: Supabase, job: VideoJob): Promise<void> {
   await logJobEvent(sb, job.id, "claimed");
 
   const lead = await fetchLead(sb, job.lead_id);
-  const dir = await ensureJobDir(job.id);
+  await ensureJobDir(job.id); // creates tmp/<jobId>/ for the per-stage outputs below
   const settings = await getAppSettings(sb);
 
   // 1. Script
@@ -81,7 +81,6 @@ export async function processJob(sb: Supabase, job: VideoJob): Promise<void> {
   const basePitchVideoPath = await getBasePitchVideoPath(sb);
   const renderedPath = await renderRemotionVideo({
     jobId: job.id,
-    jobDir: dir,
     firstName: firstNameOf(lead),
     companyName: lead.funnel_program_name || lead.niche || lead.username,
     hookAudioPath: audioPath,
@@ -91,9 +90,20 @@ export async function processJob(sb: Supabase, job: VideoJob): Promise<void> {
     brandColor: config.defaultBrandColor,
   });
 
-  const storagePath = `${job.id}/rendered-video.mp4`;
-  await uploadFileToBucket(sb, "rendered-videos", storagePath, renderedPath);
-  const renderedVideoStorageUrl = await getLongLivedSignedUrl(sb, "rendered-videos", storagePath);
+  // Best-effort audit backup — the Loom upload below is the actual outreach
+  // asset, so a Storage failure (e.g. the project's global upload size limit,
+  // which a long render with a base pitch video can exceed) must not block
+  // it. See worker/README.md.
+  let renderedVideoStorageUrl: string | null = null;
+  try {
+    const storagePath = `${job.id}/rendered-video.mp4`;
+    await uploadFileToBucket(sb, "rendered-videos", storagePath, renderedPath);
+    renderedVideoStorageUrl = await getLongLivedSignedUrl(sb, "rendered-videos", storagePath);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.warn(`rendered video Storage backup failed for job ${job.id}`, { message });
+    await logJobEvent(sb, job.id, "storage_backup_skipped", message);
+  }
   await updateJob(sb, job.id, { rendered_video_path: renderedPath, rendered_video_storage_url: renderedVideoStorageUrl });
   await logJobEvent(sb, job.id, "video_rendered");
 
