@@ -4,16 +4,33 @@ import { scrapeProfiles, scrapePosts } from "@/lib/apify/actors";
 import { classifyWithOpenAi } from "@/lib/openai/classify";
 import { computeMetrics } from "@/lib/pipeline/metrics";
 import { computeScores } from "@/lib/scoring/compute";
+import { persistLead } from "@/lib/pipeline/persist";
 import { toUsername } from "@/lib/pipeline/normalize";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { ClaudeScore, ScrapedProfile } from "@/lib/types";
 
 export type ManualLeadResult =
   | { ok: true; username: string; profile: ScrapedProfile; score: ClaudeScore }
-  | { ok: false; username: string; error: string };
+  | { ok: false; username: string; error: string; duplicate?: true };
 
 export async function analyzeIgLead(input: string): Promise<ManualLeadResult> {
   const username = toUsername(input);
   if (!username) return { ok: false, username: input, error: "Could not parse username from input" };
+
+  const sb = createAdminClient();
+  const { data: existing } = await sb
+    .from("leads")
+    .select("status, overall_score")
+    .eq("username", username)
+    .single();
+  if (existing) {
+    return {
+      ok: false,
+      duplicate: true,
+      username,
+      error: `Already in DB — ${existing.overall_score ?? "unscored"}/10 (${existing.status})`,
+    };
+  }
 
   const settings = await getSettings();
   const tokens = resolveApifyTokens(settings);
@@ -22,14 +39,11 @@ export async function analyzeIgLead(input: string): Promise<ManualLeadResult> {
   // Scrape profile + posts in parallel — use first available token for posts (runActorSync doesn't rotate)
   let profile: ScrapedProfile;
   try {
-    const [profiles, postsMap] = await Promise.all([
-      scrapeProfiles({ token: tokens[0], usernames: [username] }),
-      scrapePosts({ token: tokens[0], usernames: [username], limit: 12 }),
-    ]);
-
+    const profiles = await scrapeProfiles({ token: tokens[0], usernames: [username] });
     const raw = profiles[0];
     if (!raw) return { ok: false, username, error: "Profile not found — account may be private or username incorrect" };
 
+    const postsMap = await scrapePosts({ token: tokens[0], usernames: [username], limit: 12 });
     profile = { ...raw, recent_posts: postsMap.get(username) ?? [] };
   } catch (err) {
     return { ok: false, username, error: err instanceof Error ? err.message : String(err) };
@@ -51,6 +65,21 @@ export async function analyzeIgLead(input: string): Promise<ManualLeadResult> {
 
   const metrics = computeMetrics(profile);
   const score = computeScores({ profile, metrics, classification, settings });
+
+  const status = score.recommended_action === "qualified" ? "qualified"
+    : score.recommended_action === "review" ? "review"
+    : "rejected";
+
+  await persistLead({
+    profile,
+    metrics,
+    score,
+    status,
+    rejection_reason: status === "rejected" ? score.reason_for_score : null,
+    crawl_depth: 0,
+    source_seed_id: null,
+    parent_username: null,
+  });
 
   return { ok: true, username, profile, score };
 }

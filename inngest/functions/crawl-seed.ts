@@ -113,19 +113,13 @@ export const crawlSeed = inngest.createFunction(
     });
 
     // Backfill metadata only for newly inserted leads.
-    // Split into 3 parallel chunks (matches the concurrency limit and the manual
-    // backfill pattern) so all three cookie slots work simultaneously.
+    // backfill-metadata has concurrency: { limit: 1 } — one event at a time globally —
+    // so we send the full list as a single event rather than splitting into parallel chunks.
     if (allNewUsernames.length > 0) {
-      const PARALLEL = 3;
-      const chunkSize = Math.ceil(allNewUsernames.length / PARALLEL);
-      const backfillEvents = [];
-      for (let i = 0; i < allNewUsernames.length; i += chunkSize) {
-        backfillEvents.push({
-          name: "leads/backfill.metadata.requested" as const,
-          data: { usernames: allNewUsernames.slice(i, i + chunkSize), crawl_job_id, event_index: backfillEvents.length },
-        });
-      }
-      await step.sendEvent("backfill-metadata", backfillEvents);
+      await step.sendEvent("backfill-metadata", {
+        name: "leads/backfill.metadata.requested" as const,
+        data: { usernames: allNewUsernames, crawl_job_id, event_index: 0 },
+      });
     }
 
     // Only track cookie exhaustion — cookie is the only method with a hard cap

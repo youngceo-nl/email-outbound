@@ -1,4 +1,12 @@
+import { after } from "next/server";
 import { analyzeIgLead, type ManualLeadResult } from "@/lib/manual-lead/analyze";
+
+// Module-level sequential queue — analyses run one at a time so concurrent
+// Telegram messages never race or drop. Each task chains onto the tail.
+let analysisQueue = Promise.resolve();
+function enqueue(task: () => Promise<void>) {
+  analysisQueue = analysisQueue.then(task).catch(() => {});
+}
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
@@ -21,7 +29,9 @@ function extractIgTargets(text: string): string[] {
 }
 
 function formatResult(result: ManualLeadResult): string {
-  if (!result.ok) return `❌ @${result.username}: ${result.error}`;
+  if (!result.ok) return result.duplicate
+    ? `⏭️ @${result.username}: ${result.error}`
+    : `❌ @${result.username}: ${result.error}`;
   const { profile, score } = result;
   const dot = score.overall_score >= 7.5 ? "🟢" : score.overall_score >= 5.5 ? "🟡" : "🔴";
   return [
@@ -77,13 +87,15 @@ export async function POST(req: Request) {
   const targets = extractIgTargets(text);
   if (targets.length === 0) return new Response("ok");
 
-  const plural = targets.length > 1 ? `${targets.length} profiles` : `@${targets[0]}`;
-  await tgSend(chatId, `🔍 Analyzing ${plural}...`, threadId);
-
-  // Analyze sequentially so SB key rotation stays coherent under load
+  // Respond to Telegram immediately — it has a 60s timeout and Apify takes longer.
+  // Enqueue each target sequentially so concurrent messages never race or drop.
   for (const target of targets) {
-    const result = await analyzeIgLead(target);
-    await tgSend(chatId, formatResult(result), threadId);
+    const t = target; // capture for closure
+    after(() => enqueue(async () => {
+      await tgSend(chatId, `🔍 Analyzing @${t}...`, threadId);
+      const result = await analyzeIgLead(t);
+      await tgSend(chatId, formatResult(result), threadId);
+    }));
   }
 
   return new Response("ok");

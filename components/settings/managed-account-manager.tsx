@@ -1,6 +1,6 @@
 "use client";
 import { useTransition, useState } from "react";
-import { CheckCircle2, XCircle, AlertTriangle, MinusCircle, RefreshCw, Trash2, Eye, EyeOff, Copy, Check, Layers, Zap } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, MinusCircle, RefreshCw, Trash2, Eye, EyeOff, Copy, Check, Layers, Zap, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
-import { addManagedAccount, refreshManagedAccount, submitCheckpointCode, setManagedAccountEmail, testManagedAccountCookie, setManagedAccountCookie, setManagedAccountProxy, setManagedAccountPassword, setManagedAccountGroup, setActiveAccountGroup, setProxyPool } from "@/app/actions/settings";
+import { addManagedAccount, refreshManagedAccount, submitCheckpointCode, setManagedAccountEmail, testManagedAccountCookie, setManagedAccountCookie, setManagedAccountProxy, setManagedAccountPassword, setManagedAccountGroup, setActiveAccountGroup, setProxyPool, setManagedAccountPaused, setGroupPaused } from "@/app/actions/settings";
 import type { ManagedAccountDisplay } from "@/lib/types";
 
 function relativeTime(iso: string | null): string {
@@ -21,6 +21,7 @@ function relativeTime(iso: string | null): string {
 }
 
 function statusLabel(account: ManagedAccountDisplay): { color: string; text: string; Icon: React.ElementType } {
+  if (account.paused) return { color: "text-muted-foreground", text: "Cooling off", Icon: Moon };
   if (account.checkpoint_state) return { color: "text-amber-600", text: "Verification needed", Icon: AlertTriangle };
   if (account.cookie && !account.last_error) return { color: "text-green-600", text: "Active", Icon: CheckCircle2 };
   if (account.cookie && account.last_error) return { color: "text-destructive", text: "Cookie invalid", Icon: XCircle };
@@ -93,6 +94,7 @@ export function AccountCard({
   const [rur, setRur] = useState(() => parseCookieField(account.cookie, "rur"));
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
+  const [togglingPause, setTogglingPause] = useState(false);
   const router = useRouter();
 
   const handleSaveEmail = async () => {
@@ -185,7 +187,25 @@ export function AccountCard({
             </>
           ) : (
             <>
-              {platform === "instagram" && account.cookie && (
+              {platform === "instagram" && (
+                <Button
+                  type="button" size="sm" variant="ghost" disabled={togglingPause}
+                  onClick={async () => {
+                    setTogglingPause(true);
+                    await setManagedAccountPaused(platform, account.id, !account.paused);
+                    setTogglingPause(false);
+                    router.refresh();
+                  }}
+                  className="h-7 px-2 text-xs gap-1"
+                  title={account.paused ? "Resume — bring back into rotation" : "Pause — cool off without removing"}
+                >
+                  {account.paused
+                    ? <><Sun className="h-3 w-3" /> Resume</>
+                    : <><Moon className="h-3 w-3" /> Pause</>
+                  }
+                </Button>
+              )}
+              {platform === "instagram" && account.cookie && !account.paused && (
                 <Button
                   type="button" size="sm" variant="ghost" disabled={testing}
                   onClick={handleTest} className="h-7 px-2 text-xs"
@@ -487,6 +507,7 @@ export function ManagedAccountManager({
   const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
   const [activeGroup, setActiveGroupState] = useState<string | null>(initialActiveGroup);
   const [switchingGroup, startSwitchGroup] = useTransition();
+  const [pausingGroup, setPausingGroup] = useState<string | null>(null);
   const [proxyPoolDraft, setProxyPoolDraft] = useState(() => initialProxyPool.join("\n"));
   const [savingPool, startSavePool] = useTransition();
 
@@ -623,25 +644,50 @@ export function ManagedAccountManager({
           <div className="flex flex-wrap gap-1.5">
             {groupNames.map((g) => {
               const isActive = activeGroup === g;
-              const count = accounts.filter((a) => a.group === g).length;
+              const groupAccounts = accounts.filter((a) => a.group === g);
+              const count = groupAccounts.length;
+              const allPaused = count > 0 && groupAccounts.every((a) => a.paused);
+              const somePaused = groupAccounts.some((a) => a.paused);
               return (
-                <button
-                  key={g}
-                  type="button"
-                  disabled={switchingGroup}
-                  onClick={() => handleSwitchGroup(isActive ? null : g)}
-                  className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                    isActive
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-card hover:bg-accent text-foreground"
-                  }`}
-                >
-                  {isActive && <Zap className="h-3 w-3" />}
-                  Group {g}
-                  <span className={`text-[10px] ${isActive ? "opacity-70" : "text-muted-foreground"}`}>
-                    {count} account{count !== 1 ? "s" : ""}
-                  </span>
-                </button>
+                <div key={g} className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    disabled={switchingGroup}
+                    onClick={() => handleSwitchGroup(isActive ? null : g)}
+                    className={`inline-flex items-center gap-1.5 rounded-l-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      isActive
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : allPaused
+                        ? "border-border bg-muted text-muted-foreground"
+                        : "border-border bg-card hover:bg-accent text-foreground"
+                    }`}
+                  >
+                    {isActive && !allPaused && <Zap className="h-3 w-3" />}
+                    {allPaused && <Moon className="h-3 w-3" />}
+                    Group {g}
+                    <span className={`text-[10px] ${isActive && !allPaused ? "opacity-70" : "text-muted-foreground"}`}>
+                      {allPaused ? "cooling off" : somePaused ? `${groupAccounts.filter(a => !a.paused).length}/${count} active` : `${count} account${count !== 1 ? "s" : ""}`}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pausingGroup === g}
+                    title={allPaused ? "Resume all accounts in this group" : "Pause all accounts in this group (cool off)"}
+                    onClick={async () => {
+                      setPausingGroup(g);
+                      await setGroupPaused("instagram", g, !allPaused);
+                      setPausingGroup(null);
+                      router.refresh();
+                    }}
+                    className={`inline-flex items-center rounded-r-md border border-l-0 px-2 py-1 transition-colors ${
+                      allPaused
+                        ? "border-border bg-muted hover:bg-amber-50 hover:text-amber-600 text-muted-foreground"
+                        : "border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {allPaused ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+                  </button>
+                </div>
               );
             })}
             {activeGroup && (
@@ -656,7 +702,7 @@ export function ManagedAccountManager({
             )}
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Click a group to activate it — only those accounts will be used for scraping. Click again to deactivate.
+            Click a group label to activate it — only those accounts will be used for scraping. Click <Moon className="h-3 w-3 inline" /> to put a whole group on cooldown without removing it.
           </p>
         </div>
       )}

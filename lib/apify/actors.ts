@@ -136,7 +136,7 @@ export async function scrapePosts(opts: {
   const out = new Map<string, RecentPost[]>();
   if (opts.usernames.length === 0) return out;
 
-  const items = await runActorSync<AnyRec>({
+  const items = await runActorAsync<AnyRec>({
     token: opts.token,
     actorId: POSTS_ACTOR,
     input: {

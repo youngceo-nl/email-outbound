@@ -121,7 +121,11 @@ function cleanProgramName(name: string | null | undefined): string | null {
 function buildFallbackProgramName(niche: string | null | undefined): string {
   const topic = niche?.toLowerCase().trim();
   if (!topic) return "your coaching program";
-  const words = topic.split(/\s+/).slice(0, 2).join(" ");
+  // Strip trailing model words so "fitness coaching" → "fitness" not "fitness coaching coaching program"
+  const stripped = topic
+    .replace(/\s+(coaching|consulting|training|mentoring|program|programs|course|courses|academy|community)\s*$/i, "")
+    .trim();
+  const words = (stripped || topic).split(/\s+/).slice(0, 2).join(" ");
   return `your ${words} coaching program`;
 }
 

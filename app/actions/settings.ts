@@ -533,6 +533,29 @@ export async function setActiveAccountGroup(group: string | null): Promise<void>
   revalidatePath("/settings");
 }
 
+export async function setManagedAccountPaused(platform: Platform, id: string, paused: boolean): Promise<void> {
+  await requireUser();
+  const settings = await getSettings(true);
+  const key = accountsKey(platform);
+  const accounts: ManagedAccount[] = (settings[key] as ManagedAccount[]) ?? [];
+  const updated = accounts.map((a) => a.id === id ? { ...a, paused } : a);
+  await updateSettings({ [key]: updated } as Partial<AppSettings>);
+  revalidatePath("/settings");
+}
+
+// Pause or resume every account in a group at once.
+export async function setGroupPaused(platform: Platform, group: string, paused: boolean): Promise<void> {
+  await requireUser();
+  const settings = await getSettings(true);
+  const key = accountsKey(platform);
+  const accounts: ManagedAccount[] = (settings[key] as ManagedAccount[]) ?? [];
+  const updated = accounts.map((a) =>
+    (a.group?.trim() || null) === group.trim() ? { ...a, paused } : a
+  );
+  await updateSettings({ [key]: updated } as Partial<AppSettings>);
+  revalidatePath("/settings");
+}
+
 export async function setProxyPool(proxies: string[]): Promise<void> {
   await requireUser();
   const cleaned = proxies.map((p) => p.trim()).filter(Boolean);

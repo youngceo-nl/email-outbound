@@ -46,6 +46,93 @@ At 10 cookies: ~20 calls each per run → very safe for daily runs.
 
 ---
 
+## [ ] Platform-Based Seed Discovery (Pre-Qualified Lead Sources)
+
+**Context:** Instead of scraping hashtags and filtering down, these platforms are pre-qualified seed lists — everyone listed already has a paid offer, which is the #1 ICP qualifier.
+
+### Sub-niches in the info product space
+
+**Business/Online Income**
+- Dropshipping / e-com
+- Amazon FBA / wholesale
+- Print on demand
+- Digital products (Notion templates, presets, ebooks)
+- Etsy / handmade business
+- YouTube monetization / faceless YouTube
+- TikTok shop / UGC creator education
+- Blogging / SEO / affiliate marketing
+- Newsletter / Substack building
+- Course creation (teaching how to make courses)
+
+**Service Business / Freelancing**
+- SMMA
+- Copywriting
+- Video editing
+- Graphic design / branding
+- Web design / development
+- Pinterest/SEO virtual assistant
+- Bookkeeping / accounting freelance
+- AI automation agency
+- Cold email outreach agency
+
+**Finance / Investing**
+- Forex trading
+- Crypto / Web3
+- Stock options trading
+- Real estate (wholesaling, flipping, rentals, creative finance)
+- Credit repair / building
+- Personal finance / budgeting
+
+**Creative / Media**
+- Music production / beatmaking
+- Artist development / label deals
+- Podcast monetization
+- Photography / videography business
+- Ghostwriting
+- UGC content creation
+
+**Personal Development (with an offer)**
+- Productivity systems / ADHD coaching
+- Confidence / charisma for men
+- Feminine energy / dating for women
+- Spirituality + business (law of attraction + income)
+- Parenting + income (mompreneur space)
+
+**Highest-signal sub-niches** (operators most likely running sales calls + webinars): SMMA, AI agency, course creation, Amazon FBA, real estate, credit repair.
+
+---
+
+### Platforms where these operators are listed
+
+**Course/Product Marketplaces**
+- **Skool** — skool.com/communities, browse public communities by category. Community owner profile usually links Instagram.
+- **Whop** — browse by category (business, trading, ecom). Each seller page has socials.
+- **Kajabi** — creator directory
+- **Gumroad Discover** — browse by category
+- **ClickBank Marketplace** — affiliate marketplace. Every product has an operator behind it. Click "affiliate page" or google the vendor name + Instagram.
+- **Digistore24** / **JVZoo** — similar to ClickBank
+
+**Leaderboards / Curated Lists**
+- **Skool Games** — Alex Hormozi's challenge, public leaderboard of operators competing by revenue. Everyone on it is active and monetized.
+
+**Influencer Directories**
+- **Influence.co** — influencer directory with niche filters
+- **Creator.co** / **AspireIQ** — similar
+
+---
+
+### Workflow to turn a platform into seeds
+
+1. Browse the platform (e.g. Skool communities, Whop marketplace, ClickBank marketplace)
+2. Get the operator's name / brand name from their listing
+3. Find their Instagram handle — linked on their sales page, Skool profile, or google `"[name]" instagram`
+4. Feed the handle into the scraper as a seed
+5. Run through the normal scrape → backfill → score pipeline
+
+**Leverage multiplier:** Once you have one operator's handle, scrape their **following list** — info product operators follow each other heavily. One Skool community owner's following list is likely 80%+ ICP.
+
+---
+
 ## [ ] Automated Seed Discovery
 
 > **Partially implemented differently:** "Discover from Google" via Serper exists on the seeds page, but it's manual — the user triggers it. The idea here was fully automatic: search, filter, and auto-add seeds with no human click. That part is not done.

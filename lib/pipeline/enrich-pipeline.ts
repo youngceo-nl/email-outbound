@@ -128,7 +128,10 @@ export async function enrichLeadPipeline(opts: {
       process.env.INSTAGRAM_SESSION_COOKIE?.trim() ||
       null;
     try {
-      const { fetchProfileMetadataDirect } = await import("@/lib/instagram/direct");
+      const { fetchProfileMetadataDirect, sleep: igSleep } = await import("@/lib/instagram/direct");
+      // Small human-pace delay before hitting IG API — this runs inside the email
+      // enrichment flow which may fire many times in parallel, so we throttle here.
+      await igSleep(Math.floor(2_000 + Math.random() * 3_000));
       const meta = await fetchProfileMetadataDirect({ username, sessionCookie: igCookie, skipReels: true });
       if (meta?.external_link) {
         externalLink = meta.external_link;

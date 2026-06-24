@@ -29,7 +29,8 @@ export function buildCookiePool(settings: AppSettings): PoolEntry[] {
   const globalProxy = settings.instagram_proxy_url?.trim() || process.env.INSTAGRAM_PROXY_URL || null;
 
   const managedAccounts = (settings.instagram_accounts ?? []).filter((a) => {
-    if (!activeGroup) return true; // no filter
+    if (a.paused) return false; // explicitly cooling off
+    if (!activeGroup) return true; // no group filter
     return (a.group?.trim() || null) === activeGroup;
   });
 
