@@ -143,7 +143,7 @@ export function SettingsForm({
             <div className="space-y-2">
               <p className="text-sm font-medium">YouTube accounts</p>
               <p className="text-xs text-muted-foreground">
-                Add Google/YouTube accounts for email reveal. The system logs in automatically and keeps the cookie fresh.
+                Add Google/YouTube accounts for email reveal only — not used for outreach. The system logs in to scrape the YouTube "View email" button on creator profiles.
                 Use dedicated burner accounts, not your personal Google account.
               </p>
               <ManagedAccountManager key={ytResetKey} platform="youtube" accounts={ytAccounts} onPendingDelete={(id) => addPendingDelete("youtube", id)} />

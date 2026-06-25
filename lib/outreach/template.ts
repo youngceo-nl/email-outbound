@@ -33,7 +33,7 @@ export function buildLeadContext(opts: {
   senderName: string | null;
 }): TemplateContext {
   const full = (opts.lead.full_name ?? "").trim();
-  const firstName = extractFirstName(full) ?? "";
+  const firstName = extractFirstName(full) ?? extractFirstNameFromUsername(opts.lead.username) ?? "there";
   return {
     first_name: firstName,
     name: firstName,
@@ -46,6 +46,60 @@ export function buildLeadContext(opts: {
     external_link: opts.lead.external_link ?? "",
     sender_name: opts.senderName ?? "",
   };
+}
+
+// Try to pull a first name from an Instagram username like "joshlaurentt",
+// "josh.lauren", or "josh_lauren". Returns null when no plausible name found.
+export function extractFirstNameFromUsername(username: string | null | undefined): string | null {
+  if (!username?.trim()) return null;
+  const raw = username.trim().toLowerCase();
+
+  // If the username has a separator, the first segment is likely the first name.
+  const hasSep = /[._-]/.test(raw);
+  const NOT_A_NAME = new Set(["the", "a", "an", "my", "your", "our", "its", "join", "get", "buy", "new", "free", "best", "top", "real", "official"]);
+  if (hasSep) {
+    const seg = raw.split(/[._-]/)[0] ?? "";
+    if (seg.length >= 2 && !/\d/.test(seg) && !NOT_A_NAME.has(seg)) {
+      return seg.charAt(0).toUpperCase() + seg.slice(1);
+    }
+    return null;
+  }
+
+  // No separator — try common English first names that appear as a prefix.
+  // We match the longest prefix that is a known short name (3–8 chars), so
+  // "joshlaurentt" → "josh", "mikefit" → "mike", "sarahjane" → "sarah".
+  const COMMON_NAMES = [
+    "james","john","robert","michael","william","david","richard","joseph","thomas","charles",
+    "christopher","daniel","matthew","anthony","mark","donald","steven","paul","andrew","joshua",
+    "kenneth","kevin","brian","george","timothy","ronald","edward","jason","jeffrey","ryan",
+    "jacob","gary","nicholas","eric","jonathan","stephen","larry","justin","scott","brandon",
+    "benjamin","samuel","raymond","frank","gregory","jack","dennis","jerry","tyler","aaron",
+    "mary","patricia","jennifer","linda","barbara","elizabeth","susan","jessica","sarah","karen",
+    "lisa","nancy","betty","margaret","sandra","ashley","emily","dorothy","kimberly","carol",
+    "michelle","amanda","melissa","deborah","stephanie","rebecca","sharon","laura","cynthia",
+    "kathleen","amy","angela","shirley","anna","brenda","pamela","emma","nicole","helen",
+    "samantha","katherine","christine","debra","rachel","carolyn","janet","catherine","maria",
+    "heather","diane","julie","joyce","victoria","kelly","christina","joan","evelyn","lauren",
+    "madison","sophia","olivia","hannah","megan","alexis","brittany","danielle","grace","alex",
+    "mike","jake","josh","luke","adam","sean","drew","kyle","ryan","dylan","evan","seth","max",
+    "leo","liam","noah","ethan","owen","cole","beau","reed","reid","trey","zach","matt","nick",
+    "cody","brad","chad","dane","dean","glen","grant","grey","wade","zane","sara","kate","lily",
+    "rose","jade","dawn","hope","joy","june","mia","ava","zoe","ivy","eve","sue","kim","jen",
+    "tina","gina","lori","dana","dawn","faye","leah","nina","rita","ruth","vera","amy","ann",
+  ];
+
+  for (const name of COMMON_NAMES) {
+    if (raw.startsWith(name) && raw.length > name.length) {
+      return name.charAt(0).toUpperCase() + name.slice(1);
+    }
+  }
+
+  // Last resort: if the whole username is short enough to be a single name, use it.
+  if (raw.length >= 3 && raw.length <= 10 && !/\d/.test(raw)) {
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
+
+  return null;
 }
 
 // Returns null when no clean first name can be extracted — callers should

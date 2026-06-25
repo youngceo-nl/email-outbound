@@ -62,7 +62,7 @@ export function AccountCard({
   onRemove: () => void;
   refreshing: boolean;
 }) {
-  const isCheckpoint = !!account.checkpoint_state;
+  const isCheckpoint = !!account.checkpoint_state || !!account.last_error?.includes("verification code");
   const { color, text, Icon } = statusLabel(account);
   const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -155,18 +155,24 @@ export function AccountCard({
   };
 
   return (
-    <div className="rounded-md border bg-card">
+    <div className={`rounded-md border bg-card${account.paused ? " opacity-60 border-dashed" : ""}`}>
       {/* Header row */}
       <div className="flex items-center justify-between gap-3 px-3 py-2.5">
         <div className="flex items-center gap-2 min-w-0">
           <Icon className={`h-3.5 w-3.5 shrink-0 ${color}`} />
-          <span className="text-sm font-medium truncate">@{account.label}</span>
+          <span className={`text-sm font-medium truncate${account.paused ? " text-muted-foreground" : ""}`}>@{account.label}</span>
           {account.account_email && (
             <span className="text-xs text-muted-foreground shrink-0 truncate max-w-[160px]" title={account.account_email}>
               {account.account_email}
             </span>
           )}
-          <span className={`text-xs ${color} shrink-0`}>{text}</span>
+          {account.paused ? (
+            <Badge variant="outline" className="text-xs px-1.5 py-0 h-4 shrink-0 border-dashed text-muted-foreground gap-1">
+              <Moon className="h-3 w-3" /> Paused
+            </Badge>
+          ) : (
+            <span className={`text-xs ${color} shrink-0`}>{text}</span>
+          )}
           {account.group && (
             <Badge variant="outline" className="text-xs px-1.5 py-0 h-4 shrink-0">
               {account.group}
@@ -211,6 +217,16 @@ export function AccountCard({
                   onClick={handleTest} className="h-7 px-2 text-xs"
                 >
                   {testing ? "Checking…" : "Test"}
+                </Button>
+              )}
+              {platform === "youtube" && account.password && (
+                <Button
+                  type="button" size="sm" variant="ghost" disabled={refreshing}
+                  onClick={onRefresh} className="h-7 px-2 text-xs gap-1"
+                  title="Re-login and mint a fresh cookie"
+                >
+                  <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+                  {refreshing ? "Refreshing…" : "Refresh cookie"}
                 </Button>
               )}
               <Button
@@ -424,7 +440,12 @@ export function AccountCard({
       {/* Checkpoint verification row */}
       {isCheckpoint && (
         <div className="border-t px-3 py-2.5 space-y-2.5">
-          {account.account_email || account.checkpoint_state?.email_hint ? (
+          {!account.checkpoint_state ? (
+            <p className="text-xs text-amber-600 font-medium">
+              Instagram requires a verification code for <span className="font-mono">@{account.label}</span>.
+              Click <strong>Test</strong> above to trigger a fresh code, then enter it here.
+            </p>
+          ) : account.account_email || account.checkpoint_state?.email_hint ? (
             <p className="text-xs text-amber-600 font-medium">
               Instagram sent a verification code to{" "}
               <span className="font-mono font-semibold">
@@ -461,12 +482,13 @@ export function AccountCard({
               placeholder="6-digit code"
               maxLength={8}
               className="h-8 text-sm font-mono w-36"
-              onKeyDown={(e) => e.key === "Enter" && !submittingCode && handleCodeSubmit()}
+              onKeyDown={(e) => e.key === "Enter" && !submittingCode && code.length >= 4 && handleCodeSubmit()}
+              disabled={!account.checkpoint_state}
             />
             <Button
               type="button"
               size="sm"
-              disabled={submittingCode || code.length < 4}
+              disabled={submittingCode || code.length < 4 || !account.checkpoint_state}
               onClick={handleCodeSubmit}
               className="h-8"
             >
@@ -788,7 +810,7 @@ export function ManagedAccountManager({
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <Label htmlFor={`${platform}-label`} className="text-xs">
-              {isIg ? "Instagram username" : "Google email"}
+              {isIg ? "Instagram username" : "Account login email"}
             </Label>
             <Input
               id={`${platform}-label`}
@@ -930,7 +952,7 @@ export function ManagedAccountManager({
       <p className="text-xs text-muted-foreground">
         {isIg
           ? "The scraper rotates between accounts automatically when one gets rate-limited."
-          : "The enrichment pipeline cycles through accounts for YouTube email reveal. Cookies auto-refresh every 12h."}
+          : "Used only for YouTube email reveal during enrichment — not for sending outreach. Refresh the cookie manually when it expires."}
       </p>
     </div>
   );

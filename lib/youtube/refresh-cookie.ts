@@ -340,7 +340,7 @@ export async function refreshAllYtAccounts(): Promise<{ refreshed: number; faile
   const { data: row } = await sb.from("app_settings").select("yt_accounts").eq("id", 1).single();
   const accounts: Array<{
     id: string; label: string; password: string; totp_secret: string | null;
-    cookie: string | null; cookie_set_at: string | null; last_error: string | null;
+    cookie: string | null; cookie_set_at: string | null; last_error: string | null; paused?: boolean;
   }> = (row as { yt_accounts?: unknown })?.yt_accounts as typeof accounts ?? [];
 
   if (!accounts.length) return { refreshed: 0, failed: 0 };
@@ -351,6 +351,7 @@ export async function refreshAllYtAccounts(): Promise<{ refreshed: number; faile
 
   for (let i = 0; i < updated.length; i++) {
     const account = updated[i];
+    if (account.paused) continue;
     if (!account.password) { failed++; continue; }
     try {
       const cookie = await loginAndExtractCookie({

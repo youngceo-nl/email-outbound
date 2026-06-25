@@ -36,6 +36,15 @@ export function extractDomain(url: string | null | undefined): string | null {
       // Misc platforms
       "calendly.com", "typeform.com", "notion.so", "spotify.com", "apple.com",
       "anchor.fm", "buzzsprout.com", "open.spotify.com",
+      // Major media / publications — influencers often link to their press features,
+      // not their own business email domain
+      "vogue.com", "forbes.com", "entrepreneur.com", "inc.com", "fortune.com",
+      "businessinsider.com", "huffpost.com", "medium.com", "nytimes.com",
+      "wsj.com", "theatlantic.com", "buzzfeed.com", "vice.com", "refinery29.com",
+      "cosmopolitan.com", "elle.com", "glamour.com", "harpersbazaar.com",
+      "gq.com", "menshealth.com", "womenshealthmag.com", "shape.com",
+      "mindbodygreen.com", "healthline.com", "self.com", "popsugar.com",
+      "rollingstone.com", "variety.com", "people.com", "usmagazine.com",
     ];
     if (blocklist.some((b) => host === b || host.endsWith("." + b))) return null;
     return host;

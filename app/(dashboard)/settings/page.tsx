@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 function stripAccount(a: ManagedAccount): ManagedAccountDisplay {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return { id: a.id, label: a.label, account_email: a.account_email ?? null, password: a.password, totp_secret: a.totp_secret, cookie: a.cookie, cookie_set_at: a.cookie_set_at, last_error: a.last_error, checkpoint_state: (a.checkpoint_state ?? null) as any, proxy_url: a.proxy_url ?? null, group: a.group ?? null };
+  return { id: a.id, label: a.label, account_email: a.account_email ?? null, password: a.password, totp_secret: a.totp_secret, cookie: a.cookie, cookie_set_at: a.cookie_set_at, last_error: a.last_error, checkpoint_state: (a.checkpoint_state ?? null) as any, proxy_url: a.proxy_url ?? null, group: a.group ?? null, paused: a.paused ?? false };
 }
 
 export default async function SettingsPage() {

@@ -133,6 +133,57 @@ At 10 cookies: ~20 calls each per run → very safe for daily runs.
 
 ---
 
+### Skool Discovery — Scoring criteria from the CSV
+
+We scraped the Skool discovery page and got ~500+ communities. Here's how to read the signals:
+
+**Price signal:**
+- **Free** = almost always top-of-funnel for a high-ticket backend. These are the most valuable because the operator needs calls booked. Look for free communities with 5k–100k members in a business/income niche.
+- **$47–$200/mo** = operator is actively monetizing a recurring community — likely has a bigger offer (mastermind, 1:1, course). High signal.
+- **$9–$25/mo** = low-ticket info product, probably not a sales-call operator. Lower priority.
+
+**Member count:**
+- 1k–50k is the sweet spot. Under 500 = just starting. Over 100k = likely a media brand, not a sales-call operator.
+
+**Description keywords that score high:** "get your first client", "scale to $X", "sales calls", "high-ticket", "agency", "coaching program", "mastermind", "income", "revenue"
+
+**Description keywords that score low:** "beginner-friendly", "passive income", "no experience needed", "faceless YouTube", "peptides", "spirituality"
+
+---
+
+### Top Skool communities to investigate (from June 2026 scrape)
+
+These are the highest-ICP matches from the discovery page CSV. Next step for each: visit the community, find the owner's name, google `"[name]" instagram`, add handle as a seed.
+
+| Community | URL slug | Price | Members | Why it's ICP |
+|---|---|---|---|---|
+| Wholesaling Real Estate | wholesaling | Free | 77k | Real estate, free = high-ticket backend |
+| Agency Owners | agencyowners | Free | 20k | Agency operators who sell via calls |
+| Synthesizer: Free Skool Growth | synthesizer | Free | 44k | Educators making $10k–$100k/mo |
+| Wholesale Vacant Land | wienerbros | Free | 18k | Real estate, free top-of-funnel |
+| High Ticket Sales Training | high-ticket-sales-training | Free | 4.1k | "High ticket" is literally in the name |
+| Agency Coach Community | agencycoach | Free | 4.4k | Agency coaching operators |
+| Closers Inner Circle | closers-circle | Free | 3k | Elite high-ticket sales placements |
+| AI Automation Society Plus | ai-automation-society-plus | $99/mo | 3.8k | Paid tier of 410k free community |
+| Agentic AI for Founders | agentic-ai-for-founders | $97/mo | 3.8k | AI agency operators |
+| Maker School: AI Automation | makerschool | $184/mo | 2k | "Get your first AI client in 90 days" |
+| School of Mentors | schoolofmentors | $49/mo | 6.1k | Mentored by millionaires/billionaires |
+| Facebook Ads Mastery | facebookads | $147/mo | 551 | $250M managed, 1,500+ clients |
+| Origins Ecommerce | origins | $98/mo | 1.3k | $100k/mo Shopify + Facebook ads |
+| Email Marketing Mastery | email-marketerz | $247/mo | 265 | $200M+ in ecom revenue, high-ticket signal |
+| SCALE - AI for DTC & Agencies | scale-ai | $97/mo | 660 | DTC brands + agencies |
+| The Ecom Wolf Den | the-ecom-wolf | $99/mo | 981 | "0–100k/mo" store building |
+| Gym Exit | gymexit | $197/mo | 111 | Online fitness biz scale + sales calls |
+| Copy Systems | copysystems | $999/mo | 415 | Copywriters charging $10k–$70k/mo |
+| Setterlun University | setterlun-university | $17/mo | 4.4k | "Agency Owners, Coaches & Online Experts Scale to $25M+" |
+| Wealthy Plumber | wealthyplumber | $99/mo | 815 | Blue collar business training |
+
+**Next step:** For each row, visit `skool.com/[slug]/about`, click the owner's profile, check for Instagram link. If not there, google `"[owner name]" instagram`.
+
+**CSV on file:** The full ~500-community CSV from the June 2026 Skool discovery page scrape is saved locally. If we want to automate scoring, we can write a script that parses it, scores each row by price + keywords, and outputs a ranked list.
+
+---
+
 ## [ ] Automated Seed Discovery
 
 > **Partially implemented differently:** "Discover from Google" via Serper exists on the seeds page, but it's manual — the user triggers it. The idea here was fully automatic: search, filter, and auto-add seeds with no human click. That part is not done.

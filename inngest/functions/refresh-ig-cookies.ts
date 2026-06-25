@@ -6,14 +6,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // No-ops cleanly when no managed accounts are configured.
 export const refreshIgCookies = inngest.createFunction(
   { id: "refresh-ig-cookies", name: "Refresh Instagram managed cookies", retries: 1 },
-  { cron: "30 */12 * * *" }, // twice a day, offset from the YT refresh
+  { cron: "0 3 1 * *" }, // disabled — runs monthly at 3am on the 1st (effectively off)
   async ({ step }) => {
     const accounts = await step.run("load-accounts", async () => {
       const sb = createAdminClient();
       const { data } = await sb.from("app_settings").select("instagram_accounts").eq("id", 1).single();
       return (data as { instagram_accounts?: unknown })?.instagram_accounts as Array<{
         id: string; label: string; password: string; totp_secret: string | null;
-        cookie: string | null; cookie_set_at: string | null; last_error: string | null;
+        cookie: string | null; cookie_set_at: string | null; last_error: string | null; checkpoint_state?: unknown; paused?: boolean;
       }> ?? [];
     });
 
@@ -28,6 +28,7 @@ export const refreshIgCookies = inngest.createFunction(
 
       for (let i = 0; i < updated.length; i++) {
         const account = updated[i];
+        if (account.paused) continue;
         if (!account.password) { failed++; continue; }
         try {
           const result = await loginInstagramPlaywright({
@@ -36,10 +37,13 @@ export const refreshIgCookies = inngest.createFunction(
             totp_secret: account.totp_secret,
           });
           if (result.ok) {
-            updated[i] = { ...account, cookie: result.cookie, cookie_set_at: new Date().toISOString(), last_error: null };
+            updated[i] = { ...account, cookie: result.cookie, cookie_set_at: new Date().toISOString(), last_error: null, checkpoint_state: null };
             refreshed++;
+          } else if (result.checkpoint) {
+            updated[i] = { ...account, last_error: result.message, checkpoint_state: result.state };
+            failed++;
           } else {
-            updated[i] = { ...account, last_error: result.checkpoint ? result.message : result.error };
+            updated[i] = { ...account, last_error: result.error, checkpoint_state: null };
             failed++;
           }
         } catch (err) {
