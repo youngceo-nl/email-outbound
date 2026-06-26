@@ -1,5 +1,5 @@
 import { inngest } from "@/inngest/client";
-import { enrichLeadPipeline } from "@/lib/pipeline/enrich-pipeline";
+import { testingEnrichPipeline } from "@/lib/pipeline/testing-pipeline";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getJobStatus, logCrawl, logError } from "@/lib/pipeline/persist";
 
@@ -30,7 +30,7 @@ export const enrichEmail = inngest.createFunction(
     });
 
     try {
-      const r = await step.run("enrich", () => enrichLeadPipeline({ leadId: lead_id }));
+      const r = await step.run("enrich", () => testingEnrichPipeline({ leadId: lead_id }));
       await logCrawl({
         crawl_job_id: crawl_job_id ?? null,
         profile_username: lead?.username ?? lead_id,
@@ -39,7 +39,7 @@ export const enrichEmail = inngest.createFunction(
         depth: lead?.crawl_depth ?? 0,
         detail: r.email ? `${r.email} (${r.source})` : (r.error ?? "no public email found"),
       });
-      return { ok: r.ok, source: r.source, email: r.email, linkedin: r.linkedin_url };
+      return { ok: r.ok, source: r.source, email: r.email };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       await logError({

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { enrichLeadPipeline } from "@/lib/pipeline/enrich-pipeline";
+import { testingEnrichPipeline } from "@/lib/pipeline/testing-pipeline";
 
 // Streams the email-enrichment run as newline-delimited JSON so the client can
 // show, live, which source is being checked (Instagram bio → website → YouTube).
@@ -24,7 +24,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ leadId: strin
     async start(controller) {
       const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
       try {
-        const result = await enrichLeadPipeline({
+        const result = await testingEnrichPipeline({
           leadId,
           force: true,
           onStep: (ev) => send({ type: "step", ...ev }),

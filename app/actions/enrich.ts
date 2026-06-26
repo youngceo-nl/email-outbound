@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { enrichLeadPipeline } from "@/lib/pipeline/enrich-pipeline";
+import { testingEnrichPipeline } from "@/lib/pipeline/testing-pipeline";
 import { logCrawl } from "@/lib/pipeline/persist";
 import { inngest } from "@/inngest/client";
 
@@ -30,7 +30,7 @@ export async function enrichLead(leadId: string): Promise<EnrichLeadResponse> {
     .eq("id", leadId)
     .single();
 
-  const r = await enrichLeadPipeline({ leadId, force: true });
+  const r = await testingEnrichPipeline({ leadId, force: true });
 
   await logCrawl({
     crawl_job_id: null,
@@ -48,7 +48,7 @@ export async function enrichLead(leadId: string): Promise<EnrichLeadResponse> {
     ok: r.ok,
     email: r.email,
     email_status: r.email_status,
-    linkedin_url: r.linkedin_url,
+    linkedin_url: null,
     youtube_url: r.youtube_url,
     source: r.source,
     error: r.error ?? undefined,
