@@ -13,7 +13,9 @@ import { findEmailWithHunter } from "@/lib/email/hunter";
 import { findEmailWithFindymail, findEmailWithFindymailLinkedin } from "@/lib/email/findymail";
 import { findEmailWithProspeo, findEmailWithProspeoLinkedin } from "@/lib/email/prospeo";
 import { pickKey, markRateLimited, markQuotaExhausted, isQuotaReason, isInvalidKeyReason } from "@/lib/email/key-pool";
-import { persistKeyExhausted } from "@/app/actions/settings";
+import { persistKeyExhausted, persistYtCookieStatus, persistIgCookieStatus } from "@/app/actions/settings";
+import { scrapeEmailFromWebsite } from "@/lib/email/website-scrape";
+import { findEmailWithApollo } from "@/lib/email/apollo";
 import { verifyEmail, verifyStatusToEmailStatus } from "@/lib/email/verify";
 import { findLinkedInUrl } from "@/lib/linkedin/find";
 import { extractLinkedInProfileUrl } from "@/lib/linkedin/profile-url";
@@ -25,7 +27,7 @@ export type EnrichPipelineResult = {
   youtube_url: string | null;
   email: string | null;
   email_status: string;
-  source: "cached" | "ig_bio" | "website" | "youtube" | "linkedin" | "domain_inference" | "hunter" | "findymail" | "prospeo" | "skipped";
+  source: "cached" | "ig_bio" | "website" | "youtube" | "linkedin" | "domain_inference" | "hunter" | "apollo" | "findymail" | "prospeo" | "skipped";
   // User-facing summary of what happened when no email was found.
   error: string | null;
   // Full step-by-step trace, surfaced behind a "details" affordance in the UI.
@@ -76,7 +78,15 @@ export async function enrichLeadPipeline(opts: {
   const serperKey = settings.serper_api_key || process.env.SERPER_API_KEY || "";
   const capsolverKey = settings.capsolver_api_key || process.env.CAPSOLVER_API_KEY || "";
   const openAiKey = settings.openai_api_key || process.env.OPENAI_API_KEY || "";
-  const zerobounceKey = settings.zerobounce_api_key || process.env.ZEROBOUNCE_API_KEY || null;
+  const zerobounceKeys = [
+    ...(settings.zerobounce_api_keys ?? []),
+    ...(settings.zerobounce_api_key ? [settings.zerobounce_api_key] : []),
+    ...(process.env.ZEROBOUNCE_API_KEY ? [process.env.ZEROBOUNCE_API_KEY] : []),
+  ].filter(Boolean);
+  // Pick a random key from the pool to spread load across accounts.
+  const zerobounceKey = zerobounceKeys.length > 0
+    ? zerobounceKeys[Math.floor(Math.random() * zerobounceKeys.length)]
+    : null;
   const neverbounceKey = settings.neverbounce_api_key || process.env.NEVERBOUNCE_API_KEY || null;
 
   // ── Step 1: email already published in the Instagram bio (free). ──────────
@@ -129,12 +139,21 @@ export async function enrichLeadPipeline(opts: {
       process.env.INSTAGRAM_SESSION_COOKIE?.trim() ||
       null;
     try {
-      const { fetchProfileMetadataDirect, sleep: igSleep } = await import("@/lib/instagram/direct");
+      const { fetchProfileMetadataDirect, sleep: igSleep, InstagramDirectError } = await import("@/lib/instagram/direct");
       // Small human-pace delay before hitting IG API — this runs inside the email
       // enrichment flow which may fire many times in parallel, so we throttle here.
       await igSleep(Math.floor(2_000 + Math.random() * 3_000));
-      const meta = await fetchProfileMetadataDirect({ username, sessionCookie: igCookie, skipReels: true });
+      let meta;
+      try {
+        meta = await fetchProfileMetadataDirect({ username, sessionCookie: igCookie, skipReels: true });
+      } catch (innerErr) {
+        if (innerErr instanceof InstagramDirectError && (innerErr.status === 401 || innerErr.status === 403)) {
+          void persistIgCookieStatus("dead");
+        }
+        throw innerErr;
+      }
       if (meta?.external_link) {
+        void persistIgCookieStatus("live");
         externalLink = meta.external_link;
         steps.push("ig_refetch: recovered bio link");
         await sb.from("leads").update({ external_link: meta.external_link, bio: meta.bio ?? lead.bio }).eq("id", opts.leadId);
@@ -144,6 +163,34 @@ export async function enrichLeadPipeline(opts: {
     } catch (err) {
       steps.push(`ig_refetch: ${(err as Error).message.slice(0, 60)}`);
     }
+  }
+
+  // ── Step 1b: email on the bio link page (free). ─────────────────────────────
+  // Static page fetch — cheaper than YouTube channel discovery, so we do it first.
+  // externalLink may have been recovered by the ig_refetch block above.
+  if (externalLink) {
+    emit({ stage: "website", state: "start", label: "Bio link page…" });
+    const ws = await scrapeEmailFromWebsite(externalLink);
+    if ("email" in ws) {
+      emit({ stage: "website", state: "hit", label: "Found on website" });
+      return persistAndReturn({
+        leadId: opts.leadId,
+        patch: {
+          email: ws.email,
+          email_status: "found",
+          email_provider: "website_scrape",
+          email_verifier: null,
+          enriched_at: new Date().toISOString(),
+          enrichment_error: null,
+        },
+        result: { ok: true, linkedin_url: existingLinkedin, youtube_url: existingYoutube, email: ws.email, email_status: "found", source: "website", error: null },
+        verify: { email: ws.email, zerobounceKey, neverbounceKey },
+      });
+    }
+    steps.push(`website_scrape: ${ws.reason}`);
+    emit({ stage: "website", state: "miss", label: "Bio link — no email" });
+  } else {
+    steps.push("website_scrape: skipped (no external link)");
   }
 
   // ── Step 2: resolve the YouTube channel, then scrape its About page. ──────
@@ -223,6 +270,7 @@ export async function enrichLeadPipeline(opts: {
 
     steps.push(...attempt.trace);
     if (attempt.email && attempt.provider) {
+      void persistYtCookieStatus("live");
       emit({ stage: "youtube", state: "hit", label: "Found on YouTube" });
       return persistAndReturn({
         leadId: opts.leadId,
@@ -355,6 +403,7 @@ export async function enrichLeadPipeline(opts: {
   // (free DNS pattern guess) is always the last resort.
   {
     const hunterKey = settings.hunter_api_key || process.env.HUNTER_API_KEY || "";
+    const apolloKey = settings.apollo_api_key || process.env.APOLLO_API_KEY || "";
     const findymailKeys = [
       ...(settings.findymail_api_keys ?? []),
       ...(process.env.FINDYMAIL_API_KEY ? [process.env.FINDYMAIL_API_KEY] : []),
@@ -369,7 +418,7 @@ export async function enrichLeadPipeline(opts: {
       emit({ stage: "domain_inference", state: "start", label: "Email finder…" });
 
       let inferredEmail: string | null = null;
-      let inferSource: "hunter" | "findymail" | "prospeo" | "domain_inference" = "domain_inference";
+      let inferSource: "hunter" | "apollo" | "findymail" | "prospeo" | "domain_inference" = "domain_inference";
 
       // 3a. Hunter.io (single key — paid, not rotated)
       if (!inferredEmail && hunterKey) {
@@ -385,7 +434,21 @@ export async function enrichLeadPipeline(opts: {
         steps.push("hunter: skipped (no key)");
       }
 
-      // 3b. Findymail — rotate through free-tier account pool
+      // 3b. Apollo.io (single key — free tier 600 credits/month)
+      if (!inferredEmail && apolloKey) {
+        const r = await findEmailWithApollo({ apiKey: apolloKey, domain, fullName });
+        if ("email" in r) {
+          inferredEmail = r.email;
+          inferSource = "apollo";
+          steps.push(`apollo: ${r.email}`);
+        } else {
+          steps.push(`apollo: ${r.reason}`);
+        }
+      } else if (!apolloKey) {
+        steps.push("apollo: skipped (no key)");
+      }
+
+      // 3d. Findymail — rotate through free-tier account pool
       if (!inferredEmail && findymailKeys.length > 0) {
         const key = pickKey("findymail", findymailKeys);
         if (key) {
@@ -407,7 +470,7 @@ export async function enrichLeadPipeline(opts: {
         steps.push("findymail: skipped (no keys)");
       }
 
-      // 3c. Prospeo — rotate through free-tier account pool
+      // 3e. Prospeo — rotate through free-tier account pool
       if (!inferredEmail && prospeoKeys.length > 0) {
         const key = pickKey("prospeo", prospeoKeys);
         if (key) {
@@ -429,7 +492,7 @@ export async function enrichLeadPipeline(opts: {
         steps.push("prospeo: skipped (no keys)");
       }
 
-      // 3d. Free DNS pattern guess — always last
+      // 3f. Free DNS pattern guess — always last
       if (!inferredEmail) {
         const r = await inferEmailFromDomain({ externalLink: externalLink ?? funnelUrl, fullName });
         if (r.email) {
@@ -443,6 +506,7 @@ export async function enrichLeadPipeline(opts: {
       if (inferredEmail) {
         const providerLabel: Record<typeof inferSource, string> = {
           hunter: "Found via Hunter",
+          apollo: "Found via Apollo",
           findymail: "Found via Findymail",
           prospeo: "Found via Prospeo",
           domain_inference: "Inferred from domain",
@@ -481,8 +545,10 @@ export async function enrichLeadPipeline(opts: {
   // when a lookup was skipped because an integration isn't set up, say exactly
   // what to configure so the user can act on it.
   const checked: string[] = ["the Instagram bio"];
+  if (steps.some((s) => s.startsWith("website_scrape:") && !s.includes("skipped"))) checked.push("their website");
   if (youtubeUrl) checked.push("their YouTube About page");
   if (steps.some((s) => s.startsWith("hunter:") && !s.includes("skipped"))) checked.push("Hunter.io");
+  if (steps.some((s) => s.startsWith("apollo:") && !s.includes("skipped"))) checked.push("Apollo.io");
   if (steps.some((s) => s.startsWith("findymail:") && !s.includes("skipped"))) checked.push("Findymail");
   if (steps.some((s) => s.startsWith("prospeo:") && !s.includes("skipped"))) checked.push("Prospeo");
   if (steps.some((s) => s.startsWith("domain_inference:") && !s.includes("skipped"))) checked.push("domain pattern lookup");
@@ -495,6 +561,7 @@ export async function enrichLeadPipeline(opts: {
   //    most common reason the gated reveal can't run.
   const cookieBroken =
     ytAuthFailed || (!!ytGatedError && /invalid cookie|addcookies|setcookies|not signed in|logged out/i.test(ytGatedError));
+  if (cookieBroken) void persistYtCookieStatus("dead");
   if (youtubeUrl && cookieBroken) {
     problems.push(
       "Your YouTube session cookie looks invalid or expired, so we couldn't open the gated “View email” page. Paste a fresh Cookie header from a logged-in YouTube session in Settings.",

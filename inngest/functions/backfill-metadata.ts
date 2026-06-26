@@ -5,6 +5,7 @@ import { fetchProfileMetadataDirect, InstagramDirectError, sleep } from "@/lib/i
 import { buildCookiePool, buildProxyPool, pickCookie, markRateLimited } from "@/lib/instagram/cookie-pool";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logCrawl, logError } from "@/lib/pipeline/persist";
+import { persistIgCookieStatus } from "@/app/actions/settings";
 
 // Backfill basic profile metadata (followers, following, posts, bio,
 // external_link, is_private, is_verified) for a batch of usernames.
@@ -183,6 +184,7 @@ export const backfillMetadata = inngest.createFunction(
                 // whole backfill — other accounts may still be healthy.
                 if (direct && (!direct.retryable || direct.status === 429)) {
                   if (direct.status === 429) markRateLimited(activeCookie);
+                  if (direct.status === 401 || direct.status === 403) void persistIgCookieStatus("dead");
                   break;
                 }
               }

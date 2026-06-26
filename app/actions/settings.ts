@@ -62,6 +62,7 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     gmail_from_name: String(formData.get("gmail_from_name") ?? "") || null,
     capsolver_api_key: String(formData.get("capsolver_api_key") ?? "") || null,
     hunter_api_key: String(formData.get("hunter_api_key") ?? "") || null,
+    apollo_api_key: String(formData.get("apollo_api_key") ?? "") || null,
     zerobounce_api_key: String(formData.get("zerobounce_api_key") ?? "") || null,
     neverbounce_api_key: String(formData.get("neverbounce_api_key") ?? "") || null,
     yt_google_cookie: String(formData.get("yt_google_cookie") ?? "") || null,
@@ -147,11 +148,12 @@ export async function removeYtCookie(index: number) {
 const KEY_FIELD: Record<string, keyof AppSettings> = {
   findymail:   "findymail_api_keys",
   prospeo:     "prospeo_api_keys",
+  zerobounce:  "zerobounce_api_keys",
   scrapingbee: "scrapingbee_api_keys",
   apify:       "apify_api_keys",
 };
 
-export async function addEmailProviderKey(provider: "findymail" | "prospeo" | "scrapingbee" | "apify", key: string) {
+export async function addEmailProviderKey(provider: "findymail" | "prospeo" | "zerobounce" | "scrapingbee" | "apify", key: string) {
   await requireUser();
   const settings = await getSettings(true);
   const trimmed = key.trim();
@@ -164,7 +166,7 @@ export async function addEmailProviderKey(provider: "findymail" | "prospeo" | "s
   return { ok: true };
 }
 
-export async function removeEmailProviderKey(provider: "findymail" | "prospeo" | "scrapingbee" | "apify", index: number) {
+export async function removeEmailProviderKey(provider: "findymail" | "prospeo" | "zerobounce" | "scrapingbee" | "apify", index: number) {
   await requireUser();
   const settings = await getSettings(true);
   const field = KEY_FIELD[provider];
@@ -556,6 +558,22 @@ export async function setGroupPaused(platform: Platform, group: string, paused: 
   revalidatePath("/settings");
 }
 
+// ── YouTube cookie status ─────────────────────────────────────────────────────
+
+// Fire-and-forget from enrich pipeline to track whether the YT cookie is working.
+export async function persistYtCookieStatus(status: "live" | "dead"): Promise<void> {
+  try {
+    await updateSettings({ yt_cookie_status: status });
+  } catch { /* non-fatal */ }
+}
+
+// Fire-and-forget from scraping flows to track whether the IG session cookie is working.
+export async function persistIgCookieStatus(status: "live" | "dead"): Promise<void> {
+  try {
+    await updateSettings({ ig_cookie_status: status });
+  } catch { /* non-fatal */ }
+}
+
 // ── Email provider key status ─────────────────────────────────────────────────
 
 function emailKeyStatusId(provider: string, key: string) {
@@ -577,7 +595,7 @@ export async function persistKeyExhausted(provider: string, key: string): Promis
   }
 }
 
-async function probeKey(provider: "findymail" | "prospeo" | "apify" | "scrapingbee", key: string): Promise<import("@/lib/types").EmailKeyStatus> {
+async function probeKey(provider: "findymail" | "prospeo" | "zerobounce" | "apify" | "scrapingbee", key: string): Promise<import("@/lib/types").EmailKeyStatus> {
   const now = new Date().toISOString();
   try {
     if (provider === "findymail") {
@@ -617,6 +635,19 @@ async function probeKey(provider: "findymail" | "prospeo" | "apify" | "scrapingb
       return { status: "ok", checkedAt: now };
     }
 
+    if (provider === "zerobounce") {
+      const url = new URL("https://api.zerobounce.net/v2/getcredits");
+      url.searchParams.set("api_key", key);
+      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
+      if (res.status === 401 || res.status === 403) return { status: "invalid", checkedAt: now };
+      if (!res.ok) return { status: "ok", checkedAt: now };
+      const body = await res.json() as { Credits?: string | number; Error?: string };
+      if (body.Error) return { status: "invalid", checkedAt: now };
+      const credits = typeof body.Credits === "string" ? parseFloat(body.Credits) : (body.Credits ?? null);
+      if (credits !== null && credits <= 0) return { status: "exhausted", credits: 0, checkedAt: now };
+      return { status: "ok", credits: credits ?? undefined, checkedAt: now };
+    }
+
     if (provider === "apify") {
       const res = await fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(key)}`, {
         signal: AbortSignal.timeout(8000),
@@ -647,7 +678,7 @@ async function probeKey(provider: "findymail" | "prospeo" | "apify" | "scrapingb
 }
 
 export async function checkEmailProviderKey(
-  provider: "findymail" | "prospeo" | "apify" | "scrapingbee",
+  provider: "findymail" | "prospeo" | "zerobounce" | "apify" | "scrapingbee",
   rawKey: string,
 ): Promise<import("@/lib/types").EmailKeyStatus> {
   await requireUser();

@@ -64,10 +64,10 @@ export function metricsGate(
   settings: AppSettings,
   reelSampleSize: number,
 ): FilterResult {
-  if ((metrics.engagement_rate ?? 0) < settings.min_engagement_rate) {
+  if (metrics.engagement_rate !== null && metrics.engagement_rate < settings.min_engagement_rate) {
     return {
       ok: false,
-      reason: `engagement_below_min (${metrics.engagement_rate ?? 0} < ${settings.min_engagement_rate})`,
+      reason: `engagement_below_min (${metrics.engagement_rate} < ${settings.min_engagement_rate})`,
     };
   }
   if (

@@ -23,6 +23,8 @@ import { LeadsSearchBar } from "@/components/leads/search-bar";
 import { ProgramNameCell } from "@/components/leads/program-name-cell";
 import { DoubleClickRow } from "@/components/leads/double-click-row";
 import { LeadEditDialog } from "@/components/leads/lead-edit-dialog";
+import { CookieStatusBanners } from "@/components/leads/yt-cookie-banner";
+import { getSettings } from "@/lib/config/settings";
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 50;
@@ -98,6 +100,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   // Fire all independent queries in parallel — previously sequential, causing ~400-800ms of
   // unnecessary wait per page load.
   const [
+    settings,
     primary,
     { data: seeds },
     { data: seedCounts },
@@ -105,11 +108,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     { count: scoreableCount },
     { count: pendingCount },
     { count: rejectedWithScore },
+    { count: rejectedCount },
     { count: backfillCount },
     { count: qualifiedFunnelCount },
     { count: bouncedCount },
     { count: noEmailCount },
   ] = await Promise.all([
+    getSettings().catch(() => null),
     buildQuery(sort, false),
     sb.from("seeds").select("id, username"),
     sb.from("leads").select("source_seed_id").not("source_seed_id", "is", null),
@@ -122,6 +127,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       .eq("status", "pending").not("followers", "is", null),
     sb.from("leads").select("id", { count: "exact", head: true })
       .eq("status", "rejected").not("overall_score", "is", null),
+    sb.from("leads").select("id", { count: "exact", head: true })
+      .eq("status", "rejected").not("bio", "is", null),
     sb.from("leads").select("id", { count: "exact", head: true })
       .is("followers", null).or("backfill_error.is.null,backfill_error.eq.apify_exhausted")
       .neq("status", "rejected"),
@@ -153,8 +160,27 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   const exportHref = `/api/leads/export?${new URLSearchParams(sp as Record<string, string>).toString()}`;
 
+  const ytConfigured = !!(
+    settings &&
+    ((settings.yt_google_cookies ?? []).length > 0 ||
+      (settings.yt_accounts ?? []).length > 0 ||
+      settings.yt_google_cookie)
+  );
+  const igConfigured = !!(
+    settings &&
+    ((settings.instagram_accounts ?? []).length > 0 ||
+      (settings.instagram_session_cookies ?? []).length > 0 ||
+      settings.instagram_session_cookie)
+  );
+
   return (
     <div className="p-6 space-y-6">
+      <CookieStatusBanners
+        ytConfigured={ytConfigured}
+        ytStatus={settings?.yt_cookie_status ?? null}
+        igConfigured={igConfigured}
+        igStatus={settings?.ig_cookie_status ?? null}
+      />
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
@@ -173,6 +199,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             qualifiedFunnelCount={qualifiedFunnelCount ?? 0}
             bouncedCount={bouncedCount ?? 0}
             noEmailCount={noEmailCount ?? 0}
+            rejectedCount={rejectedCount ?? 0}
             exportHref={exportHref}
           />
         </div>

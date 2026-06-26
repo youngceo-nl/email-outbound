@@ -32,6 +32,7 @@ type Props = {
   pendingCount: number;
   scoreableCount: number;
   rejectedWithScore: number;
+  rejectedCount: number;
   missingProgramNames: number;
   backfillCount: number;
   qualifiedFunnelCount: number;
@@ -44,6 +45,7 @@ export function LeadsActionsMenu({
   pendingCount,
   scoreableCount,
   rejectedWithScore,
+  rejectedCount,
   missingProgramNames,
   backfillCount,
   qualifiedFunnelCount,
@@ -120,6 +122,13 @@ export function LeadsActionsMenu({
             <DropdownMenuItem onClick={() => run(() => rescoreAllLeads("qualified_review"), { label: "Rescoring leads", total: scoreableCount, type: "rescore" })}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Rescore qualified ({scoreableCount})
+            </DropdownMenuItem>
+          )}
+
+          {rejectedCount > 0 && (
+            <DropdownMenuItem onClick={() => run(() => rescoreAllLeads("all"), { label: "Rescoring rejected leads", total: rejectedCount, type: "rescore" })}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Rescore rejected ({rejectedCount})
             </DropdownMenuItem>
           )}
 

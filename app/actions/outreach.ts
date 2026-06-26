@@ -7,6 +7,7 @@ import { sendEmail, gmailReady } from "@/lib/outreach/gmail";
 import { renderTemplate, buildLeadContext, textToHtml } from "@/lib/outreach/template";
 import { logCrawl } from "@/lib/pipeline/persist";
 import { gmailSearch, gmailGetMessage } from "@/lib/google/gmail-api";
+import { inngest } from "@/inngest/client";
 
 export type RenderedOutreach = {
   to: string | null;
@@ -128,6 +129,7 @@ export async function sendOutreach(opts: {
 
     revalidatePath("/leads");
     revalidatePath(`/leads/${opts.leadId}`);
+    revalidatePath("/outreach");
     return { ok: true, message_id: result.messageId };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

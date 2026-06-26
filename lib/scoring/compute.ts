@@ -18,6 +18,13 @@ import type { AiClassification } from "./types";
 const ROUND = (n: number) => Math.round(n * 10) / 10;
 const CLAMP = (n: number, lo = 0, hi = 10) => Math.max(lo, Math.min(hi, n));
 
+// Ecom founders who also sell a knowledge product (mastermind, course, etc.) are still
+// valid leads — their bio link reveals the info product even if their brand is physical.
+const INFO_PRODUCT_LINK_RE = /mastermind|course|coaching|program|training|bootcamp|academy|workshop|masterclass/;
+function hasInfoProductLink(profile: ScrapedProfile): boolean {
+  return INFO_PRODUCT_LINK_RE.test((profile.external_link ?? "").toLowerCase());
+}
+
 function tractionScore(m: ComputedMetrics): number {
   if (m.engagement_rate == null) return 0;
   const erPct = m.engagement_rate * 100;
@@ -62,8 +69,9 @@ function icpFitScore(
   profile: ScrapedProfile,
   settings: AppSettings,
 ): number {
-  // Physical product ecom brands are wrong-fit regardless of engagement — override AI signal
-  const signal = c.business_model === "ecom" ? "weak" : c.icp_signal;
+  // Physical product ecom brands are wrong-fit — override AI signal to weak.
+  // Exception: ecom founders who also link to a knowledge product (mastermind, course, etc.)
+  const signal = (c.business_model === "ecom" && !hasInfoProductLink(profile)) ? "weak" : c.icp_signal;
 
   // Primary signal: AI-assessed ICP alignment (see docs/icp.md)
   let base: number;
@@ -134,7 +142,7 @@ export function computeScores(args: {
   // Hard cap: "weak" ICP signal or physical-product ecom means wrong industry —
   // never let high engagement or monetization alone push them through.
   const effectiveIcpSignal =
-    classification.business_model === "ecom" ? "weak" : classification.icp_signal;
+    (classification.business_model === "ecom" && !hasInfoProductLink(profile)) ? "weak" : classification.icp_signal;
   const cap = effectiveIcpSignal === "weak" ? 6.5 : 10;
   const overall = CLAMP(raw, 0, cap);
 

@@ -105,6 +105,7 @@ export function SettingsForm({
             <Separator />
             <Field label="CapSolver API key" name="capsolver_api_key" defaultValue={initial.capsolver_api_key ?? ""} type="password" hint="Solves reCAPTCHA when revealing gated business emails on YouTube. Falls back to CAPSOLVER_API_KEY env var." />
             <Field label="Hunter.io API key (optional)" name="hunter_api_key" defaultValue={initial.hunter_api_key ?? ""} type="password" hint="Domain + name email lookup. Paid — single key. Falls back to HUNTER_API_KEY env var." />
+            <Field label="Apollo.io API key (optional)" name="apollo_api_key" defaultValue={initial.apollo_api_key ?? ""} type="password" hint="Domain + name email lookup. Free tier: 600 credits/month per account. Runs after Hunter. Falls back to APOLLO_API_KEY env var." />
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Findymail API keys</Label>
               <p className="text-xs text-muted-foreground">Email finder fallback after Hunter. Add multiple free-tier accounts — keys rotate round-robin and are skipped when their monthly quota runs out.</p>
@@ -116,7 +117,11 @@ export function SettingsForm({
               <EmailKeyManager provider="prospeo" keys={initial.prospeo_api_keys ?? []} placeholder="prospeo_…" showLabel keyStatuses={initial.email_key_statuses ?? {}} />
             </div>
             <Separator />
-            <Field label="Zerobounce API key (optional)" name="zerobounce_api_key" defaultValue={initial.zerobounce_api_key ?? ""} type="password" hint="Verifies found emails before saving — reduces bounce rates. Falls back to ZEROBOUNCE_API_KEY env var." />
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Zerobounce API keys</Label>
+              <p className="text-xs text-muted-foreground">Verifies found emails before saving — reduces bounce rates. Free tier: 100 credits/month per account. Stack accounts to multiply quota.</p>
+              <EmailKeyManager provider="zerobounce" keys={initial.zerobounce_api_keys ?? []} placeholder="ZB…" showLabel keyStatuses={initial.email_key_statuses ?? {}} />
+            </div>
             <Field label="Neverbounce API key (optional)" name="neverbounce_api_key" defaultValue={initial.neverbounce_api_key ?? ""} type="password" hint="Used when Zerobounce is not configured. Falls back to NEVERBOUNCE_API_KEY env var." />
             <Field label="Instagram proxy URL (optional)" name="instagram_proxy_url" defaultValue={initial.instagram_proxy_url ?? ""} hint="Rotating proxy for Instagram scraping. Format: http://user:pass@host:port — only used as fallback when a 429 rate-limit is hit. Falls back to INSTAGRAM_PROXY_URL env var." />
           </CardContent>

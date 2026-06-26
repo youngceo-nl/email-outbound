@@ -85,10 +85,12 @@ export type AppSettings = {
   gmail_oauth_email: string | null;
   capsolver_api_key: string | null;
   hunter_api_key: string | null;
+  apollo_api_key: string | null;
   findymail_api_keys: string[];
   prospeo_api_keys: string[];
   scrapingbee_api_keys: string[];
   zerobounce_api_key: string | null;
+  zerobounce_api_keys: string[];
   neverbounce_api_key: string | null;
   instagram_proxy_url: string | null;
   instagram_groups: string[];           // ordered list of group names; groups can exist with no accounts
@@ -96,6 +98,8 @@ export type AppSettings = {
   instagram_proxy_pool: string[];      // shared IP pool — assigned by slot position to accounts in active group
   yt_google_cookie: string | null;
   yt_google_cookies: string[];
+  yt_cookie_status: "live" | "dead" | null;
+  ig_cookie_status: "live" | "dead" | null;
   // Credentials for auto-refreshing the YouTube cookie (see lib/youtube/refresh-cookie.ts)
   yt_google_email: string | null;
   yt_google_password: string | null;

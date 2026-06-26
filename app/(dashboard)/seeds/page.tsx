@@ -6,6 +6,7 @@ import { CrawlJobsList } from "@/components/seeds/crawl-jobs-list";
 import { BioCoverageCard } from "@/components/seeds/bio-coverage";
 import { SeedDiscovery } from "@/components/seeds/seed-discovery";
 import { SuggestedSeeds } from "@/components/seeds/suggested-seeds";
+import { PlatformDiscovery } from "@/components/seeds/platform-discovery";
 import { getSettings } from "@/lib/config/settings";
 import { getBioCoverage } from "@/app/actions/backfill-bios";
 
@@ -99,6 +100,21 @@ export default async function SeedsPage() {
         </CardHeader>
         <CardContent>
           <SuggestedSeeds candidates={suggestedCandidates ?? []} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Discover from Platforms</CardTitle>
+          <CardDescription>
+            Paste Skool, Whop, or ClickBank community names to find operator Instagram handles via Google.
+            Platform communities are pre-qualified — every listing already has a paid offer, so results are higher signal than keyword search.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PlatformDiscovery
+            existingSeedUsernames={existingUsernames}
+          />
         </CardContent>
       </Card>
 
