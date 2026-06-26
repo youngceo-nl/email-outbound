@@ -6,6 +6,7 @@ import { CrawlJobsList } from "@/components/seeds/crawl-jobs-list";
 import { BioCoverageCard } from "@/components/seeds/bio-coverage";
 import { SeedDiscovery } from "@/components/seeds/seed-discovery";
 import { SuggestedSeeds } from "@/components/seeds/suggested-seeds";
+import { PlatformDiscovery } from "@/components/seeds/platform-discovery";
 import { getSettings } from "@/lib/config/settings";
 import { getBioCoverage } from "@/app/actions/backfill-bios";
 
@@ -85,6 +86,24 @@ export default async function SeedsPage() {
             exhaustedSeeds={exhaustedSeeds}
             jobs={jobs ?? []}
             defaultLimit={settings.max_profiles_per_account}
+            systemStatus={(() => {
+              const igConfigured = (settings.instagram_accounts ?? []).length > 0 || (settings.instagram_session_cookies ?? []).length > 0 || !!settings.instagram_session_cookie;
+              const ytConfigured = (settings.yt_google_cookies ?? []).length > 0 || (settings.yt_accounts ?? []).length > 0 || !!settings.yt_google_cookie;
+              const ytAnyDead = settings.yt_cookie_status === "dead" || Object.values(settings.yt_cookie_statuses ?? {}).some((s) => s === "dead") || (settings.yt_accounts ?? []).some((a) => a.last_error);
+              const ytAllLive = settings.yt_cookie_status === "live" || Object.values(settings.yt_cookie_statuses ?? {}).every((s) => s === "live");
+              return {
+                igStatus: !igConfigured ? "missing" as const
+                  : settings.ig_cookie_status === "dead" ? "dead" as const
+                  : settings.ig_cookie_status === "live" ? "ok" as const
+                  : "unknown" as const,
+                ytStatus: !ytConfigured ? "missing" as const
+                  : ytAnyDead ? "dead" as const
+                  : ytAllLive ? "ok" as const
+                  : "unknown" as const,
+                emailKeysOk: !!(settings.hunter_api_key || settings.apollo_api_key || (settings.findymail_api_keys ?? []).length > 0 || (settings.prospeo_api_keys ?? []).length > 0),
+                gmailOk: !!(settings.gmail_oauth_refresh_token || (settings.gmail_user && settings.gmail_app_password)),
+              };
+            })()}
           />
         </CardContent>
       </Card>
@@ -99,6 +118,21 @@ export default async function SeedsPage() {
         </CardHeader>
         <CardContent>
           <SuggestedSeeds candidates={suggestedCandidates ?? []} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Discover from Platforms</CardTitle>
+          <CardDescription>
+            Paste Skool, Whop, or ClickBank community names to find operator Instagram handles via Google.
+            Platform communities are pre-qualified — every listing already has a paid offer, so results are higher signal than keyword search.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PlatformDiscovery
+            existingSeedUsernames={existingUsernames}
+          />
         </CardContent>
       </Card>
 

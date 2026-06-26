@@ -2,6 +2,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/config/settings";
 import { fetchProfileMetadataDirect, InstagramDirectError } from "@/lib/instagram/direct";
+import { persistIgCookieStatus } from "@/app/actions/settings";
 
 export type TestCookieResponse = {
   ok: boolean;
@@ -38,6 +39,7 @@ export async function testIgCookie(): Promise<TestCookieResponse> {
     if (!p) {
       return { ok: false, message: `IG returned no user for @${probe} — unexpected. Cookie may still work, but probe failed.` };
     }
+    void persistIgCookieStatus("live");
     return {
       ok: true,
       message: `Cookie works. IG returned valid data for @${probe}.`,
@@ -49,6 +51,9 @@ export async function testIgCookie(): Promise<TestCookieResponse> {
     };
   } catch (err) {
     const direct = err instanceof InstagramDirectError ? err : null;
+    if (direct && (direct.status === 401 || direct.status === 403)) {
+      void persistIgCookieStatus("dead");
+    }
     return {
       ok: false,
       message: direct

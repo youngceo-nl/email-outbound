@@ -74,11 +74,19 @@ export function SettingsForm({
   return (
     <>
       <form id="settings-form" onChange={markDirty} onSubmit={handleSubmit} className="space-y-6 pb-24">
-        <Card>
+        <Card id="email">
           <CardHeader><CardTitle>API keys</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <Field label="Apify API key (optional)" name="apify_api_key" defaultValue={initial.apify_api_key ?? ""} type="password" hint="Falls back to APIFY_TOKEN env var if blank." />
-            <Field label="ScrapingBee API key" name="scrapingbee_api_key" defaultValue={initial.scrapingbee_api_key ?? ""} type="password" hint="Falls back to SCRAPINGBEE_API_KEY env var if blank." />
+            <div className="space-y-1">
+              <Label className="text-sm">Apify API keys</Label>
+              <p className="text-xs text-muted-foreground">Add multiple accounts to rotate monthly free credits. Falls back to APIFY_TOKENS / APIFY_TOKEN env var.</p>
+              <EmailKeyManager provider="apify" keys={initial.apify_api_keys ?? []} placeholder="apify_api_…" showLabel keyStatuses={initial.email_key_statuses ?? {}} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm">ScrapingBee API keys</Label>
+              <p className="text-xs text-muted-foreground">Add multiple accounts to rotate credits. Falls back to SCRAPINGBEE_API_KEY env var.</p>
+              <EmailKeyManager provider="scrapingbee" keys={initial.scrapingbee_api_keys ?? []} placeholder="SB API key…" keyStatuses={initial.email_key_statuses ?? {}} />
+            </div>
             <Field label="Serper.dev API key" name="serper_api_key" defaultValue={initial.serper_api_key ?? ""} type="password" hint="Google Search API used to find LinkedIn/YouTube profiles. Falls back to SERPER_API_KEY env var." />
 
             <div className="space-y-1 pt-2">
@@ -97,18 +105,23 @@ export function SettingsForm({
             <Separator />
             <Field label="CapSolver API key" name="capsolver_api_key" defaultValue={initial.capsolver_api_key ?? ""} type="password" hint="Solves reCAPTCHA when revealing gated business emails on YouTube. Falls back to CAPSOLVER_API_KEY env var." />
             <Field label="Hunter.io API key (optional)" name="hunter_api_key" defaultValue={initial.hunter_api_key ?? ""} type="password" hint="Domain + name email lookup. Paid — single key. Falls back to HUNTER_API_KEY env var." />
+            <Field label="Apollo.io API key (optional)" name="apollo_api_key" defaultValue={initial.apollo_api_key ?? ""} type="password" hint="Domain + name email lookup. Free tier: 600 credits/month per account. Runs after Hunter. Falls back to APOLLO_API_KEY env var." />
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Findymail API keys</Label>
               <p className="text-xs text-muted-foreground">Email finder fallback after Hunter. Add multiple free-tier accounts — keys rotate round-robin and are skipped when their monthly quota runs out.</p>
-              <EmailKeyManager provider="findymail" keys={initial.findymail_api_keys ?? []} placeholder="fm_live_…" />
+              <EmailKeyManager provider="findymail" keys={initial.findymail_api_keys ?? []} placeholder="fm_live_…" showLabel keyStatuses={initial.email_key_statuses ?? {}} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Prospeo API keys</Label>
               <p className="text-xs text-muted-foreground">Email finder fallback after Findymail. Free tier: 75 searches/month per account. Stack accounts to multiply free quota.</p>
-              <EmailKeyManager provider="prospeo" keys={initial.prospeo_api_keys ?? []} placeholder="prospeo_…" />
+              <EmailKeyManager provider="prospeo" keys={initial.prospeo_api_keys ?? []} placeholder="prospeo_…" showLabel keyStatuses={initial.email_key_statuses ?? {}} />
             </div>
             <Separator />
-            <Field label="Zerobounce API key (optional)" name="zerobounce_api_key" defaultValue={initial.zerobounce_api_key ?? ""} type="password" hint="Verifies found emails before saving — reduces bounce rates. Falls back to ZEROBOUNCE_API_KEY env var." />
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Zerobounce API keys</Label>
+              <p className="text-xs text-muted-foreground">Verifies found emails before saving — reduces bounce rates. Free tier: 100 credits/month per account. Stack accounts to multiply quota.</p>
+              <EmailKeyManager provider="zerobounce" keys={initial.zerobounce_api_keys ?? []} placeholder="ZB…" showLabel keyStatuses={initial.email_key_statuses ?? {}} />
+            </div>
             <Field label="Neverbounce API key (optional)" name="neverbounce_api_key" defaultValue={initial.neverbounce_api_key ?? ""} type="password" hint="Used when Zerobounce is not configured. Falls back to NEVERBOUNCE_API_KEY env var." />
             <Field label="Instagram proxy URL (optional)" name="instagram_proxy_url" defaultValue={initial.instagram_proxy_url ?? ""} hint="Rotating proxy for Instagram scraping. Format: http://user:pass@host:port — only used as fallback when a 429 rate-limit is hit. Falls back to INSTAGRAM_PROXY_URL env var." />
           </CardContent>
@@ -117,7 +130,7 @@ export function SettingsForm({
         <Card>
           <CardHeader><CardTitle>Cookie management</CardTitle></CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
+            <div id="instagram" className="space-y-2">
               <p className="text-sm font-medium">Instagram accounts</p>
               <p className="text-xs text-muted-foreground">
                 Organise accounts into groups of 5. Activate a group to use only those accounts for scraping — switch groups when one gets flagged.
@@ -132,10 +145,10 @@ export function SettingsForm({
               />
             </div>
             <Separator />
-            <div className="space-y-2">
+            <div id="youtube" className="space-y-2">
               <p className="text-sm font-medium">YouTube accounts</p>
               <p className="text-xs text-muted-foreground">
-                Add Google/YouTube accounts for email reveal. The system logs in automatically and keeps the cookie fresh.
+                Add Google/YouTube accounts for email reveal only — not used for outreach. The system logs in to scrape the YouTube "View email" button on creator profiles.
                 Use dedicated burner accounts, not your personal Google account.
               </p>
               <ManagedAccountManager key={ytResetKey} platform="youtube" accounts={ytAccounts} onPendingDelete={(id) => addPendingDelete("youtube", id)} />
@@ -187,7 +200,7 @@ export function SettingsForm({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="outreach">
           <CardHeader><CardTitle>Gmail (outreach sender)</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground leading-snug">

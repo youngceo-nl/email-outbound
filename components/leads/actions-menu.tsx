@@ -24,6 +24,8 @@ import {
 } from "@/app/actions/leads";
 import { analyzeAllPending } from "@/app/actions/process-lead";
 import { checkEmailBounces } from "@/app/actions/outreach";
+import { SystemStatus, type SystemStatusProps } from "@/components/ui/system-status";
+
 
 const openActivity = (detail?: Record<string, unknown>) =>
   window.dispatchEvent(new CustomEvent("open-activity-drawer", { detail: detail ?? {} }));
@@ -32,24 +34,28 @@ type Props = {
   pendingCount: number;
   scoreableCount: number;
   rejectedWithScore: number;
+  rejectedCount: number;
   missingProgramNames: number;
   backfillCount: number;
   qualifiedFunnelCount: number;
   bouncedCount: number;
   noEmailCount: number;
   exportHref: string;
+  systemStatus: SystemStatusProps;
 };
 
 export function LeadsActionsMenu({
   pendingCount,
   scoreableCount,
   rejectedWithScore,
+  rejectedCount,
   missingProgramNames,
   backfillCount,
   qualifiedFunnelCount,
   bouncedCount,
   noEmailCount,
   exportHref,
+  systemStatus,
 }: Props) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -79,6 +85,8 @@ export function LeadsActionsMenu({
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="w-56">
+          <SystemStatus {...systemStatus} />
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setCsvOpen(true)}>
             <Download className="h-4 w-4 mr-2" />
             Import CSV
@@ -120,6 +128,13 @@ export function LeadsActionsMenu({
             <DropdownMenuItem onClick={() => run(() => rescoreAllLeads("qualified_review"), { label: "Rescoring leads", total: scoreableCount, type: "rescore" })}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Rescore qualified ({scoreableCount})
+            </DropdownMenuItem>
+          )}
+
+          {rejectedCount > 0 && (
+            <DropdownMenuItem onClick={() => run(() => rescoreAllLeads("all"), { label: "Rescoring rejected leads", total: rejectedCount, type: "rescore" })}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Rescore rejected ({rejectedCount})
             </DropdownMenuItem>
           )}
 

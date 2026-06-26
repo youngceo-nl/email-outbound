@@ -5,6 +5,7 @@ import { fetchProfileMetadataDirect, InstagramDirectError, sleep } from "@/lib/i
 import { buildCookiePool, buildProxyPool, pickCookie, markRateLimited } from "@/lib/instagram/cookie-pool";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logCrawl, logError } from "@/lib/pipeline/persist";
+import { persistIgCookieStatus } from "@/app/actions/settings";
 
 // Backfill basic profile metadata (followers, following, posts, bio,
 // external_link, is_private, is_verified) for a batch of usernames.
@@ -20,9 +21,14 @@ import { logCrawl, logError } from "@/lib/pipeline/persist";
 
 const APIFY_BATCH = 100;
 const COOKIE_BATCH = 50;
-// 300ms base with ±50% jitter → mean ~300ms, ~200 profiles/min per event.
-// The web_profile_info endpoint is lightweight; no need for human-pace simulation.
-const COOKIE_DELAY_BASE_MS = 300;
+// 4 000ms base with ±40% jitter → 2.4–5.6s per profile, ~12–25 profiles/min.
+// The web_profile_info endpoint is rate-limited per account, not per IP —
+// going faster than ~20 req/min reliably triggers account checkpoints.
+const COOKIE_DELAY_BASE_MS = 4_000;
+// Take a longer break after every N profiles to simulate human browsing sessions.
+const LONG_BREAK_EVERY = 30;
+const LONG_BREAK_MIN_MS = 25_000;
+const LONG_BREAK_MAX_MS = 60_000;
 
 function jitteredDelay(base: number): number {
   const min = base * 0.5;
@@ -36,7 +42,9 @@ export const backfillMetadata = inngest.createFunction(
     id: "backfill-metadata",
     name: "Backfill follower counts / metadata",
     retries: 2,
-    concurrency: { limit: 3 },
+    // One at a time globally — running multiple concurrent backfills multiplies
+    // the per-cookie request rate and is the primary cause of account suspensions.
+    concurrency: { limit: 1 },
   },
   { event: "leads/backfill.metadata.requested" },
   async ({ event, step }) => {
@@ -176,10 +184,16 @@ export const backfillMetadata = inngest.createFunction(
                 // whole backfill — other accounts may still be healthy.
                 if (direct && (!direct.retryable || direct.status === 429)) {
                   if (direct.status === 429) markRateLimited(activeCookie);
+                  if (direct.status === 401 || direct.status === 403) void persistIgCookieStatus("dead");
                   break;
                 }
               }
-              await sleep(jitteredDelay(COOKIE_DELAY_BASE_MS));
+              // Long break every LONG_BREAK_EVERY profiles to simulate a human session.
+              if (s > 0 && s % LONG_BREAK_EVERY === 0) {
+                await sleep(Math.floor(LONG_BREAK_MIN_MS + Math.random() * (LONG_BREAK_MAX_MS - LONG_BREAK_MIN_MS)));
+              } else {
+                await sleep(jitteredDelay(COOKIE_DELAY_BASE_MS));
+              }
           }
           // Accounts we never reached because we broke mid-batch (rate-limited or
           // hard error) — mark them so they drain out of the "remaining" queue

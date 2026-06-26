@@ -6,6 +6,8 @@ import { toUsername, profileUrl } from "@/lib/pipeline/normalize";
 import { inngest } from "@/inngest/client";
 import { getSettings } from "@/lib/config/settings";
 import { serperSearch } from "@/lib/serper/client";
+import { scrapeSkoolCommunity } from "@/lib/platforms/skool";
+import { scrapeWhopSeller } from "@/lib/platforms/whop";
 
 async function requireUser() {
   const sb = await createClient();
@@ -183,6 +185,113 @@ export async function startAllCrawls(providerOverride?: ScrapeProvider): Promise
   revalidatePath("/seeds");
   revalidatePath("/");
   return { started };
+}
+
+// Owner name patterns seen in Skool / Whop / ClickBank descriptions
+const OWNER_PATTERNS = [
+  /created by\s+([A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+)?)/i,
+  /\bby\s+([A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+){0,2})\b/,
+  /from\s+([A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+)?)/i,
+  /with\s+([A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+)?)\b/i,
+  /w\/\s*([A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+)?)/i,
+];
+
+function extractOwnerName(description: string): string | null {
+  for (const re of OWNER_PATTERNS) {
+    const m = description.match(re);
+    if (m) return m[1].trim();
+  }
+  return null;
+}
+
+export type PlatformSeedResult = {
+  communityName: string;
+  platform: string;
+  username: string;
+  snippet: string | null;
+  title: string | null;
+  source: "page" | "serper";
+};
+
+export type PlatformCommunity = {
+  name: string;
+  // Skool: community slug (e.g. "agencyowners")
+  // Whop: seller slug or full URL (e.g. "some-product" or "https://whop.com/...")
+  slug?: string;
+  description?: string;
+  platform?: "Skool" | "Whop";
+};
+
+async function serperFallback(
+  searchTerm: string,
+  communityName: string,
+  platform: string,
+  apiKey: string,
+  seen: Set<string>,
+): Promise<PlatformSeedResult | null> {
+  const query = `"${searchTerm}" site:instagram.com`;
+  try {
+    const r = await serperSearch({ apiKey, query, num: 5 });
+    for (const item of r.organic) {
+      if (!item.link) continue;
+      const m = item.link.match(IG_PROFILE_RE);
+      if (!m) continue;
+      const username = m[2].toLowerCase();
+      if (IG_RESERVED.has(username) || seen.has(username)) continue;
+      seen.add(username);
+      return { communityName, platform, username, snippet: item.snippet ?? null, title: item.title ?? null, source: "serper" };
+    }
+  } catch {}
+  return null;
+}
+
+export async function discoverSeedsFromCommunities(
+  communities: PlatformCommunity[]
+): Promise<{ results: PlatformSeedResult[] } | { error: string }> {
+  await requireUser();
+  if (communities.length === 0) return { error: "No communities provided." };
+  if (communities.length > 25) return { error: "Max 25 communities at once." };
+
+  const settings = await getSettings(true);
+  const serperKey = settings.serper_api_key || process.env.SERPER_API_KEY;
+
+  const seen = new Set<string>();
+  const results: PlatformSeedResult[] = [];
+
+  for (const community of communities) {
+    const platform = community.platform ?? "Skool";
+    let foundUsername: string | null = null;
+    let ownerName: string | null = community.description ? extractOwnerName(community.description) : null;
+
+    // --- Step 1: try direct page scrape (free) ---
+    if (platform === "Skool" && community.slug) {
+      const scraped = await scrapeSkoolCommunity(community.slug);
+      if ("error" in scraped === false) {
+        foundUsername = scraped.instagram;
+        if (scraped.ownerName) ownerName = scraped.ownerName;
+      }
+    } else if (platform === "Whop" && community.slug) {
+      const scraped = await scrapeWhopSeller(community.slug);
+      if ("error" in scraped === false) {
+        foundUsername = scraped.instagram;
+        if (!("error" in scraped) && scraped.sellerName) ownerName = scraped.sellerName;
+      }
+    }
+
+    if (foundUsername && !seen.has(foundUsername)) {
+      seen.add(foundUsername);
+      results.push({ communityName: community.name, platform, username: foundUsername, snippet: null, title: ownerName, source: "page" });
+      continue;
+    }
+
+    // --- Step 2: Serper fallback (costs a credit) ---
+    if (!serperKey) continue;
+    const searchTerm = ownerName ?? community.name;
+    const result = await serperFallback(searchTerm, community.name, platform, serperKey, seen);
+    if (result) results.push(result);
+  }
+
+  return { results };
 }
 
 export async function startCrawl(seed_id: string, providerOverride?: ScrapeProvider) {

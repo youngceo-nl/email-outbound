@@ -1,5 +1,11 @@
 // Shared TypeScript types — kept thin and aligned with the SQL schema.
 
+export type EmailKeyStatus = {
+  status: "ok" | "exhausted" | "invalid" | "rate_limited";
+  credits?: number | null;
+  checkedAt: string; // ISO
+};
+
 export type LeadStatus = "qualified" | "review" | "rejected" | "pending";
 
 // A cookie account managed by the system: credentials are stored so the auto-
@@ -23,6 +29,7 @@ export type ManagedAccount = {
   checkpoint_state: CheckpointState | null;
   proxy_url: string | null; // dedicated residential proxy for this account, e.g. http://user:pass@host:port
   group?: string | null;  // rotation group label, e.g. "A", "B" — only the active group is scraped
+  paused?: boolean;       // true = excluded from scraping (cooling off), account is kept in DB
 };
 
 // Sent to client components — includes credentials since this is a self-hosted tool.
@@ -43,6 +50,7 @@ export type RecentPost = {
 export type AppSettings = {
   id: 1;
   apify_api_key: string | null;
+  apify_api_keys: string[];
   claude_api_key: string | null;
   claude_model: string;
   scrapingbee_api_key: string | null;
@@ -77,9 +85,12 @@ export type AppSettings = {
   gmail_oauth_email: string | null;
   capsolver_api_key: string | null;
   hunter_api_key: string | null;
+  apollo_api_key: string | null;
   findymail_api_keys: string[];
   prospeo_api_keys: string[];
+  scrapingbee_api_keys: string[];
   zerobounce_api_key: string | null;
+  zerobounce_api_keys: string[];
   neverbounce_api_key: string | null;
   instagram_proxy_url: string | null;
   instagram_groups: string[];           // ordered list of group names; groups can exist with no accounts
@@ -87,6 +98,9 @@ export type AppSettings = {
   instagram_proxy_pool: string[];      // shared IP pool — assigned by slot position to accounts in active group
   yt_google_cookie: string | null;
   yt_google_cookies: string[];
+  yt_cookie_status: "live" | "dead" | null;
+  yt_cookie_statuses: Record<string, "live" | "dead" | "unknown">;
+  ig_cookie_status: "live" | "dead" | null;
   // Credentials for auto-refreshing the YouTube cookie (see lib/youtube/refresh-cookie.ts)
   yt_google_email: string | null;
   yt_google_password: string | null;
@@ -97,6 +111,8 @@ export type AppSettings = {
   backfill_cancel_requested: boolean;
   backfill_started_at: string | null;
   updated_at: string;
+  // Per-key status cache: key is "provider:last12chars", value is last check result
+  email_key_statuses: Record<string, EmailKeyStatus>;
 };
 
 export type Seed = {

@@ -1,5 +1,6 @@
 import { getSettings } from "@/lib/config/settings";
 import { checkYoutubeCookieLive } from "@/lib/youtube/refresh-cookie";
+import { persistYtCookieStatuses } from "@/app/actions/settings";
 import { SettingsForm } from "@/components/settings/settings-form";
 import type { ManagedAccount, ManagedAccountDisplay } from "@/lib/types";
 
@@ -7,14 +8,17 @@ export const dynamic = "force-dynamic";
 
 function stripAccount(a: ManagedAccount): ManagedAccountDisplay {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return { id: a.id, label: a.label, account_email: a.account_email ?? null, password: a.password, totp_secret: a.totp_secret, cookie: a.cookie, cookie_set_at: a.cookie_set_at, last_error: a.last_error, checkpoint_state: (a.checkpoint_state ?? null) as any, proxy_url: a.proxy_url ?? null, group: a.group ?? null };
+  return { id: a.id, label: a.label, account_email: a.account_email ?? null, password: a.password, totp_secret: a.totp_secret, cookie: a.cookie, cookie_set_at: a.cookie_set_at, last_error: a.last_error, checkpoint_state: (a.checkpoint_state ?? null) as any, proxy_url: a.proxy_url ?? null, group: a.group ?? null, paused: a.paused ?? false };
 }
 
 export default async function SettingsPage() {
   const settings = await getSettings(true);
 
   const manualCookies = settings.yt_google_cookies ?? [];
-  const ytCookieLiveness = await Promise.all(manualCookies.map(checkYoutubeCookieLive));
+  const accountCookies = (settings.yt_accounts ?? []).map((a) => a.cookie ?? "");
+  const allCookies = [...manualCookies, ...accountCookies];
+  const ytCookieLiveness = await Promise.all(allCookies.map(checkYoutubeCookieLive));
+  void persistYtCookieStatuses(allCookies, ytCookieLiveness);
 
   const igAccounts: ManagedAccountDisplay[] = (settings.instagram_accounts ?? []).map(stripAccount);
   const ytAccounts: ManagedAccountDisplay[] = (settings.yt_accounts ?? []).map(stripAccount);

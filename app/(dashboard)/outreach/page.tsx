@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSettings } from "@/lib/config/settings";
-import { buildLeadContext, renderTemplate, extractFirstName } from "@/lib/outreach/template";
+import { buildLeadContext, renderTemplate, extractFirstName, extractFirstNameFromUsername } from "@/lib/outreach/template";
 import { Mail } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { OutreachPreviewList } from "@/components/outreach/outreach-preview-list";
@@ -42,12 +42,13 @@ export default async function OutreachPreviewPage() {
   const blocked = [];
 
   for (const lead of leads) {
-    const firstName = extractFirstName(lead.full_name as string | null);
+    const firstName = extractFirstName(lead.full_name as string | null)
+      ?? extractFirstNameFromUsername(lead.username as string | null);
     if (!firstName) {
       blocked.push({
         leadId: lead.id,
         username: lead.username,
-        blockReason: `No valid first name in "${lead.full_name ?? "(empty)"}"`,
+        blockReason: `No valid first name in "${lead.full_name ?? "(empty)"}" and username "${lead.username}" has no usable first segment`,
       });
       continue;
     }
