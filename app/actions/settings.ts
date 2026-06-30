@@ -762,6 +762,38 @@ export async function removeInstagramGroup(name: string): Promise<void> {
   revalidatePath("/settings");
 }
 
+export async function refreshManagedAccountMobile(
+  id: string,
+): Promise<{ ok?: true; error?: string }> {
+  await requireUser();
+  const settings = await getSettings(true);
+  const accounts: ManagedAccount[] = (settings.instagram_accounts as ManagedAccount[]) ?? [];
+  const account = accounts.find((a) => a.id === id);
+  if (!account) return { error: "Account not found" };
+  if (!account.password) return { error: "No password saved — add a password first" };
+  try {
+    const { loginInstagramMobile } = await import("@/lib/instagram/login-mobile");
+    const result = await loginInstagramMobile({
+      username: account.label,
+      password: account.password,
+      totp_secret: account.totp_secret,
+    });
+    if (!result.ok) return { error: "error" in result ? result.error : result.message };
+    const updated = accounts.map((a) =>
+      a.id === id ? { ...a, cookie: result.cookie, cookie_set_at: new Date().toISOString(), last_error: null } : a,
+    );
+    await updateSettings({ instagram_accounts: updated });
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    const updated = accounts.map((a) => (a.id === id ? { ...a, last_error: error } : a));
+    await updateSettings({ instagram_accounts: updated });
+    revalidatePath("/settings");
+    return { error };
+  }
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
 export async function refreshManagedAccount(
   platform: Platform,
   id: string,

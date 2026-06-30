@@ -27,7 +27,7 @@ async function loadLeadAndSettings(leadId: string) {
   const admin = createAdminClient();
   const { data: lead, error } = await admin
     .from("leads")
-    .select("id, username, full_name, niche, business_model, funnel_program_name, funnel_offer_summary, external_link, email, outreach_count")
+    .select("id, username, full_name, niche, business_model, funnel_program_name, funnel_offer_summary, external_link, email, email_v2, outreach_count")
     .eq("id", leadId)
     .single();
   if (error || !lead) throw new Error(error?.message ?? `Lead ${leadId} not found`);
@@ -74,7 +74,7 @@ export async function sendOutreach(opts: {
 
   const ctx = buildLeadContext({ lead, senderName: process.env.GMAIL_FROM_NAME ?? null });
 
-  const to = (opts.to?.trim() || lead.email || "").trim();
+  const to = (opts.to?.trim() || lead.email || (lead as Record<string, unknown>).email_v2 as string || "").trim();
   if (!to || !to.includes("@")) {
     return { ok: false, error: "No valid recipient email." };
   }

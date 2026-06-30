@@ -4,6 +4,7 @@ import { buildLeadContext, renderTemplate, extractFirstName, extractFirstNameFro
 import { Mail } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { OutreachPreviewList } from "@/components/outreach/outreach-preview-list";
+import { isPlausible } from "@/lib/leads/email-extract";
 import type { Lead } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -26,10 +27,9 @@ export default async function OutreachPreviewPage() {
 
   const { data: rows } = await sb
     .from("leads")
-    .select("id, username, full_name, email, overall_score, niche, business_model, funnel_program_name, funnel_offer_summary, external_link, status")
+    .select("id, username, full_name, email, email_provider, email_v2, email_v2_provider, email_v2_status, overall_score, niche, business_model, funnel_program_name, funnel_offer_summary, external_link, status")
     .in("status", ["qualified", "review"])
-    .not("email", "is", null)
-    .ilike("email", "%@%")
+    .or("email.ilike.*@*,email_v2.ilike.*@*")
     .neq("email_status", "bounced")
     .neq("email_status", "invalid")
     .eq("outreach_count", 0)
@@ -42,6 +42,19 @@ export default async function OutreachPreviewPage() {
   const blocked = [];
 
   for (const lead of leads) {
+    // Prefer v1 email; fall back to v2 if v1 is missing
+    const resolvedEmail = (lead.email as string | null)
+      ?? ((lead as Record<string, unknown>).email_v2 as string | null)
+      ?? null;
+    if (!resolvedEmail || !isPlausible(resolvedEmail)) continue;
+    const resolvedSource = lead.email
+      ? ((lead as Record<string, unknown>).email_provider as string | null)
+      : ((lead as Record<string, unknown>).email_v2_provider as string | null);
+
+    // Skip if the resolved email has a bounced/invalid v2 status
+    const v2Status = (lead as Record<string, unknown>).email_v2_status as string | null;
+    if (!lead.email && v2Status && /^(bounced|invalid)$/i.test(v2Status)) continue;
+
     const firstName = extractFirstName(lead.full_name as string | null)
       ?? extractFirstNameFromUsername(lead.username as string | null);
     if (!firstName) {
@@ -57,7 +70,8 @@ export default async function OutreachPreviewPage() {
       leadId: lead.id,
       username: lead.username,
       firstName,
-      email: lead.email as string,
+      email: resolvedEmail,
+      emailSource: resolvedSource ?? null,
       score: lead.overall_score != null ? Number(lead.overall_score) : null,
       status: lead.status as string,
       niche: lead.niche as string | null,

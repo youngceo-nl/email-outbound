@@ -5,9 +5,11 @@ import { BrowserSession } from "@/lib/instagram/browser-fetch";
 // — the same address shown behind the "Email" button in the mobile app.
 // Called `public_email` in IG's private mobile API.
 //
+// Requires a mobile session cookie (obtained via loginInstagramMobile).
+// Web session cookies return an empty user object from i.instagram.com.
+//
 // Two-step: web_profile_info → /users/{id}/info/
-// Step 1 uses a web UA (the web endpoint requires it); step 2 uses the mobile
-// UA + X-CSRFToken which is what gets the mobile API to return a 200.
+// Both requests share one Chrome session to avoid double browser startup.
 
 const WEB_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -45,12 +47,12 @@ export async function fetchInstagramMobileEmail(opts: {
     const userId = j1?.data?.user?.id;
     if (!userId) return { email: null, error: "no_user_id" };
 
-    // Extract csrftoken for the X-CSRFToken header that the mobile endpoint requires
+    // Extract csrftoken for the mobile API header
     const csrfMatch = opts.sessionCookie.match(/csrftoken=([^;]+)/);
     const csrf = csrfMatch ? csrfMatch[1].trim() : "";
 
-    // Step 2: fetch full user info — includes public_email
-    // Requires mobile UA + X-CSRFToken; web UA alone returns 400.
+    // Step 2: fetch full mobile user info — includes public_email
+    // Requires mobile UA + mobile session cookie; web-only sessions return {"user":{}}.
     const r2 = await session.fetch(
       `https://i.instagram.com/api/v1/users/${userId}/info/`,
       {
@@ -71,6 +73,11 @@ export async function fetchInstagramMobileEmail(opts: {
 
     let j2: { user?: { public_email?: string | null } };
     try { j2 = JSON.parse(r2.body); } catch { return { email: null, error: "info_parse_error" }; }
+
+    // If user object is empty, the session is web-only — needs mobile login
+    if (!j2?.user || Object.keys(j2.user).length === 0) {
+      return { email: null, error: "web_session_only" };
+    }
 
     const raw = j2?.user?.public_email ?? null;
     if (!raw || !raw.includes("@")) return { email: null, error: "no_public_email" };

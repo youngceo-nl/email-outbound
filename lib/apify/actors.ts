@@ -86,7 +86,7 @@ export async function scrapeFollowing(opts: {
 // 2. Scrape PROFILE metadata for a batch of usernames
 // =============================================================================
 export async function scrapeProfiles(opts: {
-  token: string;
+  token: string | string[];
   usernames: string[];
 }): Promise<ScrapedProfile[]> {
   if (opts.usernames.length === 0) return [];
@@ -129,7 +129,7 @@ export async function scrapeProfiles(opts: {
 // 3. Scrape RECENT POSTS for a batch of usernames → grouped by username
 // =============================================================================
 export async function scrapePosts(opts: {
-  token: string;
+  token: string | string[];
   usernames: string[];
   limit: number;     // posts per user (6–12)
 }): Promise<Map<string, RecentPost[]>> {

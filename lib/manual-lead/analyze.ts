@@ -6,6 +6,7 @@ import { computeMetrics } from "@/lib/pipeline/metrics";
 import { computeScores } from "@/lib/scoring/compute";
 import { persistLead } from "@/lib/pipeline/persist";
 import { toUsername } from "@/lib/pipeline/normalize";
+import { testingEnrichPipeline } from "@/lib/pipeline/testing-pipeline";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ClaudeScore, ScrapedProfile } from "@/lib/types";
 
@@ -39,11 +40,11 @@ export async function analyzeIgLead(input: string): Promise<ManualLeadResult> {
   // Scrape profile + posts in parallel — use first available token for posts (runActorSync doesn't rotate)
   let profile: ScrapedProfile;
   try {
-    const profiles = await scrapeProfiles({ token: tokens[0], usernames: [username] });
+    const profiles = await scrapeProfiles({ token: tokens, usernames: [username] });
     const raw = profiles[0];
     if (!raw) return { ok: false, username, error: "Profile not found — account may be private or username incorrect" };
 
-    const postsMap = await scrapePosts({ token: tokens[0], usernames: [username], limit: 12 });
+    const postsMap = await scrapePosts({ token: tokens, usernames: [username], limit: 12 });
     profile = { ...raw, recent_posts: postsMap.get(username) ?? [] };
   } catch (err) {
     return { ok: false, username, error: err instanceof Error ? err.message : String(err) };
@@ -70,7 +71,7 @@ export async function analyzeIgLead(input: string): Promise<ManualLeadResult> {
     : score.recommended_action === "review" ? "review"
     : "rejected";
 
-  await persistLead({
+  const persisted = await persistLead({
     profile,
     metrics,
     score,
@@ -80,6 +81,10 @@ export async function analyzeIgLead(input: string): Promise<ManualLeadResult> {
     source_seed_id: null,
     parent_username: null,
   });
+
+  if (status === "qualified") {
+    await testingEnrichPipeline({ leadId: persisted.id });
+  }
 
   return { ok: true, username, profile, score };
 }

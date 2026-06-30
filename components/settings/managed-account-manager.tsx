@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
-import { addManagedAccount, refreshManagedAccount, submitCheckpointCode, setManagedAccountEmail, testManagedAccountCookie, setManagedAccountCookie, setManagedAccountProxy, setManagedAccountPassword, setManagedAccountGroup, setActiveAccountGroup, setProxyPool, setManagedAccountPaused, setGroupPaused } from "@/app/actions/settings";
+import { addManagedAccount, refreshManagedAccount, refreshManagedAccountMobile, submitCheckpointCode, setManagedAccountEmail, testManagedAccountCookie, setManagedAccountCookie, setManagedAccountProxy, setManagedAccountPassword, setManagedAccountGroup, setActiveAccountGroup, setProxyPool, setManagedAccountPaused, setGroupPaused } from "@/app/actions/settings";
 import type { ManagedAccountDisplay } from "@/lib/types";
 
 // Cookie-Editor exports JSON: [{name, value, ...}, ...] → "name=value; name=value"
@@ -108,6 +108,8 @@ export function AccountCard({
   const [rur, setRur] = useState(() => parseCookieField(account.cookie, "rur"));
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
+  const [mobileLoggingIn, setMobileLoggingIn] = useState(false);
+  const [mobileLoginResult, setMobileLoginResult] = useState<{ ok?: boolean; message: string } | null>(null);
   const [togglingPause, setTogglingPause] = useState(false);
   const router = useRouter();
 
@@ -233,6 +235,23 @@ export function AccountCard({
                   {testing ? "Checking…" : "Test"}
                 </Button>
               )}
+              {platform === "instagram" && account.password && !account.paused && (
+                <Button
+                  type="button" size="sm" variant="ghost" disabled={mobileLoggingIn}
+                  title="Re-login via Instagram mobile API — produces a mobile session for the email button step"
+                  onClick={async () => {
+                    setMobileLoggingIn(true);
+                    setMobileLoginResult(null);
+                    const res = await refreshManagedAccountMobile(account.id);
+                    setMobileLoginResult(res.ok ? { ok: true, message: "Mobile session saved" } : { ok: false, message: res.error ?? "Failed" });
+                    setMobileLoggingIn(false);
+                    if (res.ok) router.refresh();
+                  }}
+                  className="h-7 px-2 text-xs gap-1"
+                >
+                  {mobileLoggingIn ? "Logging in…" : "Mobile login"}
+                </Button>
+              )}
               {platform === "youtube" && account.cookie && (
                 <Button
                   type="button" size="sm" variant="ghost" disabled={testing}
@@ -265,6 +284,11 @@ export function AccountCard({
       {testResult && (
         <div className={`px-3 py-1.5 text-xs border-t ${testResult.ok ? "text-green-600" : "text-destructive"}`}>
           {testResult.message}
+        </div>
+      )}
+      {mobileLoginResult && (
+        <div className={`px-3 py-1.5 text-xs border-t ${mobileLoginResult.ok ? "text-green-600" : "text-destructive"}`}>
+          {mobileLoginResult.message}
         </div>
       )}
 

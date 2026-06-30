@@ -11,8 +11,11 @@ const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}/g;
 const NOISE_DOMAINS = [
   "youtube.com", "ytimg.com", "google.com", "googleapis.com", "googleusercontent.com",
   "gstatic.com", "schema.org", "w3.org", "sentry.io", "sentry-next.wixpress.com",
-  "example.com", "example.org", "domain.com", "email.com", "wixpress.com",
+  "example.com", "example.org", "domain.com", "email.com", "yourself.com", "wixpress.com",
   "facebook.com", "sentry.wixpress.com",
+  "skool.com", "newyorker.com", "vogue.com", "typeform.com",
+  "jointherealworld.com", "urlgeni.us", "liketoknow.it",
+  "substackinc.com", "tally.so", "trainerize.me", "whop.com", "liinks.co", "superlink.io",
 ];
 const NOISE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"];
 
@@ -26,13 +29,18 @@ const PLACEHOLDER_ADDRESSES = new Set([
   "email@example.com",
   "hello@example.com",
   "info@example.com",
+  "you@yourself.com",
+  "you@youremail.com",
+  "your@email.com",
+  "name@email.com",
+  "email@address.com",
 ]);
 
 // Real TLDs are almost always ≤ 6 chars (.com, .io, .co.uk, .photography is 11 but rare).
 // Anything longer than 13 chars is almost certainly a concatenated word like "comcopyright".
 const MAX_TLD_LEN = 13;
 
-function isPlausible(email: string): boolean {
+export function isPlausible(email: string): boolean {
   const lower = email.toLowerCase();
 
   if (NOISE_EXTENSIONS.some((ext) => lower.endsWith(ext))) return false;

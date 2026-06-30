@@ -154,7 +154,8 @@ const JUNK_PROGRAM_NAMES = new Set([
   "register", "register now", "sign up", "sign up now",
   "watch now", "watch video", "free video", "instant access",
   "apply now", "book a call", "schedule a call", "get access",
-  "home", "welcome", "untitled",
+  "home", "welcome", "untitled", "get started",
+  "link in bio", "my link in bio page", "my link in bio",
 ]);
 
 // Cleans stored funnel_program_name values that slipped through as page title compounds.
@@ -165,29 +166,42 @@ function cleanProgramName(name: string | null | undefined): string | null {
   let clean = name.split(/\s*\|\s*/)[0]?.trim() ?? "";
   // Strip trailing marketing suffixes: "Course Name - FULL COURSE" → "Course Name"
   clean = clean.replace(/\s*[-–]\s*(FULL COURSE|FREE TRAINING|LIVE EVENT|WEBINAR|HOSTED BY\b.*)$/i, "").trim();
-  if (clean.length < 3 || clean.length > 50) return null;
+  if (clean.length < 3 || clean.length > 60) return null;
+  // Contains emoji → page title / social bio junk
+  if (/\p{Extended_Pictographic}/u.test(clean)) return null;
+  // Contains a URL fragment → scraped from a link, not a real name
+  if (/\.(com|io|co|net|org|au)\b/i.test(clean)) return null;
+  // Matches domain-like pattern (word.word with no spaces) → URL slug
+  if (/^\S+\.\S+$/.test(clean)) return null;
+  // ALL CAPS multi-word → slogan, not a program name
+  if (clean.split(/\s+/).length > 1 && clean === clean.toUpperCase()) return null;
   if (JUNK_PROGRAM_NAMES.has(clean.toLowerCase())) return null;
-  if (clean.split(/\s+/).length > 5) return null;
+  if (clean.split(/\s+/).length > 8) return null;
   if (/^(how to |how i |learn how |welcome to |join )/i.test(clean)) return null;
   return clean;
 }
 
 function buildFallbackProgramName(niche: string | null | undefined): string {
-  const topic = niche?.toLowerCase().trim();
-  if (!topic) return "your coaching program";
+  const raw = niche?.trim();
+  if (!raw) return "your coaching program";
   // Strip trailing model words so "fitness coaching" → "fitness" not "fitness coaching coaching program"
-  const stripped = topic
+  const stripped = raw
     .replace(/\s+(coaching|consulting|training|mentoring|program|programs|course|courses|academy|community)\s*$/i, "")
     .trim();
-  const words = (stripped || topic).split(/\s+/).slice(0, 2).join(" ");
+  const words = (stripped || raw)
+    .split(/\s+/)
+    .slice(0, 3)
+    .join(" ")
+    .replace(/\s+(and|or|for|the|a|an|of|in|with)$/i, "")
+    .trim();
   return `your ${words} coaching program`;
 }
 
 // Converts template body (supports lightweight markdown) to HTML for sending.
 // Supported: **bold**, *italic*, - bullet lists, plain line/paragraph breaks.
 export function textToHtml(text: string): string {
-  // Split into blocks on blank lines
-  const blocks = text.split(/\n{2,}/);
+  // Normalize line endings so \r\n templates split correctly
+  const blocks = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split(/\n{2,}/);
   const rendered = blocks.map((block) => {
     const lines = block.split("\n");
     // Bullet list block: all lines start with "- " or "* "

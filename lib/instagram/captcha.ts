@@ -153,7 +153,7 @@ export async function bypassInstagramCaptcha(
       return null;
     }
 
-    let siteKey = await extractSiteKey(page);
+    const siteKey = await extractSiteKey(page);
 
     if (!siteKey) {
       console.error("[ig-captcha] no sitekey after widget appeared, html snippet:", (await page.content()).slice(0, 800));

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { sendOutreachBatch, sendOutreach } from "@/app/actions/outreach";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { scoreColor } from "@/lib/utils";
 
 export type SendablePreview = {
@@ -15,6 +16,7 @@ export type SendablePreview = {
   username: string;
   firstName: string;
   email: string;
+  emailSource: string | null;
   score: number | null;
   status: string;
   niche: string | null;
@@ -59,7 +61,7 @@ export function OutreachPreviewList({
     const edit = edits[preview.leadId] ?? { subject: preview.subject, body: preview.body };
     setCardStatus((prev) => ({ ...prev, [preview.leadId]: "pending" }));
     setCardErrors((prev) => { const n = { ...prev }; delete n[preview.leadId]; return n; });
-    const res = await sendOutreach({ leadId: preview.leadId, subject: edit.subject, body: edit.body });
+    const res = await sendOutreach({ leadId: preview.leadId, to: preview.email, subject: edit.subject, body: edit.body });
     if (res.ok) {
       setCardStatus((prev) => ({ ...prev, [preview.leadId]: "sent" }));
     } else {
@@ -191,7 +193,18 @@ export function OutreachPreviewList({
                       <ExternalLink className="h-3 w-3 text-muted-foreground" />
                     </a>
                     <span className="text-muted-foreground text-sm">{preview.firstName}</span>
-                    <span className="text-muted-foreground text-sm">→ {preview.email}</span>
+                    {preview.emailSource ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-muted-foreground text-sm cursor-default underline decoration-dotted underline-offset-2">→ {preview.email}</span>
+                          </TooltipTrigger>
+                          <TooltipContent>{preview.emailSource}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">→ {preview.email}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <Badge variant="outline" className={`text-xs ${scoreColor(preview.score)}`}>
