@@ -4,13 +4,17 @@ import { getSettings } from "@/lib/config/settings";
 import { sendEmail, gmailReady } from "@/lib/outreach/gmail";
 import { textToHtml } from "@/lib/outreach/template";
 import { logCrawl } from "@/lib/pipeline/persist";
+import { sendTelegramAlert } from "@/lib/telegram";
 
 export const sendFollowupBatch = inngest.createFunction(
   {
     id: "send-followup-batch",
     name: "Send follow-up emails in batch",
-    retries: 0,
+    retries: 2,
     concurrency: { limit: 1 },
+    onFailure: async ({ error }) => {
+      await sendTelegramAlert(`🔴 Follow-up batch crashed: ${error.message}`);
+    },
   },
   { event: "outreach/followup-batch.requested" },
   async ({ event, step }) => {
@@ -117,6 +121,12 @@ export const sendFollowupBatch = inngest.createFunction(
       if (i < leadPayloads.length - 1) {
         await step.sleep(`wait-${i}`, `${interval_minutes}m`);
       }
+    }
+
+    if (sent === 0 && failed > 0) {
+      await step.run("alert-all-failed", () =>
+        sendTelegramAlert(`🔴 Follow-up batch: all ${failed} sends failed.`)
+      );
     }
 
     return { sent, failed, total: leadPayloads.length };

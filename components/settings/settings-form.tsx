@@ -95,6 +95,8 @@ export function SettingsForm({
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm">
                 <option value="openai">OpenAI (gpt-4o-mini)</option>
                 <option value="claude">Claude (Anthropic)</option>
+                <option value="gemini">Gemini (Google — free tier)</option>
+                <option value="groq">Groq (Llama — free tier)</option>
               </select>
             </div>
 
@@ -102,6 +104,10 @@ export function SettingsForm({
             <Field label="OpenAI model" name="openai_model" defaultValue={initial.openai_model} hint="gpt-4o-mini (cheap, fast) or gpt-4o (better)" />
             <Field label="Claude (Anthropic) API key" name="claude_api_key" defaultValue={initial.claude_api_key ?? ""} type="password" hint="Used only when scoring provider is Claude." />
             <Field label="Claude model" name="claude_model" defaultValue={initial.claude_model} hint="e.g. claude-opus-4-7, claude-sonnet-4-6" />
+            <Field label="Gemini API key" name="gemini_api_key" defaultValue={initial.gemini_api_key ?? ""} type="password" hint="Free key from aistudio.google.com/apikey. Falls back to GEMINI_API_KEY env var. Note: free tier is not available in the EU/UK/Switzerland." />
+            <Field label="Gemini model" name="gemini_model" defaultValue={initial.gemini_model} hint="gemini-2.0-flash is on the free tier" />
+            <Field label="Groq API key" name="groq_api_key" defaultValue={initial.groq_api_key ?? ""} type="password" hint="Free key from console.groq.com/keys. Falls back to GROQ_API_KEY env var." />
+            <Field label="Groq model" name="groq_model" defaultValue={initial.groq_model} hint="llama-3.3-70b-versatile is on the free tier" />
             <Separator />
             <Field label="CapSolver API key" name="capsolver_api_key" defaultValue={initial.capsolver_api_key ?? ""} type="password" hint="Solves reCAPTCHA when revealing gated business emails on YouTube. Falls back to CAPSOLVER_API_KEY env var." />
             <Field label="Hunter.io API key (optional)" name="hunter_api_key" defaultValue={initial.hunter_api_key ?? ""} type="password" hint="Domain + name email lookup. Paid — single key. Falls back to HUNTER_API_KEY env var." />

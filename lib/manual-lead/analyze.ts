@@ -1,9 +1,8 @@
 import "server-only";
 import { getSettings, resolveApifyTokens } from "@/lib/config/settings";
 import { scrapeProfiles, scrapePosts } from "@/lib/apify/actors";
-import { classifyWithOpenAi } from "@/lib/openai/classify";
+import { scoreProfileRouted } from "@/lib/scoring/score";
 import { computeMetrics } from "@/lib/pipeline/metrics";
-import { computeScores } from "@/lib/scoring/compute";
 import { persistLead } from "@/lib/pipeline/persist";
 import { toUsername } from "@/lib/pipeline/normalize";
 import { testingEnrichPipeline } from "@/lib/pipeline/testing-pipeline";
@@ -50,22 +49,13 @@ export async function analyzeIgLead(input: string, source: string = "manual_api"
     return { ok: false, username, error: err instanceof Error ? err.message : String(err) };
   }
 
-  const openaiKey = settings.openai_api_key || process.env.OPENAI_API_KEY || "";
-  if (!openaiKey) return { ok: false, username, error: "OpenAI API key not configured" };
-
-  let classification: Awaited<ReturnType<typeof classifyWithOpenAi>>["classification"];
-  try {
-    ({ classification } = await classifyWithOpenAi({
-      apiKey: openaiKey,
-      model: settings.openai_model || "gpt-4o-mini",
-      profile,
-    }));
-  } catch (err) {
-    return { ok: false, username, error: `OpenAI classify failed: ${err instanceof Error ? err.message : String(err)}` };
-  }
-
   const metrics = computeMetrics(profile);
-  const score = computeScores({ profile, metrics, classification, settings });
+  let score: ClaudeScore;
+  try {
+    ({ score } = await scoreProfileRouted({ settings, profile, metrics }));
+  } catch (err) {
+    return { ok: false, username, error: `Scoring failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
 
   const status = score.recommended_action === "qualified" ? "qualified"
     : score.recommended_action === "review" ? "review"

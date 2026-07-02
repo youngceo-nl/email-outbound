@@ -86,7 +86,7 @@ export const processProfile = inngest.createFunction(
 
     // 5. AI classifies (niche / business_model / offer) → code computes scores.
     let score;
-    let scoringProvider: "openai" | "claude";
+    let scoringProvider: "openai" | "claude" | "gemini" | "groq";
     try {
       const r = await step.run("score", () =>
         scoreProfileRouted({ settings, profile, metrics }),

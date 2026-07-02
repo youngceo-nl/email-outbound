@@ -68,9 +68,13 @@ export type AppSettings = {
   following_scraper_provider: "playwright" | "apify" | "scrapingbee" | "cookie" | "auto";
   instagram_session_cookie: string | null;
   instagram_session_cookies: string[];
-  scoring_provider: "openai" | "claude";
+  scoring_provider: "openai" | "claude" | "gemini" | "groq";
   openai_api_key: string | null;
   openai_model: string;
+  gemini_api_key: string | null;
+  gemini_model: string;
+  groq_api_key: string | null;
+  groq_model: string;
   enrich_funnels_auto: boolean;
   enrich_emails_auto: boolean;
   outreach_subject_template: string;

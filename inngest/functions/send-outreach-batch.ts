@@ -4,6 +4,7 @@ import { getSettings } from "@/lib/config/settings";
 import { sendEmail, gmailReady } from "@/lib/outreach/gmail";
 import { textToHtml } from "@/lib/outreach/template";
 import { logCrawl } from "@/lib/pipeline/persist";
+import { sendTelegramAlert } from "@/lib/telegram";
 
 export const sendOutreachBatch = inngest.createFunction(
   {
@@ -11,6 +12,9 @@ export const sendOutreachBatch = inngest.createFunction(
     name: "Send outreach emails in batch",
     retries: 0, // never auto-retry a send — duplicate emails are worse than a missed one
     concurrency: { limit: 1 }, // one batch at a time
+    onFailure: async ({ error }) => {
+      await sendTelegramAlert(`🔴 Outreach batch crashed: ${error.message}`);
+    },
   },
   { event: "outreach/batch.requested" },
   async ({ event, step }) => {
@@ -118,6 +122,12 @@ export const sendOutreachBatch = inngest.createFunction(
       if (i < leadPayloads.length - 1) {
         await step.sleep(`wait-${i}`, `${interval_minutes}m`);
       }
+    }
+
+    if (sent === 0 && failed > 0) {
+      await step.run("alert-all-failed", () =>
+        sendTelegramAlert(`🔴 Outreach batch: all ${failed} sends failed.`)
+      );
     }
 
     return { sent, failed, total: leadPayloads.length };

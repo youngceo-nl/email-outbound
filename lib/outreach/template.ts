@@ -177,7 +177,11 @@ function cleanProgramName(name: string | null | undefined): string | null {
   if (clean.split(/\s+/).length > 1 && clean === clean.toUpperCase()) return null;
   if (JUNK_PROGRAM_NAMES.has(clean.toLowerCase())) return null;
   if (clean.split(/\s+/).length > 8) return null;
-  if (/^(how to |how i |learn how |welcome to |join )/i.test(clean)) return null;
+  if (/^(how to |how i |learn how |welcome to |join |here'?s |get your |grab your |claim your |download your |access your |discover |introducing )/i.test(clean)) return null;
+  // Lead-magnet descriptors that are page titles, not program names
+  if (/\b(e-?book|checklist|cheat sheet|swipe file|pdf|free\s*\d|\d+\s*page)\b/i.test(clean)) return null;
+  // Tokens like "FREE100", "BONUS200" — marketing code embedded in a word
+  if (/\b[A-Z]{2,}\d+\b/.test(clean)) return null;
   return clean;
 }
 

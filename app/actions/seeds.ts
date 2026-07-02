@@ -329,6 +329,10 @@ export async function startCrawl(seed_id: string, providerOverride?: ScrapeProvi
     return { error: "Claude scoring selected but no Anthropic API key set." };
   if (scoring === "openai" && !(settings.openai_api_key || process.env.OPENAI_API_KEY))
     return { error: "OpenAI scoring selected but no OpenAI API key set." };
+  if (scoring === "gemini" && !(settings.gemini_api_key || process.env.GEMINI_API_KEY))
+    return { error: "Gemini scoring selected but no Gemini API key set." };
+  if (scoring === "groq" && !(settings.groq_api_key || process.env.GROQ_API_KEY))
+    return { error: "Groq scoring selected but no Groq API key set." };
 
   const { data: job, error: jobErr } = await admin
     .from("crawl_jobs")
@@ -352,4 +356,71 @@ export async function startCrawl(seed_id: string, providerOverride?: ScrapeProvi
   revalidatePath("/seeds");
   revalidatePath("/");
   return { ok: true, crawl_job_id: job.id, profile_limit: seed.max_profiles_to_scrape ?? settings.max_profiles_per_account ?? 100, seed_username: seed.username };
+}
+
+export type SkoolCsvRow = { slug: string; name: string; members: number | null; price: string | null };
+export type SkoolImportResponse = { ok: boolean; queued: number; crawl_job_id?: string; error?: string };
+
+// Batch-imports Skool communities parsed from a CSV export: creates a
+// crawl_job (so progress can be tracked the same way as any other bulk op)
+// and fires one skool/community.discovered event per row. The Inngest
+// function does the actual Skool-page scrape + Instagram scrape + score.
+export async function importSkoolCsv(rows: SkoolCsvRow[]): Promise<SkoolImportResponse> {
+  await requireUser();
+  if (!rows.length) return { ok: false, queued: 0, error: "No rows to import." };
+
+  const admin = createAdminClient();
+  const { data: job, error: jobErr } = await admin
+    .from("crawl_jobs")
+    .insert({
+      seed_id: null,
+      status: "running",
+      max_depth: 0,
+      current_depth: 0,
+      expected_profiles: rows.length,
+      started_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  if (jobErr || !job) return { ok: false, queued: 0, error: jobErr?.message ?? "could not create crawl_job" };
+
+  const CHUNK = 500;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await inngest.send(
+      rows.slice(i, i + CHUNK).map((r) => ({
+        name: "skool/community.discovered" as const,
+        data: { crawl_job_id: job.id, slug: r.slug, name: r.name },
+      })),
+    );
+  }
+
+  revalidatePath("/seeds");
+  return { ok: true, queued: rows.length, crawl_job_id: job.id };
+}
+
+export type SkoolImportProgress = {
+  total: number;
+  scraped: number;
+  qualified: number;
+  rejected: number;
+  done: boolean;
+};
+
+export async function getSkoolImportProgress(crawlJobId: string): Promise<SkoolImportProgress | null> {
+  await requireUser();
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("crawl_jobs")
+    .select("expected_profiles, profiles_scraped, qualified_count, rejected_count")
+    .eq("id", crawlJobId)
+    .single();
+  if (!data) return null;
+  const total = data.expected_profiles ?? 0;
+  return {
+    total,
+    scraped: data.profiles_scraped,
+    qualified: data.qualified_count,
+    rejected: data.rejected_count,
+    done: total > 0 && data.profiles_scraped >= total,
+  };
 }

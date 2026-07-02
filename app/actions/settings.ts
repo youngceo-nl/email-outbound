@@ -49,10 +49,14 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     instagram_session_cookie: String(formData.get("instagram_session_cookie") ?? "") || null,
     scoring_provider: (() => {
       const v = String(formData.get("scoring_provider") ?? "openai");
-      return v === "claude" ? "claude" : "openai";
+      return (["claude", "gemini", "groq"] as const).includes(v as never) ? (v as "claude" | "gemini" | "groq") : "openai";
     })(),
     openai_api_key: String(formData.get("openai_api_key") ?? "") || null,
     openai_model: String(formData.get("openai_model") ?? prev.openai_model),
+    gemini_api_key: String(formData.get("gemini_api_key") ?? "") || null,
+    gemini_model: String(formData.get("gemini_model") ?? prev.gemini_model),
+    groq_api_key: String(formData.get("groq_api_key") ?? "") || null,
+    groq_model: String(formData.get("groq_model") ?? prev.groq_model),
     enrich_funnels_auto: formData.get("enrich_funnels_auto") === "on",
     enrich_emails_auto: formData.get("enrich_emails_auto") === "on",
     outreach_subject_template: String(formData.get("outreach_subject_template") ?? prev.outreach_subject_template),

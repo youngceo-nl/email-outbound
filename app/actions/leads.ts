@@ -656,7 +656,7 @@ export async function dismissStalledBackfill(): Promise<void> {
 
 export type OperationStatus = {
   isRunning: boolean;
-  operation: "backfill" | "analyze" | "crawl" | null;
+  operation: "backfill" | "analyze" | "crawl" | "skool" | null;
   method: string | null;
   succeeded: number;
   failed: number;
@@ -674,26 +674,22 @@ export async function getOperationStatus(): Promise<OperationStatus> {
   const FIVE_MIN = new Date(Date.now() - 5 * 60_000).toISOString();
 
   const [
-    { data: methodLog },
-    { count: succeededCount },
+    { data: backfillLogs },
     { count: blockedCount },
     { count: remainingCount },
-    { count: recentUpdates },
     { count: pendingCount },
     { count: recentPendingUpdates },
-    { count: recentFiveMin },
     { data: settingsRow },
+    { data: analyzeJobs },
   ] = await Promise.all([
+    // Key signal for backfill: the crawl_log it writes at completion, not lead.updated_at
+    // (lead.updated_at fires on email enrichment, follow-ups, etc. — too noisy)
     sb.from("crawl_logs")
-      .select("detail")
-      .in("action", ["backfill_metadata"])
+      .select("detail, created_at")
+      .eq("action", "backfill_metadata")
       .gte("created_at", ONE_HOUR)
       .order("created_at", { ascending: false })
       .limit(1),
-    sb.from("leads")
-      .select("*", { count: "exact", head: true })
-      .not("followers", "is", null)
-      .gte("updated_at", ONE_HOUR),
     sb.from("leads")
       .select("*", { count: "exact", head: true })
       .not("backfill_error", "is", null)
@@ -705,10 +701,6 @@ export async function getOperationStatus(): Promise<OperationStatus> {
       .or("backfill_error.is.null,backfill_error.eq.apify_exhausted"),
     sb.from("leads")
       .select("*", { count: "exact", head: true })
-      .not("followers", "is", null)
-      .gte("updated_at", NINETY_SEC),
-    sb.from("leads")
-      .select("*", { count: "exact", head: true })
       .eq("status", "pending")
       .not("followers", "is", null),
     sb.from("leads")
@@ -716,30 +708,81 @@ export async function getOperationStatus(): Promise<OperationStatus> {
       .eq("status", "pending")
       .not("followers", "is", null)
       .gte("updated_at", NINETY_SEC),
-    sb.from("leads")
-      .select("*", { count: "exact", head: true })
-      .not("followers", "is", null)
-      .gte("updated_at", FIVE_MIN),
     sb.from("app_settings").select("backfill_started_at").eq("id", 1).single(),
+    // Both analyzeAllPending() and importSkoolCsv() create seed-less crawl_jobs
+    // with the same shape, so this alone can't tell them apart — fetch a few
+    // candidates and disambiguate below via their crawl_logs fingerprint.
+    sb.from("crawl_jobs")
+      .select("id, expected_profiles, profiles_scraped, qualified_count, rejected_count, status, finished_at")
+      .is("seed_id", null)
+      .gte("started_at", ONE_HOUR)
+      .order("started_at", { ascending: false })
+      .limit(5),
   ]);
 
-  const startedAt = (settingsRow as { backfill_started_at?: string | null } | null)?.backfill_started_at ?? null;
-  const startingUp = !!startedAt && startedAt >= TEN_MIN && (remainingCount ?? 0) > 0;
+  // Skool imports write crawl_logs actions prefixed "skool_" — that's the
+  // unambiguous fingerprint that separates a Skool job from an analyze job
+  // sharing the same seed_id:null shape.
+  const seedlessJobIds = (analyzeJobs ?? []).map((j) => j.id);
+  const { data: skoolMarkers } = seedlessJobIds.length
+    ? await sb.from("crawl_logs").select("crawl_job_id").in("crawl_job_id", seedlessJobIds).like("action", "skool_%")
+    : { data: [] as { crawl_job_id: string | null }[] };
+  const skoolJobIds = new Set((skoolMarkers ?? []).map((m) => m.crawl_job_id));
+  const skoolJob = (analyzeJobs ?? []).find((j) => skoolJobIds.has(j.id)) ?? null;
+  const analyzeJob = (analyzeJobs ?? []).find((j) => !skoolJobIds.has(j.id)) ?? null;
 
-  const backfillRunning = ((recentUpdates ?? 0) > 0 || startingUp) && (remainingCount ?? 0) > 0;
+  const startedAt = (settingsRow as { backfill_started_at?: string | null } | null)?.backfill_started_at ?? null;
+  // backfill_started_at is set when triggered, cleared when done/cancelled — authoritative active signal
+  const startingUp = !!startedAt && startedAt >= TEN_MIN && (remainingCount ?? 0) > 0;
+  // A completion log in the last 5 min means the batch just finished (still want to show card)
+  const recentLog = backfillLogs?.[0] ?? null;
+  const justFinished = !!recentLog && recentLog.created_at >= FIVE_MIN;
+  const backfillRunning = (startingUp || justFinished) && (remainingCount ?? 0) > 0;
+
   const analyzeRunning = (recentPendingUpdates ?? 0) > 0 && (pendingCount ?? 0) > 0;
 
-  const succeeded = succeededCount ?? 0;
-  const failed = blockedCount ?? 0;
-  const method = methodLog?.[0]?.detail?.match(/mode=(\w+)/)?.[1] ?? null;
-  const perMin = (recentFiveMin ?? 0) / 5;
-  const total = succeeded + failed + (remainingCount ?? 0);
-  const etaMin = backfillRunning && perMin > 0 ? Math.round((remainingCount ?? 0) / perMin) : null;
-
   let operation: OperationStatus["operation"] = null;
-  if (backfillRunning) operation = "backfill";
+  if (backfillRunning || startingUp) operation = "backfill";
   else if (analyzeRunning) operation = "analyze";
-  else if (methodLog?.[0] && (remainingCount ?? 0) === 0) operation = "backfill";
+  else if (recentLog && (remainingCount ?? 0) === 0) operation = "backfill";
+
+  let succeeded: number;
+  let failed: number;
+  let remaining: number;
+  let total: number;
+  let method: string | null;
+
+  if (operation === "analyze") {
+    const analyzeJob = analyzeJobs?.[0] ?? null;
+    // Each lead the batch touches writes exactly one row: a crawl_log entry
+    // on normal completion (scored or filtered out), or an error_log entry
+    // if it threw (e.g. the AI provider is down/out of quota) and got stuck
+    // in "pending". Neither of those come from backfill's signals.
+    const [{ count: processedCount }, { count: erroredCount }] = analyzeJob
+      ? await Promise.all([
+          sb.from("crawl_logs")
+            .select("*", { count: "exact", head: true })
+            .eq("crawl_job_id", analyzeJob.id)
+            .in("action", ["scored", "filtered_hard", "filtered_metrics"]),
+          sb.from("error_logs")
+            .select("*", { count: "exact", head: true })
+            .eq("crawl_job_id", analyzeJob.id),
+        ])
+      : [{ count: 0 }, { count: 0 }];
+
+    succeeded = processedCount ?? 0;
+    failed = erroredCount ?? 0;
+    total = analyzeJob?.expected_profiles ?? pendingCount ?? 0;
+    remaining = Math.max(total - succeeded - failed, 0);
+    method = null;
+  } else {
+    // Parse succeeded/method from the summary log written at batch end
+    succeeded = parseInt(recentLog?.detail?.match(/updated=(\d+)/)?.[1] ?? "0", 10);
+    failed = blockedCount ?? 0;
+    method = recentLog?.detail?.match(/mode=(\w+)/)?.[1] ?? null;
+    remaining = remainingCount ?? 0;
+    total = succeeded + failed + remaining;
+  }
 
   return {
     isRunning: backfillRunning || analyzeRunning,
@@ -747,9 +790,9 @@ export async function getOperationStatus(): Promise<OperationStatus> {
     method,
     succeeded,
     failed,
-    remaining: remainingCount ?? 0,
+    remaining,
     total,
-    perMin,
-    etaMin,
+    perMin: 0,
+    etaMin: null,
   };
 }

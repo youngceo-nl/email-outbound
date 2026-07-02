@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { CsvImportButton } from "@/components/leads/csv-import-button";
+import { SkoolCsvImportButton } from "@/components/leads/skool-csv-import-button";
 import {
   MoreHorizontal, RefreshCw, XCircle, SearchCode, Upload, Download, Play, DatabaseZap, MailWarning,
 } from "lucide-react";
@@ -60,6 +61,7 @@ export function LeadsActionsMenu({
   const router = useRouter();
   const [, start] = useTransition();
   const [csvOpen, setCsvOpen] = useState(false);
+  const [skoolCsvOpen, setSkoolCsvOpen] = useState(false);
 
   const run = (action: () => Promise<Record<string, unknown> | unknown>, detail: Record<string, unknown> = {}, refresh = false) => {
     const startedAt = Date.now();
@@ -76,6 +78,7 @@ export function LeadsActionsMenu({
   return (
     <>
       <CsvImportButton open={csvOpen} onOpenChange={setCsvOpen} />
+      <SkoolCsvImportButton open={skoolCsvOpen} onOpenChange={setSkoolCsvOpen} />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -90,6 +93,10 @@ export function LeadsActionsMenu({
           <DropdownMenuItem onClick={() => setCsvOpen(true)}>
             <Download className="h-4 w-4 mr-2" />
             Import CSV
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setSkoolCsvOpen(true)}>
+            <Download className="h-4 w-4 mr-2" />
+            Import Skool CSV
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <a href={exportHref}>

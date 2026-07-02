@@ -74,6 +74,13 @@ type Events = {
       interval_minutes?: number;
     };
   };
+  "skool/community.discovered": {
+    data: {
+      crawl_job_id: string;
+      slug: string;
+      name: string;
+    };
+  };
 };
 
 // Decide dev vs. cloud deterministically instead of letting the SDK guess.

@@ -7,7 +7,7 @@ export type Tier = {
   highlight?: boolean;
 };
 
-export type ProviderId = "apify" | "scrapingbee" | "openai" | "claude";
+export type ProviderId = "apify" | "scrapingbee" | "openai" | "claude" | "gemini" | "groq";
 
 export type ProviderMeta = {
   id: ProviderId;
@@ -66,6 +66,26 @@ export const PROVIDERS: ProviderMeta[] = [
       { name: "Haiku 4.5",  price: "$1",   unit: "/1M input · $5 output" },
       { name: "Sonnet 4.6", price: "$3",   unit: "/1M input · $15 output" },
       { name: "Opus 4.7",   price: "$15",  unit: "/1M input · $75 output" },
+    ],
+  },
+  {
+    id: "gemini",
+    name: "Google Gemini",
+    unit: "USD/1M tokens",
+    pricingUrl: "https://ai.google.dev/pricing",
+    dashboardUrl: "https://aistudio.google.com/apikey",
+    tiers: [
+      { name: "Flash (free tier)", price: "$0", unit: "/mo · rate-limited" },
+    ],
+  },
+  {
+    id: "groq",
+    name: "Groq",
+    unit: "USD/1M tokens",
+    pricingUrl: "https://groq.com/pricing",
+    dashboardUrl: "https://console.groq.com/keys",
+    tiers: [
+      { name: "Llama 3.3 70B (free tier)", price: "$0", unit: "/mo · rate-limited" },
     ],
   },
 ];

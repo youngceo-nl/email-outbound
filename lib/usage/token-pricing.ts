@@ -20,6 +20,13 @@ const CLAUDE_RATES: Record<string, TokenRate> = {
   opus: { inputPer1M: 15, outputPer1M: 75 },
 };
 
+// Gemini has a genuinely free rate-limited tier for these models — $0 until
+// you outgrow it and add billing, at which point these would become paid rates.
+const GEMINI_RATES: Record<string, TokenRate> = {
+  "gemini-2.0-flash": { inputPer1M: 0, outputPer1M: 0 },
+  "gemini-1.5-flash": { inputPer1M: 0, outputPer1M: 0 },
+};
+
 function openAiRate(model: string): TokenRate {
   const m = model.toLowerCase();
   for (const key of Object.keys(OPENAI_RATES)) {
@@ -35,12 +42,38 @@ function claudeRate(model: string): TokenRate {
   return CLAUDE_RATES.sonnet; // sonnet is the sensible mid default
 }
 
-export function tokenRate(provider: "openai" | "claude", model: string): TokenRate {
-  return provider === "openai" ? openAiRate(model) : claudeRate(model);
+function geminiRate(model: string): TokenRate {
+  const m = model.toLowerCase();
+  for (const key of Object.keys(GEMINI_RATES)) {
+    if (m.includes(key)) return GEMINI_RATES[key];
+  }
+  return { inputPer1M: 0, outputPer1M: 0 };
+}
+
+// Groq's free tier is also $0 — these would be the paid list rates if you
+// outgrow the free tier and switch to pay-as-you-go.
+const GROQ_RATES: Record<string, TokenRate> = {
+  "llama-3.3-70b-versatile": { inputPer1M: 0, outputPer1M: 0 },
+  "llama-3.1-8b-instant": { inputPer1M: 0, outputPer1M: 0 },
+};
+
+function groqRate(model: string): TokenRate {
+  const m = model.toLowerCase();
+  for (const key of Object.keys(GROQ_RATES)) {
+    if (m.includes(key)) return GROQ_RATES[key];
+  }
+  return { inputPer1M: 0, outputPer1M: 0 };
+}
+
+export function tokenRate(provider: "openai" | "claude" | "gemini" | "groq", model: string): TokenRate {
+  if (provider === "openai") return openAiRate(model);
+  if (provider === "gemini") return geminiRate(model);
+  if (provider === "groq") return groqRate(model);
+  return claudeRate(model);
 }
 
 export function computeTokenCost(
-  provider: "openai" | "claude",
+  provider: "openai" | "claude" | "gemini" | "groq",
   model: string,
   inputTokens: number,
   outputTokens: number,

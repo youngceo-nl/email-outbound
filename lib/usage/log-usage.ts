@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { computeTokenCost } from "./token-pricing";
 
-export type UsageProvider = "openai" | "claude" | "scrapingbee" | "apify";
+export type UsageProvider = "openai" | "claude" | "gemini" | "groq" | "scrapingbee" | "apify";
 
 export type UsageEvent = {
   provider: UsageProvider;
@@ -39,7 +39,7 @@ export async function logApiUsage(event: UsageEvent): Promise<void> {
 
 // Convenience wrapper for LLM token usage — computes the cost from list pricing.
 export async function logLlmUsage(opts: {
-  provider: "openai" | "claude";
+  provider: "openai" | "claude" | "gemini" | "groq";
   model: string;
   operation: string;
   inputTokens: number;
