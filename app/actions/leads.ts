@@ -13,6 +13,9 @@ async function requireUser() {
   return user;
 }
 
+const LEAD_STATUSES = ["qualified", "review", "rejected", "pending"] as const;
+export type LeadStatus = (typeof LEAD_STATUSES)[number];
+
 export type LeadPatch = {
   full_name?: string | null;
   email?: string | null;
@@ -20,13 +23,18 @@ export type LeadPatch = {
   bio?: string | null;
   external_link?: string | null;
   funnel_program_name?: string | null;
+  status?: LeadStatus;
 };
 
 export async function updateLead(leadId: string, patch: LeadPatch): Promise<{ ok: boolean; error?: string }> {
   await requireUser();
+  if (patch.status && !LEAD_STATUSES.includes(patch.status)) {
+    return { ok: false, error: `Invalid status: ${patch.status}` };
+  }
   const sb = createAdminClient();
   const clean: LeadPatch = {};
   for (const [k, v] of Object.entries(patch) as [keyof LeadPatch, string | null | undefined][]) {
+    if (k === "status") { clean.status = v as LeadStatus; continue; }
     clean[k] = typeof v === "string" ? (v.trim() || null) : v ?? null;
   }
   const { error } = await sb.from("leads").update(clean).eq("id", leadId);
@@ -120,11 +128,44 @@ function resolveUsername(row: CsvImportRow): string | null {
   return null;
 }
 
-export async function importLeadsFromCsv(rows: CsvImportRow[]): Promise<CsvImportResult> {
+export async function importLeadsFromCsv(
+  rows: CsvImportRow[],
+  mode: "insert" | "update" = "insert",
+): Promise<CsvImportResult> {
   await requireUser();
   if (!rows.length) return { ok: true, imported: 0, skipped: 0 };
 
   const sb = createAdminClient();
+
+  if (mode === "update") {
+    // Re-import path for enriched data (e.g. Clay output): only touch leads
+    // that already exist, and only overwrite fields actually present in the
+    // row, so a partially-enriched CSV can't null out data we already have.
+    let updated = 0;
+    let skipped = 0;
+    for (const row of rows) {
+      const username = resolveUsername(row);
+      if (!username) { skipped++; continue; }
+
+      const patch: Record<string, unknown> = {};
+      if (row.full_name?.trim()) patch.full_name = row.full_name.trim();
+      if (row.email?.trim()) { patch.email = row.email.trim().toLowerCase(); patch.email_status = "found"; }
+      if (row.bio?.trim()) patch.bio = row.bio.trim();
+      if (row.niche?.trim()) patch.niche = row.niche.trim();
+      if (row.youtube_url?.trim()) patch.youtube_url = row.youtube_url.trim();
+      if (row.linkedin_url?.trim()) patch.linkedin_url = row.linkedin_url.trim();
+      const followers = row.followers ? parseInt(row.followers.replace(/[^0-9]/g, ""), 10) : null;
+      if (Number.isFinite(followers)) patch.followers = followers;
+
+      if (!Object.keys(patch).length) { skipped++; continue; }
+
+      const { data, error } = await sb.from("leads").update(patch).eq("username", username).select("id");
+      if (error) return { ok: false, imported: updated, skipped, error: error.message };
+      if (data?.length) updated++; else skipped++;
+    }
+    revalidatePath("/leads");
+    return { ok: true, imported: updated, skipped };
+  }
 
   const inserts: object[] = [];
   let skipped = 0;

@@ -9,6 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { updateLead, type LeadPatch } from "@/app/actions/leads";
 import type { LeadEditPayload } from "./double-click-row";
+import { statusLabel } from "@/lib/labels";
+
+const STATUS_OPTIONS = ["qualified", "review", "rejected", "pending"] as const;
 
 export function LeadEditDialog() {
   const [lead, setLead] = useState<LeadEditPayload | null>(null);
@@ -29,6 +32,7 @@ export function LeadEditDialog() {
         bio: payload.bio,
         external_link: payload.external_link,
         funnel_program_name: payload.funnel_program_name,
+        status: (payload.status as LeadPatch["status"]) ?? undefined,
       });
       setError(null);
       setTimeout(() => firstRef.current?.focus(), 0);
@@ -92,6 +96,19 @@ export function LeadEditDialog() {
               onKeyDown={e => e.key === "Enter" && save()}
               placeholder="Jane Doe"
             />
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">Rating (status)</Label>
+            <select
+              value={draft.status ?? "pending"}
+              onChange={e => setDraft(d => ({ ...d, status: e.target.value as LeadPatch["status"] }))}
+              className="w-full h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-sm"
+            >
+              {STATUS_OPTIONS.map(s => (
+                <option key={s} value={s}>{statusLabel(s)}</option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1">

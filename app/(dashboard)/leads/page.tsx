@@ -333,6 +333,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     bio: l.bio ?? null,
                     external_link: l.external_link ?? null,
                     funnel_program_name: l.funnel_program_name ?? null,
+                    status: l.status ?? null,
                   }}
                 >
                   <TableCell className="pt-3"><LeadCheckbox id={l.id} /></TableCell>

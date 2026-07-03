@@ -8,6 +8,7 @@ export type LeadEditPayload = {
   bio: string | null;
   external_link: string | null;
   funnel_program_name: string | null;
+  status: string | null;
 };
 
 export function DoubleClickRow({

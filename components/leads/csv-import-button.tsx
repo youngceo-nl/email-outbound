@@ -93,6 +93,7 @@ export function CsvImportButton({
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<Partial<Record<FieldKey, string>>>({});
+  const [mode, setMode] = useState<"insert" | "update">("insert");
   const [result, setResult] = useState<{ imported: number; skipped: number; error?: string } | null>(null);
   const [importing, startImport] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -103,6 +104,7 @@ export function CsvImportButton({
     setHeaders([]);
     setRows([]);
     setMapping({});
+    setMode("insert");
     setResult(null);
     if (fileRef.current) fileRef.current.value = "";
   };
@@ -138,7 +140,7 @@ export function CsvImportButton({
     });
 
     startImport(async () => {
-      const res = await importLeadsFromCsv(importRows);
+      const res = await importLeadsFromCsv(importRows, mode);
       setResult({ imported: res.imported, skipped: res.skipped, error: res.error });
       setStep("done");
     });
@@ -217,6 +219,34 @@ export function CsvImportButton({
               {/* ── Step 2: Map columns ── */}
               {step === "map" && (
                 <div className="space-y-5">
+                  {/* Import mode */}
+                  <div className="rounded-lg border p-3 space-y-2">
+                    <label className="flex items-start gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        className="mt-0.5"
+                        checked={mode === "insert"}
+                        onChange={() => setMode("insert")}
+                      />
+                      <span>
+                        <span className="font-medium">Add new leads</span>
+                        <span className="block text-xs text-muted-foreground">Rows whose username already exists are skipped.</span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        className="mt-0.5"
+                        checked={mode === "update"}
+                        onChange={() => setMode("update")}
+                      />
+                      <span>
+                        <span className="font-medium">Update existing leads (enrichment re-import)</span>
+                        <span className="block text-xs text-muted-foreground">Match by username and fill in mapped fields on leads already in the database — e.g. re-importing a CSV enriched in Clay. Rows with no matching username are skipped, nothing is inserted.</span>
+                      </span>
+                    </label>
+                  </div>
+
                   {/* Mapping table */}
                   <div className="rounded-lg border overflow-hidden">
                     <table className="w-full text-sm">
@@ -302,11 +332,17 @@ export function CsvImportButton({
                   ) : (
                     <>
                       <Check className="h-12 w-12 text-green-500 mx-auto" />
-                      <p className="text-2xl font-semibold">{result.imported} leads imported</p>
+                      <p className="text-2xl font-semibold">{result.imported} leads {mode === "update" ? "updated" : "imported"}</p>
                       {result.skipped > 0 && (
-                        <p className="text-sm text-muted-foreground">{result.skipped} rows skipped — no valid username found or already in your leads.</p>
+                        <p className="text-sm text-muted-foreground">
+                          {result.skipped} rows skipped — {mode === "update"
+                            ? "no matching username in the database, or no mapped fields had a value."
+                            : "no valid username found or already in your leads."}
+                        </p>
                       )}
-                      <p className="text-xs text-muted-foreground mt-2">Leads are in <strong>Pending</strong> status — use Analyze to score them.</p>
+                      {mode === "insert" && (
+                        <p className="text-xs text-muted-foreground mt-2">Leads are in <strong>Pending</strong> status — use Analyze to score them.</p>
+                      )}
                     </>
                   )}
                 </div>
