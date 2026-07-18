@@ -27,11 +27,9 @@ export function LeadEditDialog() {
       setLead(payload);
       setDraft({
         full_name: payload.full_name,
-        email: payload.email,
         niche: payload.niche,
         bio: payload.bio,
         external_link: payload.external_link,
-        funnel_program_name: payload.funnel_program_name,
         status: (payload.status as LeadPatch["status"]) ?? undefined,
       });
       setError(null);
@@ -112,30 +110,11 @@ export function LeadEditDialog() {
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">Email</Label>
-            <Input
-              type="email"
-              value={draft.email ?? ""}
-              onChange={e => setDraft(d => ({ ...d, email: e.target.value }))}
-              placeholder="jane@example.com"
-            />
-          </div>
-
-          <div className="space-y-1">
             <Label className="text-xs">Niche</Label>
             <Input
               value={draft.niche ?? ""}
               onChange={e => setDraft(d => ({ ...d, niche: e.target.value }))}
               placeholder="fitness, business coaching…"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs">Program name</Label>
-            <Input
-              value={draft.funnel_program_name ?? ""}
-              onChange={e => setDraft(d => ({ ...d, funnel_program_name: e.target.value }))}
-              placeholder="e.g. Elite Mastermind"
             />
           </div>
 

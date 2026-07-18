@@ -171,23 +171,6 @@ export const scoreLead = inngest.createFunction(
       detail: `provider=${scored.provider} overall=${score.overall_score} status=${status} niche=${score.niche}`,
     });
 
-    // Auto-enrich qualified leads (find funnel/offer + email) so they come out
-    // fully fleshed out, no manual step. Gated by the settings toggles.
-    if (status === "qualified") {
-      if (settings.enrich_funnels_auto && lead.external_link) {
-        await step.sendEvent("enrich-funnel", {
-          name: "lead/funnel.enrich.requested",
-          data: { lead_id, external_link: lead.external_link as string, crawl_job_id: crawl_job_id ?? null },
-        });
-      }
-      if (settings.enrich_emails_auto) {
-        await step.sendEvent("enrich-email", {
-          name: "lead/email.enrich.requested",
-          data: { lead_id, crawl_job_id: crawl_job_id ?? null },
-        });
-      }
-    }
-
     return { status, overall: score.overall_score, niche: score.niche };
   },
 );

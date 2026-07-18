@@ -3,7 +3,6 @@ import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getSettings, updateSettings } from "@/lib/config/settings";
-import { checkYoutubeCookieLive } from "@/lib/youtube/refresh-cookie";
 import type { AppSettings, ManagedAccount } from "@/lib/types";
 
 async function requireUser() {
@@ -30,7 +29,6 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     claude_api_key: String(formData.get("claude_api_key") ?? "") || null,
     claude_model: String(formData.get("claude_model") ?? prev.claude_model),
     scrapingbee_api_key: String(formData.get("scrapingbee_api_key") ?? "") || null,
-    serper_api_key: String(formData.get("serper_api_key") ?? "") || null,
     max_profiles_per_account: num(formData.get("max_profiles_per_account"), prev.max_profiles_per_account),
     crawl_score_threshold: num(formData.get("crawl_score_threshold"), prev.crawl_score_threshold),
     min_followers: num(formData.get("min_followers"), prev.min_followers),
@@ -57,50 +55,9 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     gemini_model: String(formData.get("gemini_model") ?? prev.gemini_model),
     groq_api_key: String(formData.get("groq_api_key") ?? "") || null,
     groq_model: String(formData.get("groq_model") ?? prev.groq_model),
-    enrich_funnels_auto: formData.get("enrich_funnels_auto") === "on",
-    enrich_emails_auto: formData.get("enrich_emails_auto") === "on",
-    outreach_subject_template: String(formData.get("outreach_subject_template") ?? prev.outreach_subject_template),
-    outreach_body_template: String(formData.get("outreach_body_template") ?? prev.outreach_body_template),
-    outreach_reply_to: String(formData.get("outreach_reply_to") ?? "") || null,
-    gmail_user: String(formData.get("gmail_user") ?? "") || null,
-    gmail_app_password: String(formData.get("gmail_app_password") ?? "") || null,
-    gmail_from_name: String(formData.get("gmail_from_name") ?? "") || null,
     capsolver_api_key: String(formData.get("capsolver_api_key") ?? "") || null,
-    hunter_api_key: String(formData.get("hunter_api_key") ?? "") || null,
-    apollo_api_key: String(formData.get("apollo_api_key") ?? "") || null,
-    zerobounce_api_key: String(formData.get("zerobounce_api_key") ?? "") || null,
-    neverbounce_api_key: String(formData.get("neverbounce_api_key") ?? "") || null,
-    yt_google_cookie: String(formData.get("yt_google_cookie") ?? "") || null,
   };
   await updateSettings(patch);
-
-  // YouTube auto-login credentials live in columns added by a later migration.
-  // Update them separately and tolerate failure, so a DB that hasn't run that
-  // migration yet doesn't break the entire settings save.
-  try {
-    await updateSettings({
-      yt_google_email: String(formData.get("yt_google_email") ?? "") || null,
-      yt_google_password: String(formData.get("yt_google_password") ?? "") || null,
-      yt_google_totp_secret: String(formData.get("yt_google_totp_secret") ?? "") || null,
-    });
-  } catch {
-    // columns not present yet — ignore
-  }
-
-  // Gmail OAuth app credentials (added by the gmail_oauth migration). Only
-  // overwrite when a non-empty value is submitted so saving other settings
-  // never wipes the stored secret. The refresh token is set by the OAuth
-  // callback, not here.
-  try {
-    const oauthPatch: Record<string, string> = {};
-    const cid = String(formData.get("gmail_oauth_client_id") ?? "").trim();
-    const secret = String(formData.get("gmail_oauth_client_secret") ?? "").trim();
-    if (cid) oauthPatch.gmail_oauth_client_id = cid;
-    if (secret) oauthPatch.gmail_oauth_client_secret = secret;
-    if (Object.keys(oauthPatch).length > 0) await updateSettings(oauthPatch);
-  } catch {
-    // columns not present yet — ignore
-  }
 
   revalidatePath("/settings");
   return { ok: true };
@@ -128,37 +85,12 @@ export async function removeBurnerCookie(index: number) {
   revalidatePath("/settings");
 }
 
-export async function addYtCookie(cookie: string) {
-  await requireUser();
-  const settings = await getSettings(true);
-  const trimmed = cookie.trim();
-  if (!trimmed) return { error: "Cookie is empty" };
-  const cookies = settings.yt_google_cookies ?? [];
-  if (cookies.includes(trimmed)) return { error: "Cookie already added" };
-  await updateSettings({ yt_google_cookies: [...cookies, trimmed] });
-  revalidatePath("/settings");
-  return { ok: true };
-}
-
-export async function removeYtCookie(index: number) {
-  await requireUser();
-  const settings = await getSettings(true);
-  const cookies = [...(settings.yt_google_cookies ?? [])];
-  if (index < 0 || index >= cookies.length) return;
-  cookies.splice(index, 1);
-  await updateSettings({ yt_google_cookies: cookies });
-  revalidatePath("/settings");
-}
-
 const KEY_FIELD: Record<string, keyof AppSettings> = {
-  findymail:   "findymail_api_keys",
-  prospeo:     "prospeo_api_keys",
-  zerobounce:  "zerobounce_api_keys",
   scrapingbee: "scrapingbee_api_keys",
   apify:       "apify_api_keys",
 };
 
-export async function addEmailProviderKey(provider: "findymail" | "prospeo" | "zerobounce" | "scrapingbee" | "apify", key: string) {
+export async function addEmailProviderKey(provider: "scrapingbee" | "apify", key: string) {
   await requireUser();
   const settings = await getSettings(true);
   const trimmed = key.trim();
@@ -171,7 +103,7 @@ export async function addEmailProviderKey(provider: "findymail" | "prospeo" | "z
   return { ok: true };
 }
 
-export async function removeEmailProviderKey(provider: "findymail" | "prospeo" | "zerobounce" | "scrapingbee" | "apify", index: number) {
+export async function removeEmailProviderKey(provider: "scrapingbee" | "apify", index: number) {
   await requireUser();
   const settings = await getSettings(true);
   const field = KEY_FIELD[provider];
@@ -180,53 +112,6 @@ export async function removeEmailProviderKey(provider: "findymail" | "prospeo" |
   keys.splice(index, 1);
   await updateSettings({ [field]: keys });
   revalidatePath("/settings");
-}
-
-export async function refreshYtCookieNow(creds?: {
-  email?: string;
-  password?: string;
-  totpSecret?: string;
-}): Promise<{ ok: boolean; error?: string }> {
-  await requireUser();
-
-  // When the caller supplies credentials directly (from the form fields),
-  // save them to DB first and then drive the login directly — this bypasses
-  // the in-memory cooldown that throttles background/cron refreshes, which is
-  // the right behaviour for an explicit user-initiated "Login now" click.
-  if (creds?.email && creds?.password) {
-    try {
-      await updateSettings({
-        yt_google_email: creds.email,
-        yt_google_password: creds.password,
-        yt_google_totp_secret: creds.totpSecret || null,
-      });
-    } catch {
-      // columns not present yet — ignore
-    }
-    const { loginAndExtractCookie } = await import("@/lib/youtube/refresh-cookie");
-    try {
-      const sb = (await import("@/lib/supabase/admin")).createAdminClient();
-      const cookie = await loginAndExtractCookie({
-        email: creds.email,
-        password: creds.password,
-        totpSecret: creds.totpSecret || null,
-      });
-      await sb.from("app_settings").update({ yt_google_cookie: cookie }).eq("id", 1);
-      revalidatePath("/settings");
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  }
-
-  // No creds in the call — fall back to the standard refresh that reads from DB.
-  const { refreshAndSaveYoutubeCookie } = await import("@/lib/youtube/refresh-cookie");
-  const result = await refreshAndSaveYoutubeCookie();
-  if (result.cookie) {
-    revalidatePath("/settings");
-    return { ok: true };
-  }
-  return { ok: false, error: result.error ?? "Login failed" };
 }
 
 // ── Instagram cookie validation ───────────────────────────────────────────────
@@ -254,31 +139,26 @@ async function testInstagramCookieString(
   }
 }
 
-// ── Managed account CRUD (Instagram + YouTube) ────────────────────────────────
+// ── Managed account CRUD (Instagram) ──────────────────────────────────────────
 
-type Platform = "instagram" | "youtube";
+type Platform = "instagram";
 
-function accountsKey(platform: Platform): "instagram_accounts" | "yt_accounts" {
-  return platform === "instagram" ? "instagram_accounts" : "yt_accounts";
+function accountsKey(_platform: Platform): "instagram_accounts" {
+  return "instagram_accounts";
 }
 
-async function loginManaged(platform: Platform, account: ManagedAccount): Promise<{ cookie: string } | { checkpoint: true; state: import("@/lib/types").CheckpointState; message: string }> {
-  if (platform === "instagram") {
-    const { loginInstagramPlaywright } = await import("@/lib/instagram/login-playwright");
-    const settings = await getSettings(true);
-    const result = await loginInstagramPlaywright({
-      username: account.label,
-      password: account.password,
-      totp_secret: account.totp_secret,
-      capsolver_api_key: settings.capsolver_api_key ?? null,
-    });
-    if (result.ok) return { cookie: result.cookie };
-    if (result.checkpoint) return { checkpoint: true, state: result.state, message: result.message };
-    throw new Error(result.error);
-  }
-  const { loginAndExtractCookie } = await import("@/lib/youtube/refresh-cookie");
-  const cookie = await loginAndExtractCookie({ email: account.label, password: account.password, totpSecret: account.totp_secret });
-  return { cookie };
+async function loginManaged(_platform: Platform, account: ManagedAccount): Promise<{ cookie: string } | { checkpoint: true; state: import("@/lib/types").CheckpointState; message: string }> {
+  const { loginInstagramPlaywright } = await import("@/lib/instagram/login-playwright");
+  const settings = await getSettings(true);
+  const result = await loginInstagramPlaywright({
+    username: account.label,
+    password: account.password,
+    totp_secret: account.totp_secret,
+    capsolver_api_key: settings.capsolver_api_key ?? null,
+  });
+  if (result.ok) return { cookie: result.cookie };
+  if (result.checkpoint) return { checkpoint: true, state: result.state, message: result.message };
+  throw new Error(result.error);
 }
 
 export async function addManagedAccount(
@@ -465,22 +345,6 @@ export async function testManagedAccountCookie(
     }
   }
 
-  if (platform === "youtube") {
-    const liveness = await checkYoutubeCookieLive(account.cookie);
-    const ok = liveness === "live";
-    const message = ok
-      ? "Cookie is live — logged in to YouTube."
-      : liveness === "dead"
-      ? "Cookie is expired or invalid."
-      : "Could not determine status — YouTube may be unreachable.";
-    const updated = accounts.map((a) =>
-      a.id === id ? { ...a, last_error: ok ? null : message } : a,
-    );
-    await updateSettings({ [key]: updated } as Partial<AppSettings>);
-    revalidatePath("/settings");
-    return { ok, message };
-  }
-
   return { ok: false, message: "Test not supported for this platform" };
 }
 
@@ -579,31 +443,6 @@ export async function setGroupPaused(platform: Platform, group: string, paused: 
   revalidatePath("/settings");
 }
 
-// ── YouTube cookie status ─────────────────────────────────────────────────────
-
-// Fire-and-forget from enrich pipeline to track whether the YT cookie is working.
-export async function persistYtCookieStatus(status: "live" | "dead"): Promise<void> {
-  try {
-    await updateSettings({ yt_cookie_status: status });
-  } catch { /* non-fatal */ }
-}
-
-// Persist per-cookie liveness results keyed by last-12-chars of each cookie.
-// Called from the settings page after it probes all cookies so SystemStatus
-// can show whether any specific cookie is dead without live HTTP checks.
-export async function persistYtCookieStatuses(
-  cookies: string[],
-  statuses: ("live" | "dead" | "unknown")[],
-): Promise<void> {
-  try {
-    const map: Record<string, "live" | "dead" | "unknown"> = {};
-    cookies.forEach((c, i) => {
-      if (c.trim()) map[c.slice(-12)] = statuses[i] ?? "unknown";
-    });
-    await updateSettings({ yt_cookie_statuses: map });
-  } catch { /* non-fatal */ }
-}
-
 // Fire-and-forget from scraping flows to track whether the IG session cookie is working.
 export async function persistIgCookieStatus(status: "live" | "dead"): Promise<void> {
   try {
@@ -617,74 +456,9 @@ function emailKeyStatusId(provider: string, key: string) {
   return `${provider}:${key.slice(-12)}`;
 }
 
-// Called from the enrich pipeline (fire-and-forget) when a key is quota-exhausted.
-export async function persistKeyExhausted(provider: string, key: string): Promise<void> {
-  try {
-    const settings = await getSettings(true);
-    const statuses = { ...(settings.email_key_statuses ?? {}) };
-    statuses[emailKeyStatusId(provider, key)] = {
-      status: "exhausted",
-      checkedAt: new Date().toISOString(),
-    };
-    await updateSettings({ email_key_statuses: statuses });
-  } catch {
-    // best-effort — never block enrichment
-  }
-}
-
-async function probeKey(provider: "findymail" | "prospeo" | "zerobounce" | "apify" | "scrapingbee", key: string): Promise<import("@/lib/types").EmailKeyStatus> {
+async function probeKey(provider: "apify" | "scrapingbee", key: string): Promise<import("@/lib/types").EmailKeyStatus> {
   const now = new Date().toISOString();
   try {
-    if (provider === "findymail") {
-      const res = await fetch("https://app.findymail.com/api/credits", {
-        headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (res.status === 401 || res.status === 403) return { status: "invalid", checkedAt: now };
-      if (!res.ok) return { status: "ok", checkedAt: now }; // unknown state — assume ok
-      const body = await res.json() as { credits?: number; remaining?: number };
-      const credits = body.credits ?? body.remaining ?? null;
-      if (credits !== null && credits <= 0) return { status: "exhausted", credits: 0, checkedAt: now };
-      return { status: "ok", credits: credits ?? undefined, checkedAt: now };
-    }
-
-    if (provider === "prospeo") {
-      // New API: probe with a known LinkedIn URL (free enrichment, no credits spent)
-      const res = await fetch("https://api.prospeo.io/enrich-person", {
-        method: "POST",
-        headers: { "X-KEY": key, "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ data: { linkedin_url: "https://www.linkedin.com/in/williamhgates" } }),
-        signal: AbortSignal.timeout(8000),
-      });
-      if (res.status === 401 || res.status === 403) return { status: "invalid", checkedAt: now };
-      if (res.status === 429) return { status: "rate_limited", checkedAt: now };
-      if (!res.ok) return { status: "ok", checkedAt: now };
-      const body = await res.json() as { error: boolean | string; error_code?: string; free_enrichment?: boolean };
-      if (body.error) {
-        const code = String(body.error_code ?? "").toLowerCase();
-        if (code.includes("rate_limit") || code.includes("rate limit")) return { status: "rate_limited", checkedAt: now };
-        if (code.includes("quota") || code.includes("credit")) return { status: "exhausted", checkedAt: now };
-        if (code.includes("qualify") || code.includes("multi-account")) return { status: "invalid", checkedAt: now };
-        // NO_MATCH just means Bill Gates wasn't in their DB for this key's plan — key is still ok
-        if (code === "no_match") return { status: "ok", checkedAt: now };
-        return { status: "invalid", checkedAt: now };
-      }
-      return { status: "ok", checkedAt: now };
-    }
-
-    if (provider === "zerobounce") {
-      const url = new URL("https://api.zerobounce.net/v2/getcredits");
-      url.searchParams.set("api_key", key);
-      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
-      if (res.status === 401 || res.status === 403) return { status: "invalid", checkedAt: now };
-      if (!res.ok) return { status: "ok", checkedAt: now };
-      const body = await res.json() as { Credits?: string | number; Error?: string };
-      if (body.Error) return { status: "invalid", checkedAt: now };
-      const credits = typeof body.Credits === "string" ? parseFloat(body.Credits) : (body.Credits ?? null);
-      if (credits !== null && credits <= 0) return { status: "exhausted", credits: 0, checkedAt: now };
-      return { status: "ok", credits: credits ?? undefined, checkedAt: now };
-    }
-
     if (provider === "apify") {
       const res = await fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(key)}`, {
         signal: AbortSignal.timeout(8000),
@@ -715,7 +489,7 @@ async function probeKey(provider: "findymail" | "prospeo" | "zerobounce" | "apif
 }
 
 export async function checkEmailProviderKey(
-  provider: "findymail" | "prospeo" | "zerobounce" | "apify" | "scrapingbee",
+  provider: "apify" | "scrapingbee",
   rawKey: string,
 ): Promise<import("@/lib/types").EmailKeyStatus> {
   await requireUser();
@@ -798,42 +572,3 @@ export async function refreshManagedAccountMobile(
   return { ok: true };
 }
 
-export async function refreshManagedAccount(
-  platform: Platform,
-  id: string,
-): Promise<{ ok?: true; error?: string; checkpoint?: boolean }> {
-  await requireUser();
-  const settings = await getSettings(true);
-  const key = accountsKey(platform);
-  const accounts: ManagedAccount[] = (settings[key] as ManagedAccount[]) ?? [];
-  const account = accounts.find((a) => a.id === id);
-  if (!account) return { error: "Account not found" };
-
-  try {
-    const result = await loginManaged(platform, account);
-    console.log("[refreshManagedAccount]", account.label, "result keys:", Object.keys(result));
-    if ("checkpoint" in result) {
-      console.log("[refreshManagedAccount] saving checkpoint_state for", account.label);
-      const updated = accounts.map((a) =>
-        a.id === id ? { ...a, checkpoint_state: result.state, last_error: result.message } : a,
-      );
-      await updateSettings({ [key]: updated } as Partial<AppSettings>);
-      revalidatePath("/settings");
-      return { error: result.message, checkpoint: true };
-    }
-    const updated = accounts.map((a) =>
-      a.id === id ? { ...a, cookie: result.cookie, cookie_set_at: new Date().toISOString(), last_error: null, checkpoint_state: null } : a,
-    );
-    await updateSettings({ [key]: updated } as Partial<AppSettings>);
-  } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-    console.error("[refreshManagedAccount] error for", account.label, error);
-    const updated = accounts.map((a) => (a.id === id ? { ...a, last_error: error } : a));
-    await updateSettings({ [key]: updated } as Partial<AppSettings>);
-    revalidatePath("/settings");
-    return { error };
-  }
-
-  revalidatePath("/settings");
-  return { ok: true };
-}

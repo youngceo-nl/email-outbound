@@ -8,12 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatNumber, formatPct, scoreColor } from "@/lib/utils";
 import { actionLabel, statusLabel } from "@/lib/labels";
-import type { Lead, RecentPost, VideoJob } from "@/lib/types";
+import type { Lead, RecentPost } from "@/lib/types";
 import { NotesSection } from "@/components/leads/notes-section";
-import { EnrichButton } from "@/components/leads/enrich-button";
-import { SendEmailButton } from "@/components/leads/send-email-button";
-import { FunnelCard } from "@/components/leads/funnel-card";
-import { VideoOutreachCard } from "@/components/leads/video-outreach-card";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +20,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ use
   const { data: lead } = await sb.from("leads").select("*").eq("username", username.toLowerCase()).single();
   if (!lead) notFound();
 
-  const [{ data: notes }, { data: path }, { data: replies }, { data: videoJob }] = await Promise.all([
+  const [{ data: notes }, { data: path }] = await Promise.all([
     sb.from("lead_notes").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false }),
     sb
       .from("crawl_logs")
@@ -32,18 +28,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ use
       .eq("profile_username", username.toLowerCase())
       .order("created_at", { ascending: true })
       .limit(50),
-    sb
-      .from("inbox_messages")
-      .select("id, from_name, from_email, subject, body_text, snippet, received_at")
-      .eq("lead_id", lead.id)
-      .order("received_at", { ascending: false }),
-    sb
-      .from("video_jobs")
-      .select("id, lead_id, status, hook_script, loom_url, loom_embed_code, error_message, attempt_count, created_at, updated_at")
-      .eq("lead_id", lead.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
   ]);
 
   const l = lead as Lead;
@@ -84,94 +68,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ use
           </div>
         )}
       </header>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between"><CardTitle>Contact</CardTitle>
-          <div className="flex items-center gap-2">
-            <EnrichButton leadId={l.id} initialEmail={l.email ?? null} initialStatus={l.email_status ?? null} />
-            <SendEmailButton leadId={l.id} hasEmail={!!l.email} outreachCount={l.outreach_count ?? 0} />
-          </div>
-        </CardHeader>
-        <CardContent className="text-sm space-y-1">
-          {l.email ? (
-            <div className="flex items-center gap-3">
-              <a className="font-medium hover:underline" href={`mailto:${l.email}`}>{l.email}</a>
-              {l.email_status && <Badge variant="outline">{l.email_status}</Badge>}
-              {l.email_provider && <span className="text-xs text-muted-foreground">via {l.email_provider}</span>}
-            </div>
-          ) : (
-            <p className="text-muted-foreground">
-              {l.email_status ? `Last attempt: ${l.email_status}` : "No email yet — click Find email to look one up."}
-            </p>
-          )}
-          {l.linkedin_url && (
-            <div className="flex items-center gap-2 text-xs">
-              <Badge variant="outline">LinkedIn</Badge>
-              <a className="hover:underline truncate" href={l.linkedin_url} target="_blank" rel="noreferrer">
-                {l.linkedin_url}
-              </a>
-            </div>
-          )}
-          {!l.linkedin_url && l.linkedin_lookup_error && (
-            <p className="text-xs text-muted-foreground">LinkedIn search: {l.linkedin_lookup_error}</p>
-          )}
-          {l.youtube_url && (
-            <div className="flex items-center gap-2 text-xs">
-              <Badge variant="outline">YouTube</Badge>
-              <a className="hover:underline truncate" href={l.youtube_url} target="_blank" rel="noreferrer">
-                {l.youtube_url}
-              </a>
-            </div>
-          )}
-          {!l.youtube_url && l.youtube_lookup_error && (
-            <p className="text-xs text-muted-foreground">YouTube search: {l.youtube_lookup_error}</p>
-          )}
-          {l.enrichment_error && <p className="text-xs text-red-600 mt-1">{l.enrichment_error}</p>}
-          {l.outreach_count > 0 && (
-            <p className="text-xs text-muted-foreground mt-2">
-              ✉ {l.outreach_count} outreach email{l.outreach_count === 1 ? "" : "s"} sent
-              {l.last_outreach_at && ` · last ${new Date(l.last_outreach_at).toLocaleDateString()}`}
-            </p>
-          )}
-          {l.last_outreach_error && (
-            <p className="text-xs text-red-600">Last send failed: {l.last_outreach_error}</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <FunnelCard
-        leadId={l.id}
-        initial={{
-          external_link: l.external_link,
-          funnel_url: l.funnel_url,
-          funnel_platform: l.funnel_platform,
-          funnel_program_name: l.funnel_program_name,
-          funnel_offer_summary: l.funnel_offer_summary,
-          funnel_price: l.funnel_price,
-          funnel_extracted_at: l.funnel_extracted_at,
-          funnel_extraction_error: l.funnel_extraction_error,
-        }}
-      />
-
-      <VideoOutreachCard leadId={l.id} initialJob={(videoJob as VideoJob | null) ?? null} />
-
-      {(replies ?? []).length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>Replies ({(replies ?? []).length})</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {(replies ?? []).map((r) => (
-              <div key={r.id} className="rounded-md border p-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">{r.from_name || r.from_email || "Unknown sender"}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">{new Date(r.received_at).toLocaleString()}</span>
-                </div>
-                {r.subject && <div className="text-sm text-muted-foreground mt-0.5">{r.subject}</div>}
-                <p className="text-sm whitespace-pre-wrap break-words mt-2">{r.body_text?.trim() || r.snippet || "(empty message)"}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       {l.backfill_error && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-sm text-amber-800 dark:text-amber-300">

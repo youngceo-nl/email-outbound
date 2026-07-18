@@ -43,8 +43,6 @@ async function loadStats() {
     { data: recent },
     { data: activeJobs },
     metrics,
-    { count: readyToSend },
-    { count: sentToday },
   ] = await Promise.all([
     sb.from("leads").select("*", { count: "exact", head: true }),
     sb.from("leads").select("*", { count: "exact", head: true }).eq("status", "qualified"),
@@ -58,16 +56,6 @@ async function loadStats() {
       .in("status", ["queued", "running"])
       .order("created_at", { ascending: false }),
     fetchDailyMetrics(sb, 30),
-    // Runway: qualified leads with email, not yet contacted, not bounced
-    sb.from("leads").select("*", { count: "exact", head: true })
-      .eq("status", "qualified")
-      .not("email", "is", null)
-      .neq("email_status", "bounced")
-      .eq("outreach_count", 0),
-    // Sent today
-    sb.from("outreach_messages").select("*", { count: "exact", head: true })
-      .eq("status", "sent")
-      .gte("sent_at", new Date(new Date().setHours(0,0,0,0)).toISOString()),
   ]);
 
   const scores = (scoreAgg ?? []).map((r) => Number(r.overall_score)).filter((n) => Number.isFinite(n));
@@ -83,8 +71,6 @@ async function loadStats() {
     activeJobs: (activeJobs ?? []) as unknown as ActiveJob[],
     metrics: metrics.rows,
     metricsError: metrics.error,
-    readyToSend: readyToSend ?? 0,
-    sentToday: sentToday ?? 0,
   };
 }
 
@@ -103,27 +89,6 @@ export default async function DashboardPage() {
         <Stat label="Needs review"  value={formatNumber(s.review)} accent="yellow" tip="Borderline leads worth a manual look." />
         <Stat label="Not a fit"     value={formatNumber(s.rejected)} accent="red" tip="Leads that didn't meet your requirements." />
         <Stat label="Avg score"     value={s.avg != null ? s.avg.toFixed(1) : "—"} tip="Average fit score (0–10) across all analyzed leads." />
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Stat
-          label="Ready to send"
-          value={formatNumber(s.readyToSend)}
-          accent={s.readyToSend < 25 ? "red" : s.readyToSend < 50 ? "yellow" : "green"}
-          tip="Qualified leads with a confirmed email that haven't been contacted yet. Target: ≥25."
-        />
-        <Stat
-          label="Sent today"
-          value={`${s.sentToday} / 25`}
-          accent={s.sentToday >= 25 ? "green" : undefined}
-          tip="Outreach emails sent today toward the daily target of 25."
-        />
-        <Stat
-          label="Pipeline runway"
-          value={s.readyToSend < 25 ? "⚠ Low" : `~${Math.floor(s.readyToSend / 25)}d`}
-          accent={s.readyToSend < 25 ? "red" : "green"}
-          tip="How many days of sending at 25/day before you run out of leads with emails."
-        />
       </div>
 
       <ActiveSearches initial={s.activeJobs} />

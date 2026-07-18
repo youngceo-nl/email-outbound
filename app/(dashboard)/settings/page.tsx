@@ -1,6 +1,4 @@
 import { getSettings } from "@/lib/config/settings";
-import { checkYoutubeCookieLive } from "@/lib/youtube/refresh-cookie";
-import { persistYtCookieStatuses } from "@/app/actions/settings";
 import { SettingsForm } from "@/components/settings/settings-form";
 import type { ManagedAccount, ManagedAccountDisplay } from "@/lib/types";
 
@@ -14,14 +12,7 @@ function stripAccount(a: ManagedAccount): ManagedAccountDisplay {
 export default async function SettingsPage() {
   const settings = await getSettings(true);
 
-  const manualCookies = settings.yt_google_cookies ?? [];
-  const accountCookies = (settings.yt_accounts ?? []).map((a) => a.cookie ?? "");
-  const allCookies = [...manualCookies, ...accountCookies];
-  const ytCookieLiveness = await Promise.all(allCookies.map(checkYoutubeCookieLive));
-  void persistYtCookieStatuses(allCookies, ytCookieLiveness);
-
   const igAccounts: ManagedAccountDisplay[] = (settings.instagram_accounts ?? []).map(stripAccount);
-  const ytAccounts: ManagedAccountDisplay[] = (settings.yt_accounts ?? []).map(stripAccount);
 
   return (
     <div className="p-6 max-w-3xl space-y-6">
@@ -31,9 +22,7 @@ export default async function SettingsPage() {
       </div>
       <SettingsForm
         initial={settings}
-        ytCookieLiveness={ytCookieLiveness}
         igAccounts={igAccounts}
-        ytAccounts={ytAccounts}
       />
     </div>
   );

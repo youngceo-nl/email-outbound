@@ -18,11 +18,9 @@ export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
 export type LeadPatch = {
   full_name?: string | null;
-  email?: string | null;
   niche?: string | null;
   bio?: string | null;
   external_link?: string | null;
-  funnel_program_name?: string | null;
   status?: LeadStatus;
 };
 
@@ -100,12 +98,9 @@ export async function addLead(formData: FormData): Promise<AddLeadResult> {
 export type CsvImportRow = {
   username?: string;
   full_name?: string;
-  email?: string;
   followers?: string;
   bio?: string;
   niche?: string;
-  youtube_url?: string;
-  linkedin_url?: string;
   profile_url?: string;
 };
 
@@ -149,11 +144,8 @@ export async function importLeadsFromCsv(
 
       const patch: Record<string, unknown> = {};
       if (row.full_name?.trim()) patch.full_name = row.full_name.trim();
-      if (row.email?.trim()) { patch.email = row.email.trim().toLowerCase(); patch.email_status = "found"; }
       if (row.bio?.trim()) patch.bio = row.bio.trim();
       if (row.niche?.trim()) patch.niche = row.niche.trim();
-      if (row.youtube_url?.trim()) patch.youtube_url = row.youtube_url.trim();
-      if (row.linkedin_url?.trim()) patch.linkedin_url = row.linkedin_url.trim();
       const followers = row.followers ? parseInt(row.followers.replace(/[^0-9]/g, ""), 10) : null;
       if (Number.isFinite(followers)) patch.followers = followers;
 
@@ -182,13 +174,9 @@ export async function importLeadsFromCsv(
       status: "pending",
       crawl_depth: 0,
       full_name: row.full_name?.trim() || null,
-      email: row.email?.trim().toLowerCase() || null,
-      email_status: row.email?.trim() ? "found" : null,
       followers: Number.isFinite(followers) ? followers : null,
       bio: row.bio?.trim() || null,
       niche: row.niche?.trim() || null,
-      youtube_url: row.youtube_url?.trim() || null,
-      linkedin_url: row.linkedin_url?.trim() || null,
     });
   }
 
@@ -204,188 +192,6 @@ export async function importLeadsFromCsv(
 
   revalidatePath("/leads");
   return { ok: true, imported: inserts.length, skipped };
-}
-
-// ─── Churn bucket actions ─────────────────────────────────────────────────────
-
-export async function retryChurnEnrichment(
-  limit = 50,
-): Promise<{ ok: boolean; queued: number; ids: string[]; startedAt: string; error?: string }> {
-  await requireUser();
-  const sb = createAdminClient();
-  const { data, error } = await sb
-    .from("leads")
-    .select("id")
-    .eq("status", "qualified")
-    .is("email", null)
-    .not("enriched_at", "is", null)
-    .eq("outreach_count", 0)
-    .order("overall_score", { ascending: false })
-    .limit(limit);
-  if (error) return { ok: false, queued: 0, ids: [], startedAt: "", error: error.message };
-  const ids = (data ?? []).map((r) => r.id as string);
-  if (!ids.length) return { ok: true, queued: 0, ids: [], startedAt: "" };
-  const startedAt = new Date().toISOString();
-  const { enrichLeadsBulk } = await import("@/app/actions/enrich");
-  const result = await enrichLeadsBulk(ids);
-  revalidatePath("/churn");
-  return { ...result, ids, startedAt };
-}
-
-export async function getChurnRetryProgress(
-  leadIds: string[],
-  since: string,
-): Promise<{ done: number; total: number; foundEmail: number }> {
-  await requireUser();
-  const sb = createAdminClient();
-  const { data } = await sb
-    .from("leads")
-    .select("id, email, enriched_at")
-    .in("id", leadIds)
-    .gte("enriched_at", since);
-  const done = (data ?? []).length;
-  const foundEmail = (data ?? []).filter((r) => r.email).length;
-  return { done, total: leadIds.length, foundEmail };
-}
-
-// Re-enrich funnel (program name) for all leads that have an email but no program name.
-// Uses the free pipeline (raw fetch + domain parse) — safe to run even when ScrapingBee quota is exhausted.
-export async function retryFunnelEnrichment(
-  limit = 50,
-): Promise<{ ok: boolean; queued: number; results: Array<{ username: string; program_name: string | null; error: string | null }> }> {
-  await requireUser();
-  const sb = createAdminClient();
-  const { data, error } = await sb
-    .from("leads")
-    .select("id, username, external_link")
-    .eq("status", "qualified")
-    .not("email", "is", null)
-    .is("funnel_program_name", null)
-    .not("external_link", "is", null)
-    .order("overall_score", { ascending: false })
-    .limit(limit);
-  if (error) return { ok: false, queued: 0, results: [] };
-  const rows = (data ?? []) as Array<{ id: string; username: string; external_link: string }>;
-  if (!rows.length) return { ok: true, queued: 0, results: [] };
-
-  const { enrichFunnelForLead } = await import("@/lib/funnel/enrich");
-
-  const results: Array<{ username: string; program_name: string | null; error: string | null }> = [];
-  for (const row of rows) {
-    const r = await enrichFunnelForLead({ leadId: row.id, externalLink: row.external_link });
-    results.push({ username: row.username, program_name: r.funnel_program_name, error: r.error });
-  }
-
-  revalidatePath("/leads");
-  revalidatePath("/churn");
-  return { ok: true, queued: rows.length, results };
-}
-
-// Fan out funnel enrichment events for ALL qualified leads with an external link,
-// overwriting any existing program name. Use this after updating the LLM prompt.
-export async function rerunFunnelForAllQualified(): Promise<{ ok: boolean; queued: number; error?: string }> {
-  await requireUser();
-  const sb = createAdminClient();
-  const { data, error } = await sb
-    .from("leads")
-    .select("id, external_link")
-    .eq("status", "qualified")
-    .not("external_link", "is", null);
-  if (error) return { ok: false, queued: 0, error: error.message };
-  const rows = (data ?? []) as Array<{ id: string; external_link: string }>;
-  if (!rows.length) return { ok: true, queued: 0 };
-
-  const CHUNK = 500;
-  for (let i = 0; i < rows.length; i += CHUNK) {
-    const chunk = rows.slice(i, i + CHUNK);
-    await inngest.send(
-      chunk.map((r) => ({
-        name: "lead/funnel.enrich.requested" as const,
-        data: { lead_id: r.id, external_link: r.external_link },
-      })),
-    );
-  }
-
-  revalidatePath("/leads");
-  return { ok: true, queued: rows.length };
-}
-
-// Fan out email enrichment for all qualified leads that currently have no email.
-export async function reenrichLeadsWithoutEmail(): Promise<{ ok: boolean; queued: number; error?: string }> {
-  await requireUser();
-  const sb = createAdminClient();
-
-  const { data, error } = await sb
-    .from("leads")
-    .select("id")
-    .eq("status", "qualified")
-    .is("email", null);
-
-  if (error) return { ok: false, queued: 0, error: error.message };
-  const rows = (data ?? []) as Array<{ id: string }>;
-  if (!rows.length) return { ok: true, queued: 0 };
-
-  const CHUNK = 100;
-  for (let i = 0; i < rows.length; i += CHUNK) {
-    await inngest.send(
-      rows.slice(i, i + CHUNK).map((r) => ({
-        name: "lead/email.enrich.requested" as const,
-        data: { lead_id: r.id },
-      })),
-    );
-  }
-
-  revalidatePath("/leads");
-  return { ok: true, queued: rows.length };
-}
-
-// Reset bounced leads and re-run the full email enrichment sequence on them.
-// Clears email + email_status so the pipeline skip-guard won't bypass them,
-// then fans out email.enrich.requested events via Inngest.
-export async function reEnrichBouncedLeads(): Promise<{ ok: boolean; queued: number; error?: string }> {
-  await requireUser();
-  const sb = createAdminClient();
-
-  const { data, error } = await sb
-    .from("leads")
-    .select("id")
-    .eq("email_status", "bounced");
-
-  if (error) return { ok: false, queued: 0, error: error.message };
-  const rows = (data ?? []) as Array<{ id: string }>;
-  if (!rows.length) return { ok: true, queued: 0 };
-
-  const ids = rows.map((r) => r.id);
-
-  // Clear the bounced email so the enrichment pipeline runs fresh.
-  // Wipe enrichment_error too so the UI shows a clean slate while re-enriching.
-  const CHUNK = 100;
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    await sb
-      .from("leads")
-      .update({
-        email: null,
-        email_status: null,
-        enriched_at: null,
-        enrichment_error: null,
-        outreach_count: 0,
-        last_outreach_at: null,
-        last_outreach_error: null,
-      })
-      .in("id", ids.slice(i, i + CHUNK));
-  }
-
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    await inngest.send(
-      ids.slice(i, i + CHUNK).map((id) => ({
-        name: "lead/email.enrich.requested" as const,
-        data: { lead_id: id },
-      })),
-    );
-  }
-
-  revalidatePath("/leads");
-  return { ok: true, queued: ids.length };
 }
 
 // Fan out score events for all leads that have bio data, bypassing the
@@ -462,26 +268,6 @@ export async function getPendingCount(): Promise<number> {
   return count ?? 0;
 }
 
-export async function getEnrichNoEmailProgress(): Promise<number> {
-  await requireUser();
-  const { count } = await createAdminClient()
-    .from("leads")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "qualified")
-    .is("email", null);
-  return count ?? 0;
-}
-
-export async function getEnrichBouncedProgress(since: string): Promise<number> {
-  await requireUser();
-  const { count } = await createAdminClient()
-    .from("leads")
-    .select("id", { count: "exact", head: true })
-    .not("email", "is", null)
-    .gte("enriched_at", since);
-  return count ?? 0;
-}
-
 // Count leads that still need backfill (followers IS NULL).
 // Returns the remaining count so the activity drawer can compute done = total - remaining.
 export async function getBackfillProgress(): Promise<number> {
@@ -518,31 +304,6 @@ export async function getRescoreProgress(since: string): Promise<{
     review:    rows.filter((r) => r.status === "review").length,
     rejected:  rows.filter((r) => r.status === "rejected").length,
   };
-}
-
-export async function recordManualOutreach(leadId: string): Promise<{ ok: boolean; error?: string }> {
-  await requireUser();
-  const sb = createAdminClient();
-  const { error } = await sb
-    .from("leads")
-    .update({ outreach_count: 1, last_outreach_at: new Date().toISOString() })
-    .eq("id", leadId);
-  if (error) return { ok: false, error: error.message };
-  revalidatePath("/churn");
-  return { ok: true };
-}
-
-export async function rejectLead(leadId: string): Promise<{ ok: boolean; error?: string }> {
-  await requireUser();
-  const sb = createAdminClient();
-  const { error } = await sb
-    .from("leads")
-    .update({ status: "rejected", rejection_reason: "manual_reject_churn" })
-    .eq("id", leadId);
-  if (error) return { ok: false, error: error.message };
-  revalidatePath("/churn");
-  revalidatePath("/leads");
-  return { ok: true };
 }
 
 export type DeleteLeadsResult = { ok: boolean; deleted: number; error?: string };
@@ -697,7 +458,7 @@ export async function dismissStalledBackfill(): Promise<void> {
 
 export type OperationStatus = {
   isRunning: boolean;
-  operation: "backfill" | "analyze" | "crawl" | "skool" | null;
+  operation: "backfill" | "analyze" | "crawl" | null;
   method: string | null;
   succeeded: number;
   failed: number;
@@ -750,9 +511,6 @@ export async function getOperationStatus(): Promise<OperationStatus> {
       .not("followers", "is", null)
       .gte("updated_at", NINETY_SEC),
     sb.from("app_settings").select("backfill_started_at").eq("id", 1).single(),
-    // Both analyzeAllPending() and importSkoolCsv() create seed-less crawl_jobs
-    // with the same shape, so this alone can't tell them apart — fetch a few
-    // candidates and disambiguate below via their crawl_logs fingerprint.
     sb.from("crawl_jobs")
       .select("id, expected_profiles, profiles_scraped, qualified_count, rejected_count, status, finished_at")
       .is("seed_id", null)
@@ -761,16 +519,7 @@ export async function getOperationStatus(): Promise<OperationStatus> {
       .limit(5),
   ]);
 
-  // Skool imports write crawl_logs actions prefixed "skool_" — that's the
-  // unambiguous fingerprint that separates a Skool job from an analyze job
-  // sharing the same seed_id:null shape.
-  const seedlessJobIds = (analyzeJobs ?? []).map((j) => j.id);
-  const { data: skoolMarkers } = seedlessJobIds.length
-    ? await sb.from("crawl_logs").select("crawl_job_id").in("crawl_job_id", seedlessJobIds).like("action", "skool_%")
-    : { data: [] as { crawl_job_id: string | null }[] };
-  const skoolJobIds = new Set((skoolMarkers ?? []).map((m) => m.crawl_job_id));
-  const skoolJob = (analyzeJobs ?? []).find((j) => skoolJobIds.has(j.id)) ?? null;
-  const analyzeJob = (analyzeJobs ?? []).find((j) => !skoolJobIds.has(j.id)) ?? null;
+  const analyzeJob = (analyzeJobs ?? [])[0] ?? null;
 
   const startedAt = (settingsRow as { backfill_started_at?: string | null } | null)?.backfill_started_at ?? null;
   // backfill_started_at is set when triggered, cleared when done/cancelled — authoritative active signal
@@ -782,12 +531,8 @@ export async function getOperationStatus(): Promise<OperationStatus> {
 
   const analyzeRunning = (recentPendingUpdates ?? 0) > 0 && (pendingCount ?? 0) > 0;
 
-  const skoolJustFinished = !!skoolJob && skoolJob.status === "completed" && !!skoolJob.finished_at && skoolJob.finished_at >= FIVE_MIN;
-  const skoolRunning = !!skoolJob && (skoolJob.status === "running" || skoolJustFinished);
-
   let operation: OperationStatus["operation"] = null;
   if (backfillRunning || startingUp) operation = "backfill";
-  else if (skoolRunning) operation = "skool";
   else if (analyzeRunning) operation = "analyze";
   else if (recentLog && (remainingCount ?? 0) === 0) operation = "backfill";
 
@@ -797,30 +542,10 @@ export async function getOperationStatus(): Promise<OperationStatus> {
   let total: number;
   let method: string | null;
 
-  let perMin = 0;
-  let etaMin: number | null = null;
+  const perMin = 0;
+  const etaMin: number | null = null;
 
-  if (operation === "skool") {
-    // skool-import bumps these counters itself as it goes — no extra queries needed.
-    const total_ = skoolJob!.expected_profiles ?? 0;
-    succeeded = skoolJob!.profiles_scraped ?? 0;
-    failed = skoolJob!.rejected_count ?? 0;
-    total = total_;
-    remaining = Math.max(total_ - succeeded, 0);
-    method = null;
-
-    // Rate from a short recent window (not the whole job) so it reflects
-    // current throughput, not a stale average from when the batch started.
-    const THREE_MIN_AGO = new Date(Date.now() - 3 * 60_000).toISOString();
-    const { count: recentProcessed } = await sb
-      .from("crawl_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("crawl_job_id", skoolJob!.id)
-      .like("action", "skool_%")
-      .gte("created_at", THREE_MIN_AGO);
-    perMin = (recentProcessed ?? 0) / 3;
-    etaMin = perMin > 0 && remaining > 0 ? Math.round(remaining / perMin) : null;
-  } else if (operation === "analyze") {
+  if (operation === "analyze") {
     // Each lead the batch touches writes exactly one row: a crawl_log entry
     // on normal completion (scored or filtered out), or an error_log entry
     // if it threw (e.g. the AI provider is down/out of quota) and got stuck
@@ -852,7 +577,7 @@ export async function getOperationStatus(): Promise<OperationStatus> {
   }
 
   return {
-    isRunning: backfillRunning || analyzeRunning || skoolRunning,
+    isRunning: backfillRunning || analyzeRunning,
     operation,
     method,
     succeeded,

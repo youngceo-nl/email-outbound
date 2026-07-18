@@ -5,10 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { LeadsFilterBar } from "@/components/leads/filter-bar";
 import { Button } from "@/components/ui/button";
-import { EnrichButton } from "@/components/leads/enrich-button";
 import { AddLeadButton } from "@/components/leads/add-lead-button";
 import { ColumnVisibility } from "@/components/leads/column-visibility";
-import { SendEmailButton } from "@/components/leads/send-email-button";
 import { ProcessButton } from "@/components/leads/process-button";
 import { HeaderWithTip } from "@/components/ui/info-tip";
 import { SourceBadge } from "@/components/leads/source-badge";
@@ -17,13 +15,11 @@ import { SelectionProvider, SelectAllCheckbox, LeadCheckbox, BulkDeleteBar } fro
 import { formatNumber, formatPct, scoreColor } from "@/lib/utils";
 import { buildKeywordOr } from "@/lib/leads/keyword-filter";
 import { statusLabel } from "@/lib/labels";
-import { ChevronLeft, ChevronRight, ExternalLink, Youtube, Linkedin } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, AlertTriangle, Instagram } from "lucide-react";
 import { LeadsActionsMenu } from "@/components/leads/actions-menu";
 import { LeadsSearchBar } from "@/components/leads/search-bar";
-import { ProgramNameCell } from "@/components/leads/program-name-cell";
 import { DoubleClickRow } from "@/components/leads/double-click-row";
 import { LeadEditDialog } from "@/components/leads/lead-edit-dialog";
-import { CookieStatusBanners } from "@/components/leads/yt-cookie-banner";
 import { getSettings } from "@/lib/config/settings";
 
 export const dynamic = "force-dynamic";
@@ -39,12 +35,6 @@ type Search = {
   min_engagement?: string;
   min_reels_30d?: string;
   min_score?: string;
-  funnel_platform?: string;
-  has_funnel?: string;
-  has_email?: string;
-  has_linkedin?: string;
-  has_youtube?: string;
-  has_outreach?: string;
   lead_source?: string;
   sort?: string;
   page?: string;
@@ -75,33 +65,16 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       if (sp.min_engagement) q = q.gte("engagement_rate", Number(sp.min_engagement) / 100);
       if (sp.min_reels_30d && !safe) q = q.gte("reels_last_30_days", Number(sp.min_reels_30d));
       if (sp.min_score) q = q.gte("overall_score", Number(sp.min_score));
-      if (sp.funnel_platform) q = q.eq("funnel_platform", sp.funnel_platform);
-      if (sp.has_funnel === "yes") q = q.not("funnel_program_name", "is", null);
-      if (sp.has_funnel === "no") q = q.is("funnel_program_name", null);
-      if (sp.has_email === "yes") q = q.not("email", "is", null);
-      if (sp.has_email === "no") q = q.is("email", null);
-      if (sp.has_linkedin === "yes") q = q.not("linkedin_url", "is", null);
-      if (sp.has_linkedin === "no") q = q.is("linkedin_url", null);
-      if (sp.has_youtube === "yes") q = q.not("youtube_url", "is", null);
-      if (sp.has_youtube === "no") q = q.is("youtube_url", null);
-      if (sp.has_outreach === "yes") q = q.gt("outreach_count", 0);
-      if (sp.has_outreach === "no") q = q.eq("outreach_count", 0);
       if (sp.lead_source === "crawl") q = q.is("lead_source", null);
       else if (sp.lead_source) q = q.eq("lead_source", sp.lead_source);
     }
 
-    if (sortStr === "uncontacted_score") {
-      // Not contacted first (outreach_count = 0 / null), then score desc within each group
-      q = q.order("outreach_count", { ascending: true, nullsFirst: true });
-      q = q.order("overall_score", { ascending: false, nullsFirst: false });
-    } else {
-      const [col, dir] = sortStr.split(".");
-      q = q.order(col, { ascending: dir === "asc", nullsFirst: false });
-    }
+    const [col, dir] = sortStr.split(".");
+    q = q.order(col, { ascending: dir === "asc", nullsFirst: false });
     return q.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   };
 
-  const sort = sp.sort ?? "uncontacted_score";
+  const sort = sp.sort ?? "overall_score.desc";
 
   // Fire all independent queries in parallel — previously sequential, causing ~400-800ms of
   // unnecessary wait per page load.
@@ -110,31 +83,16 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     primary,
     { data: seeds },
     { data: seedCounts },
-    { count: missingProgramNames },
     { count: scoreableCount },
     { count: pendingCount },
     { count: rejectedWithScore },
     { count: rejectedCount },
     { count: backfillCount },
-    { count: qualifiedFunnelCount },
-    { count: bouncedCount },
-    { count: noEmailCount },
-    { count: tgTotal },
-    { count: tgQualified },
-    { count: tgReview },
-    { count: tgRejected },
-    { count: tgPending },
-    { count: tgNoEmail },
-    { count: tgReadyToSend },
-    { count: tgSent },
   ] = await Promise.all([
     getSettings().catch(() => null),
     buildQuery(sort, false),
     sb.from("seeds").select("id, username"),
     sb.from("leads").select("source_seed_id").not("source_seed_id", "is", null),
-    sb.from("leads").select("id", { count: "exact", head: true })
-      .eq("status", "qualified").not("email", "is", null)
-      .is("funnel_program_name", null).not("external_link", "is", null),
     sb.from("leads").select("id", { count: "exact", head: true })
       .not("bio", "is", null).in("status", ["qualified", "review"]),
     sb.from("leads").select("id", { count: "exact", head: true })
@@ -146,30 +104,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     sb.from("leads").select("id", { count: "exact", head: true })
       .is("followers", null).or("backfill_error.is.null,backfill_error.eq.apify_exhausted")
       .neq("status", "rejected"),
-    sb.from("leads").select("id", { count: "exact", head: true })
-      .eq("status", "qualified").not("external_link", "is", null),
-    sb.from("leads").select("id", { count: "exact", head: true })
-      .eq("email_status", "bounced"),
-    sb.from("leads").select("id", { count: "exact", head: true })
-      .eq("status", "qualified").is("email", null),
-    sb.from("leads").select("id", { count: "exact", head: true })
-      .eq("lead_source", "telegram"),
-    sb.from("leads").select("id", { count: "exact", head: true })
-      .eq("lead_source", "telegram").eq("status", "qualified"),
-    sb.from("leads").select("id", { count: "exact", head: true })
-      .eq("lead_source", "telegram").eq("status", "review"),
-    sb.from("leads").select("id", { count: "exact", head: true })
-      .eq("lead_source", "telegram").eq("status", "rejected"),
-    sb.from("leads").select("id", { count: "exact", head: true })
-      .eq("lead_source", "telegram").eq("status", "pending"),
-    sb.from("leads").select("id", { count: "exact", head: true })
-      .eq("lead_source", "telegram").in("status", ["qualified", "review"])
-      .is("email", null).is("email_v2", null),
-    sb.from("leads").select("id", { count: "exact", head: true })
-      .eq("lead_source", "telegram").in("status", ["qualified", "review"])
-      .or("email.ilike.*@*,email_v2.ilike.*@*").eq("outreach_count", 0),
-    sb.from("leads").select("id", { count: "exact", head: true })
-      .eq("lead_source", "telegram").gt("outreach_count", 0),
   ]);
 
   const seedMap = new Map((seeds ?? []).map((s) => [s.id, s.username]));
@@ -192,12 +126,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   const exportHref = `/api/leads/export?${new URLSearchParams(sp as Record<string, string>).toString()}`;
 
-  const ytConfigured = !!(
-    settings &&
-    ((settings.yt_google_cookies ?? []).length > 0 ||
-      (settings.yt_accounts ?? []).length > 0 ||
-      settings.yt_google_cookie)
-  );
   const igConfigured = !!(
     settings &&
     ((settings.instagram_accounts ?? []).length > 0 ||
@@ -205,14 +133,25 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       settings.instagram_session_cookie)
   );
 
+  const igStatus: "ok" | "unknown" | "missing" | "dead" = !igConfigured ? "missing"
+    : settings?.ig_cookie_status === "dead" ? "dead"
+    : settings?.ig_cookie_status === "live" ? "ok"
+    : "unknown";
+
   return (
     <div className="p-6 space-y-6">
-      <CookieStatusBanners
-        ytConfigured={ytConfigured}
-        ytStatus={settings?.yt_cookie_status ?? null}
-        igConfigured={igConfigured}
-        igStatus={settings?.ig_cookie_status ?? null}
-      />
+      {igStatus === "missing" && (
+        <div className="flex items-center gap-3 rounded-lg border px-4 py-3 text-sm border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          <Instagram className="h-4 w-4 shrink-0" />
+          <span>No Instagram cookie configured — profile scraping is disabled. <a href="/settings#instagram" className="font-medium underline underline-offset-2">Fix in Settings</a></span>
+        </div>
+      )}
+      {igStatus === "dead" && (
+        <div className="flex items-center gap-3 rounded-lg border px-4 py-3 text-sm border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>Instagram cookie is expired — scraping will fail. <a href="/settings#instagram" className="font-medium underline underline-offset-2">Fix in Settings</a></span>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
@@ -226,54 +165,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             pendingCount={pendingCount ?? 0}
             scoreableCount={scoreableCount ?? 0}
             rejectedWithScore={rejectedWithScore ?? 0}
-            missingProgramNames={missingProgramNames ?? 0}
             backfillCount={backfillCount ?? 0}
-            qualifiedFunnelCount={qualifiedFunnelCount ?? 0}
-            bouncedCount={bouncedCount ?? 0}
-            noEmailCount={noEmailCount ?? 0}
             rejectedCount={rejectedCount ?? 0}
             exportHref={exportHref}
-            systemStatus={{
-              igStatus: !igConfigured ? "missing"
-                : settings?.ig_cookie_status === "dead" ? "dead"
-                : settings?.ig_cookie_status === "live" ? "ok"
-                : "unknown",
-              ytStatus: !ytConfigured ? "missing"
-                : (settings?.yt_cookie_status === "dead" || Object.values(settings?.yt_cookie_statuses ?? {}).some((s) => s === "dead") || (settings?.yt_accounts ?? []).some((a) => a.last_error)) ? "dead"
-                : (settings?.yt_cookie_status === "live" || Object.values(settings?.yt_cookie_statuses ?? {}).every((s) => s === "live")) ? "ok"
-                : "unknown",
-              emailKeysOk: !!(settings && (
-                settings.hunter_api_key ||
-                settings.apollo_api_key ||
-                (settings.findymail_api_keys ?? []).length > 0 ||
-                (settings.prospeo_api_keys ?? []).length > 0
-              )),
-              gmailOk: !!(settings && (
-                settings.gmail_oauth_refresh_token ||
-                (settings.gmail_user && settings.gmail_app_password)
-              )),
-            }}
+            systemStatus={{ igStatus }}
           />
         </div>
       </div>
-
-      {(tgTotal ?? 0) > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Telegram pipeline</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2 text-sm">
-            <TgStat href="/leads?lead_source=telegram" label="Total" value={tgTotal ?? 0} />
-            <TgStat href="/leads?lead_source=telegram&status=qualified" label="Qualified" value={tgQualified ?? 0} variant="default" />
-            <TgStat href="/leads?lead_source=telegram&status=review" label="Review" value={tgReview ?? 0} variant="secondary" />
-            <TgStat href="/leads?lead_source=telegram&status=rejected" label="Rejected" value={tgRejected ?? 0} variant="destructive" />
-            <TgStat href="/leads?lead_source=telegram&status=pending" label="Not analyzed" value={tgPending ?? 0} variant="outline" />
-            <TgStat href="/leads?lead_source=telegram&has_email=no" label="Missing email" value={tgNoEmail ?? 0} variant="outline" />
-            <TgStat href="/leads?lead_source=telegram&has_outreach=no" label="Ready to send" value={tgReadyToSend ?? 0} variant="default" />
-            <TgStat href="/leads?lead_source=telegram&has_outreach=yes" label="Sent" value={tgSent ?? 0} variant="outline" />
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
@@ -310,13 +208,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                 <TableHead data-col="level">
                   <HeaderWithTip label="Level" tip="How far this account is from a source account. Level 0 is a source account, level 1 is someone they follow, and so on." />
                 </TableHead>
-                <TableHead data-col="offer">
-                  <HeaderWithTip label="Offer" tip="The product, program, or sales page found at the link in their bio." />
-                </TableHead>
-                <TableHead data-col="youtube">YouTube</TableHead>
-                <TableHead data-col="linkedin">LinkedIn</TableHead>
-                <TableHead data-col="email">Email</TableHead>
-                <TableHead data-col="outreach">Outreach</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -328,11 +219,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                   payload={{
                     leadId: l.id,
                     full_name: l.full_name ?? null,
-                    email: l.email ?? null,
                     niche: l.niche ?? null,
                     bio: l.bio ?? null,
                     external_link: l.external_link ?? null,
-                    funnel_program_name: l.funnel_program_name ?? null,
                     status: l.status ?? null,
                   }}
                 >
@@ -393,65 +282,11 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     ) : "—"}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground" data-col="level">{l.crawl_depth}</TableCell>
-                  <TableCell className="text-xs" data-col="offer">
-                    <ProgramNameCell
-                      leadId={l.id}
-                      initial={l.funnel_program_name ?? null}
-                      platform={l.funnel_platform ?? null}
-                    />
-                  </TableCell>
-                  <TableCell data-col="youtube">
-                    {l.youtube_url ? (
-                      <a
-                        href={l.youtube_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-muted-foreground hover:text-foreground inline-flex"
-                        title={l.youtube_url}
-                        aria-label={`Open @${l.username}'s YouTube channel`}
-                      >
-                        <Youtube className="h-4 w-4" />
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell data-col="linkedin">
-                    {l.linkedin_url ? (
-                      <a
-                        href={l.linkedin_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-muted-foreground hover:text-foreground inline-flex"
-                        title={l.linkedin_url}
-                        aria-label={`Open @${l.username}'s LinkedIn profile`}
-                      >
-                        <Linkedin className="h-4 w-4" />
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell data-col="email">
-                    <EnrichButton
-                      leadId={l.id}
-                      initialEmail={l.email ?? null}
-                      initialStatus={l.email_status ?? null}
-                      initialError={l.enrichment_error ?? null}
-                    />
-                  </TableCell>
-                  <TableCell data-col="outreach">
-                    <SendEmailButton
-                      leadId={l.id}
-                      hasEmail={!!l.email}
-                      outreachCount={l.outreach_count ?? 0}
-                    />
-                  </TableCell>
                 </DoubleClickRow>
               ))}
               {(leads ?? []).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={17} className="text-center text-sm text-muted-foreground py-8">
+                  <TableCell colSpan={12} className="text-center text-sm text-muted-foreground py-8">
                     No leads match these filters.
                   </TableCell>
                 </TableRow>
@@ -467,22 +302,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       <Pagination page={page} totalPages={totalPages} sp={sp} />
       <LeadEditDialog />
     </div>
-  );
-}
-
-function TgStat({
-  href, label, value, variant = "outline",
-}: {
-  href: string;
-  label: string;
-  value: number;
-  variant?: "default" | "secondary" | "destructive" | "outline";
-}) {
-  return (
-    <Link href={href} className="inline-flex items-center gap-1.5 hover:opacity-80">
-      <Badge variant={variant}>{formatNumber(value)}</Badge>
-      <span className="text-muted-foreground text-xs">{label}</span>
-    </Link>
   );
 }
 

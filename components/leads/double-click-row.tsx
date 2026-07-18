@@ -3,11 +3,9 @@
 export type LeadEditPayload = {
   leadId: string;
   full_name: string | null;
-  email: string | null;
   niche: string | null;
   bio: string | null;
   external_link: string | null;
-  funnel_program_name: string | null;
   status: string | null;
 };
 

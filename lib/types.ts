@@ -54,7 +54,6 @@ export type AppSettings = {
   claude_api_key: string | null;
   claude_model: string;
   scrapingbee_api_key: string | null;
-  serper_api_key: string | null;
   default_seeds: string[];
   max_profiles_per_account: number;
   crawl_score_threshold: number;
@@ -75,43 +74,15 @@ export type AppSettings = {
   gemini_model: string;
   groq_api_key: string | null;
   groq_model: string;
-  enrich_funnels_auto: boolean;
-  enrich_emails_auto: boolean;
-  outreach_subject_template: string;
-  outreach_body_template: string;
-  outreach_reply_to: string | null;
-  gmail_user: string | null;
-  gmail_app_password: string | null;
-  gmail_from_name: string | null;
-  gmail_oauth_client_id: string | null;
-  gmail_oauth_client_secret: string | null;
-  gmail_oauth_refresh_token: string | null;
-  gmail_oauth_email: string | null;
   capsolver_api_key: string | null;
-  hunter_api_key: string | null;
-  apollo_api_key: string | null;
-  findymail_api_keys: string[];
-  prospeo_api_keys: string[];
   scrapingbee_api_keys: string[];
-  zerobounce_api_key: string | null;
-  zerobounce_api_keys: string[];
-  neverbounce_api_key: string | null;
   instagram_proxy_url: string | null;
   instagram_groups: string[];           // ordered list of group names; groups can exist with no accounts
   active_account_group: string | null; // which group is currently active for scraping; null = use all
   instagram_proxy_pool: string[];      // shared IP pool — assigned by slot position to accounts in active group
-  yt_google_cookie: string | null;
-  yt_google_cookies: string[];
-  yt_cookie_status: "live" | "dead" | null;
-  yt_cookie_statuses: Record<string, "live" | "dead" | "unknown">;
   ig_cookie_status: "live" | "dead" | null;
-  // Credentials for auto-refreshing the YouTube cookie (see lib/youtube/refresh-cookie.ts)
-  yt_google_email: string | null;
-  yt_google_password: string | null;
-  yt_google_totp_secret: string | null;
   // Multi-account managed cookies (credentials stored for auto-refresh)
   instagram_accounts: ManagedAccount[];
-  yt_accounts: ManagedAccount[];
   backfill_cancel_requested: boolean;
   backfill_started_at: string | null;
   updated_at: string;
@@ -166,85 +137,10 @@ export type Lead = {
   source_seed_id: string | null;
   parent_username: string | null;
   lead_source: string | null;
-  email: string | null;
-  email_status: string | null;
-  email_provider: string | null;
-  email_verifier: string | null;
-  enriched_at: string | null;
-  enrichment_error: string | null;
-  email_v2: string | null;
-  email_v2_status: string | null;
-  email_v2_provider: string | null;
-  email_v2_enriched_at: string | null;
-  email_v2_error: string | null;
-  funnel_url: string | null;
-  funnel_platform: string | null;
-  funnel_program_name: string | null;
-  funnel_offer_summary: string | null;
-  funnel_price: string | null;
-  funnel_extracted_at: string | null;
-  funnel_extraction_error: string | null;
-  linkedin_url: string | null;
-  linkedin_lookup_error: string | null;
-  youtube_url: string | null;
-  youtube_lookup_error: string | null;
-  outreach_count: number;
-  last_outreach_at: string | null;
-  last_outreach_error: string | null;
   backfill_error: string | null;
   created_at: string;
   updated_at: string;
 };
-
-export type OutreachMessage = {
-  id: string;
-  lead_id: string;
-  to_email: string;
-  subject: string;
-  body_text: string | null;
-  body_html: string | null;
-  status: "sent" | "failed";
-  message_id: string | null;
-  error: string | null;
-  sent_by: string | null;
-  sent_at: string;
-};
-
-export const FOLLOWUP_BODY =
-  "Hey there, did you get the chance to check it out? Please let me know what you think";
-
-export type FollowupPreview = {
-  leadId: string;
-  username: string;
-  email: string;
-  emailSource: string | null;
-  score: number | null;
-  status: string;
-  niche: string | null;
-  subject: string;
-  body: string;
-  inReplyTo: string | null;
-  threadId: string | null;
-};
-
-export type FunnelPlatform =
-  | "linktree"
-  | "stan"
-  | "beacons"
-  | "clickfunnels"
-  | "kajabi"
-  | "systeme"
-  | "gohighlevel"
-  | "shopify"
-  | "wordpress"
-  | "wix"
-  | "squarespace"
-  | "thrivecart"
-  | "podia"
-  | "teachable"
-  | "thinkific"
-  | "custom"
-  | "unknown";
 
 // Raw scraped profile shape (post-normalization, pre-scoring)
 export type ScrapedProfile = {
@@ -292,27 +188,4 @@ export type CrawlJob = {
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
-};
-
-export type VideoJobStatus =
-  | "pending"
-  | "generating_script"
-  | "generating_audio"
-  | "recording_profile"
-  | "rendering_video"
-  | "uploading_to_loom"
-  | "done"
-  | "failed";
-
-export type VideoJob = {
-  id: string;
-  lead_id: string;
-  status: VideoJobStatus;
-  hook_script: string | null;
-  loom_url: string | null;
-  loom_embed_code: string | null;
-  error_message: string | null;
-  attempt_count: number;
-  created_at: string;
-  updated_at: string;
 };

@@ -210,8 +210,6 @@ export function GroupManager({
                         <AccountCard
                           account={account}
                           platform="instagram"
-                          refreshing={false}
-                          onRefresh={() => router.refresh()}
                           onRemove={() => handleRemoveAccount(account.id)}
                         />
                       ) : (

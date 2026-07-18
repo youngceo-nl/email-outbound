@@ -42,12 +42,9 @@ const FIELDS: { key: FieldKey; label: string; hint: string; required?: true }[] 
   { key: "username",    label: "Instagram username", hint: "Handle without @, e.g. johndoe", required: true },
   { key: "profile_url", label: "Instagram profile URL", hint: "Alternative to username — we'll extract it" },
   { key: "full_name",   label: "Full name",          hint: "Display name on the profile" },
-  { key: "email",       label: "Email",              hint: "Contact email address" },
   { key: "followers",   label: "Followers",          hint: "Follower count (number)" },
   { key: "bio",         label: "Bio",                hint: "Profile biography text" },
   { key: "niche",       label: "Niche / category",   hint: "e.g. fitness coach, course creator" },
-  { key: "youtube_url", label: "YouTube URL",        hint: "Link to their YouTube channel" },
-  { key: "linkedin_url",label: "LinkedIn URL",       hint: "Link to their LinkedIn profile" },
 ];
 
 // Common aliases for auto-detection
@@ -55,12 +52,9 @@ const ALIASES: Record<FieldKey, string[]> = {
   username:    ["username", "handle", "instagram", "ig", "ig_username", "instagram_handle", "user"],
   profile_url: ["url", "link", "profile", "profile url", "profile_url", "instagram url", "instagram_url"],
   full_name:   ["name", "full name", "full_name", "fullname", "display name"],
-  email:       ["email", "email address", "mail", "e-mail", "email_address"],
   followers:   ["followers", "follower count", "followers_count", "follower_count"],
   bio:         ["bio", "biography", "description", "about"],
   niche:       ["niche", "category", "type", "industry"],
-  youtube_url: ["youtube", "youtube url", "youtube_url", "yt", "yt_url"],
-  linkedin_url:["linkedin", "linkedin url", "linkedin_url", "li", "li_url"],
 };
 
 function autoDetect(headers: string[]): Record<FieldKey, string> {

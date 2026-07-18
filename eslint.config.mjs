@@ -18,6 +18,7 @@ const eslintConfig = [
       // hand, not part of the app build).
       "scripts/**",
       "supabase/**",
+      "archive/**",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),

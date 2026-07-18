@@ -30,24 +30,6 @@ type Events = {
       depth: number;
     };
   };
-  "lead/funnel.enrich.requested": {
-    data: {
-      lead_id: string;
-      external_link: string;
-      crawl_job_id?: string | null;
-    };
-  };
-  "lead/email.enrich.requested": {
-    data: {
-      lead_id: string;
-      crawl_job_id?: string | null;
-    };
-  };
-  "lead/email-v2.enrich.requested": {
-    data: {
-      lead_id: string;
-    };
-  };
   "leads/backfill.metadata.requested": {
     data: {
       usernames: string[];
@@ -60,25 +42,6 @@ type Events = {
       crawl_job_id?: string | null;
       /** Set to true to bypass the "already scored" skip guard and force a re-classification */
       force?: boolean;
-    };
-  };
-  "outreach/batch.requested": {
-    data: {
-      leads: { id: string; subject: string; body: string }[];
-      interval_minutes?: number;
-    };
-  };
-  "outreach/followup-batch.requested": {
-    data: {
-      leads: { id: string; to: string; subject: string; body: string; inReplyTo?: string; threadId?: string }[];
-      interval_minutes?: number;
-    };
-  };
-  "skool/community.discovered": {
-    data: {
-      crawl_job_id: string;
-      slug: string;
-      name: string;
     };
   };
 };

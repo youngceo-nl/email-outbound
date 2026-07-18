@@ -114,7 +114,7 @@ export const processProfile = inngest.createFunction(
         ? "rejected"
         : "review";
 
-    const persisted = await step.run("persist", () =>
+    await step.run("persist", () =>
       persistLead({
         profile, metrics, score,
         status,
@@ -130,21 +130,6 @@ export const processProfile = inngest.createFunction(
     });
     if (status === "qualified") await bumpJobCounters({ crawl_job_id, qualified: 1 });
     if (status === "rejected") await bumpJobCounters({ crawl_job_id, rejected: 1 });
-
-    if (status === "qualified" && persisted?.id) {
-      if (settings.enrich_funnels_auto && profile.external_link) {
-        await step.sendEvent("enrich-funnel", {
-          name: "lead/funnel.enrich.requested",
-          data: { lead_id: persisted.id, external_link: profile.external_link, crawl_job_id },
-        });
-      }
-      if (settings.enrich_emails_auto && profile.full_name) {
-        await step.sendEvent("enrich-email", {
-          name: "lead/email.enrich.requested",
-          data: { lead_id: persisted.id, crawl_job_id },
-        });
-      }
-    }
 
     // 7. Recurse if quality is high enough AND we're still at the seed level (depth 0 → 1 only)
     const shouldRecurse =

@@ -8,21 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
-import { addManagedAccount, refreshManagedAccount, refreshManagedAccountMobile, submitCheckpointCode, setManagedAccountEmail, testManagedAccountCookie, setManagedAccountCookie, setManagedAccountProxy, setManagedAccountPassword, setManagedAccountGroup, setActiveAccountGroup, setProxyPool, setManagedAccountPaused, setGroupPaused } from "@/app/actions/settings";
+import { addManagedAccount, refreshManagedAccountMobile, submitCheckpointCode, setManagedAccountEmail, testManagedAccountCookie, setManagedAccountCookie, setManagedAccountProxy, setManagedAccountPassword, setManagedAccountGroup, setActiveAccountGroup, setProxyPool, setManagedAccountPaused, setGroupPaused } from "@/app/actions/settings";
 import type { ManagedAccountDisplay } from "@/lib/types";
-
-// Cookie-Editor exports JSON: [{name, value, ...}, ...] → "name=value; name=value"
-function normalizeCookieInput(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed.startsWith("[")) return trimmed;
-  try {
-    const parsed = JSON.parse(trimmed) as { name: string; value: string }[];
-    if (!Array.isArray(parsed)) return trimmed;
-    return parsed.map((c) => `${c.name}=${c.value}`).join("; ");
-  } catch {
-    return trimmed;
-  }
-}
 
 function relativeTime(iso: string | null): string {
   if (!iso) return "never";
@@ -65,20 +52,15 @@ function CopyButton({ value }: { value: string }) {
 export function AccountCard({
   account,
   platform,
-  onRefresh,
   onRemove,
-  refreshing,
 }: {
   account: ManagedAccountDisplay;
-  platform: "instagram" | "youtube";
-  onRefresh: () => void;
+  platform: "instagram";
   onRemove: () => void;
-  refreshing: boolean;
 }) {
   const isCheckpoint = !!account.checkpoint_state || !!account.last_error?.includes("verification code");
   const { color, text, Icon } = statusLabel(account);
   const [expanded, setExpanded] = useState(!account.cookie || !!account.last_error);
-  const [ytCookieDraft, setYtCookieDraft] = useState(account.cookie ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
@@ -252,24 +234,6 @@ export function AccountCard({
                   {mobileLoggingIn ? "Logging in…" : "Mobile login"}
                 </Button>
               )}
-              {platform === "youtube" && account.cookie && (
-                <Button
-                  type="button" size="sm" variant="ghost" disabled={testing}
-                  onClick={handleTest} className="h-7 px-2 text-xs"
-                >
-                  {testing ? "Checking…" : "Test"}
-                </Button>
-              )}
-              {platform === "youtube" && account.password && (
-                <Button
-                  type="button" size="sm" variant="ghost" disabled={refreshing}
-                  onClick={onRefresh} className="h-7 px-2 text-xs gap-1"
-                  title="Re-login and mint a fresh cookie"
-                >
-                  <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
-                  {refreshing ? "Refreshing…" : "Refresh cookie"}
-                </Button>
-              )}
               <Button
                 type="button" size="icon" variant="ghost"
                 onClick={() => setConfirmDelete(true)} aria-label="Remove account" className="h-7 w-7"
@@ -300,7 +264,7 @@ export function AccountCard({
             onClick={() => setExpanded((v) => !v)}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            <span>{platform === "instagram" ? "Session cookie" : "YouTube cookie"}</span>
+            <span>Session cookie</span>
             <span className="text-muted-foreground/60">{expanded ? "▲" : "▼"}</span>
           </button>
           {account.cookie && expanded && <CopyButton value={account.cookie} />}
@@ -308,39 +272,22 @@ export function AccountCard({
 
         {expanded && (
           <div className="mt-2 space-y-2">
-            {platform === "instagram" ? (
-              <>
-                {([
-                  { label: "Session ID", value: sessionId, set: setSessionId, placeholder: "395860815%3ADkb0mm…" },
-                  { label: "CSRF Token", value: csrfToken, set: setCsrfToken, placeholder: "RID2FZQRbCj…" },
-                  { label: "ds_user_id", value: dsUserId, set: setDsUserId, placeholder: "395860815" },
-                  { label: "RUR", value: rur, set: setRur, placeholder: "CLN\\054…" },
-                ] as const).map(({ label, value, set, placeholder }) => (
-                  <div key={label} className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-20 shrink-0">{label}</span>
-                    <Input
-                      value={value}
-                      onChange={(e) => { (set as (v: string) => void)(e.target.value); setCookieError(null); }}
-                      placeholder={placeholder}
-                      className="h-7 text-xs font-mono flex-1"
-                    />
-                  </div>
-                ))}
-              </>
-            ) : (
-              <>
-                <p className="text-[11px] text-muted-foreground">
-                  Use Cookie-Editor on YouTube → Export → Export as JSON and paste below, or paste the raw <code>Cookie</code> request header string from DevTools.
-                </p>
-                <textarea
-                  value={ytCookieDraft}
-                  onChange={(e) => { setYtCookieDraft(e.target.value); setCookieError(null); }}
-                  placeholder="Paste Cookie-Editor JSON export or raw Cookie header (SID=...; HSID=...; ...)"
-                  rows={4}
-                  className="w-full font-mono text-xs text-foreground/80 bg-background border rounded-md px-2 py-1.5 resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+            {([
+              { label: "Session ID", value: sessionId, set: setSessionId, placeholder: "395860815%3ADkb0mm…" },
+              { label: "CSRF Token", value: csrfToken, set: setCsrfToken, placeholder: "RID2FZQRbCj…" },
+              { label: "ds_user_id", value: dsUserId, set: setDsUserId, placeholder: "395860815" },
+              { label: "RUR", value: rur, set: setRur, placeholder: "CLN\\054…" },
+            ] as const).map(({ label, value, set, placeholder }) => (
+              <div key={label} className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-20 shrink-0">{label}</span>
+                <Input
+                  value={value}
+                  onChange={(e) => { (set as (v: string) => void)(e.target.value); setCookieError(null); }}
+                  placeholder={placeholder}
+                  className="h-7 text-xs font-mono flex-1"
                 />
-              </>
-            )}
+              </div>
+            ))}
             {cookieError && <p className="text-xs text-destructive">{cookieError}</p>}
             <div className="flex items-center gap-2">
               <Button
@@ -348,15 +295,8 @@ export function AccountCard({
                 size="sm"
                 variant="ghost"
                 className="h-7 px-2 text-xs"
-                disabled={savingCookie || (platform === "youtube" ? ytCookieDraft === (account.cookie ?? "") : !cookieChanged)}
-                onClick={platform === "youtube" ? async () => {
-                  setSavingCookie(true);
-                  setCookieError(null);
-                  const result = await setManagedAccountCookie("youtube", account.id, normalizeCookieInput(ytCookieDraft));
-                  setSavingCookie(false);
-                  if (result.error) setCookieError(result.error);
-                  else { setExpanded(false); router.refresh(); }
-                } : handleSaveCookie}
+                disabled={savingCookie || !cookieChanged}
+                onClick={handleSaveCookie}
               >
                 {savingCookie ? "Saving…" : "Save cookie"}
               </Button>
@@ -365,8 +305,7 @@ export function AccountCard({
         )}
 
 {/* Inline email field — always visible so user can set it without re-adding the account */}
-        {platform === "instagram" && (
-          <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-2 mt-2">
             <Input
               value={emailDraft}
               onChange={(e) => setEmailDraft(e.target.value)}
@@ -385,12 +324,10 @@ export function AccountCard({
             >
               {savingEmail ? "Saving…" : "Save"}
             </Button>
-          </div>
-        )}
+        </div>
 
         {/* Per-account proxy — routes all requests for this account through a dedicated residential IP */}
-        {platform === "instagram" && (
-          <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-2 mt-2">
             <Input
               value={proxyDraft}
               onChange={(e) => setProxyDraft(e.target.value)}
@@ -412,12 +349,10 @@ export function AccountCard({
             >
               {savingProxy ? "Saving…" : "Save"}
             </Button>
-          </div>
-        )}
+        </div>
 
         {/* Rotation group — only the active group is used for scraping */}
-        {platform === "instagram" && (
-          <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-2 mt-2">
             <span className="text-xs text-muted-foreground w-20 shrink-0">Group</span>
             <Input
               value={groupDraft}
@@ -441,12 +376,10 @@ export function AccountCard({
             >
               {savingGroup ? "Saving…" : "Save"}
             </Button>
-          </div>
-        )}
+        </div>
 
         {/* Password — stored server-side for auto-refresh via Playwright */}
-        {platform === "instagram" && (
-          <div className="mt-3 space-y-1.5">
+        <div className="mt-3 space-y-1.5">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Auto-refresh credentials</p>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground w-20 shrink-0">Password</span>
@@ -489,8 +422,7 @@ export function AccountCard({
                 </span>
               )}
             </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Checkpoint verification row */}
@@ -574,7 +506,7 @@ export function ManagedAccountManager({
   proxyPool: initialProxyPool = [],
   onPendingDelete,
 }: {
-  platform: "instagram" | "youtube";
+  platform: "instagram";
   accounts: ManagedAccountDisplay[];
   activeGroup?: string | null;
   proxyPool?: string[];
@@ -582,7 +514,6 @@ export function ManagedAccountManager({
 }) {
   const isIg = platform === "instagram";
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set());
-  const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
   const [activeGroup, setActiveGroupState] = useState<string | null>(initialActiveGroup);
   const [switchingGroup, startSwitchGroup] = useTransition();
   const [pausingGroup, setPausingGroup] = useState<string | null>(null);
@@ -617,24 +548,6 @@ export function ManagedAccountManager({
   const [addResult, setAddResult] = useState<{ ok?: true; error?: string } | null>(null);
 
   const router = useRouter();
-
-  const setRefreshing = (id: string, val: boolean) =>
-    setRefreshingIds((prev) => { const s = new Set(prev); val ? s.add(id) : s.delete(id); return s; });
-
-  const handleRefresh = async (id: string) => {
-    setRefreshing(id, true);
-    try {
-      const result = await refreshManagedAccount(platform, id);
-      if (result.checkpoint) {
-        // checkpoint_state is now saved in DB — hard reload guarantees the verify box appears
-        window.location.reload();
-        return;
-      }
-      router.refresh();
-    } finally {
-      setRefreshing(id, false);
-    }
-  };
 
   // Queue the deletion locally — parent commits it on form Save, cancels on Discard.
   const handleRemove = (id: string) => {
@@ -844,8 +757,6 @@ export function ManagedAccountManager({
           <AccountCard
             account={account}
             platform={platform}
-            refreshing={refreshingIds.has(account.id)}
-            onRefresh={() => void handleRefresh(account.id)}
             onRemove={() => handleRemove(account.id)}
           />
           {testAllResults[account.id] && (

@@ -4,8 +4,7 @@
   "private": true,
   "scripts": {
     "predev": "node --env-file-if-exists=.env.local scripts/reset-stuck-jobs.mjs",
-    "dev": "concurrently -k -n next,inngest,telegram -c cyan,magenta,yellow \"npm:dev:web\" \"npm:dev:inngest\" \"npm:dev:telegram\"",
-    "dev:telegram": "node scripts/telegram-poll.mjs",
+    "dev": "concurrently -k -n next,inngest -c cyan,magenta \"npm:dev:web\" \"npm:dev:inngest\"",
     "dev:web": "next dev --turbopack -p ${DEV_PORT:-3417}",
     "dev:inngest": "inngest dev -u http://localhost:${DEV_PORT:-3417}/api/inngest",
     "build": "next build",
@@ -14,9 +13,7 @@
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && eslint . && rm -rf .next && next build",
     "inngest:dev": "inngest dev -u http://localhost:${DEV_PORT:-3417}/api/inngest",
-    "db:push": "supabase db push",
-    "worker": "npm --prefix worker run dev",
-    "worker:loom-login": "npm --prefix worker run upload-to-loom:login"
+    "db:push": "supabase db push"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

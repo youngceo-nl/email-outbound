@@ -6,7 +6,7 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { actionLabel, actionIsPositive } from "@/lib/labels";
-import { getPendingCount, getRescoreProgress, getBackfillProgress, getEnrichNoEmailProgress, getEnrichBouncedProgress, cancelBackfill } from "@/app/actions/leads";
+import { getPendingCount, getRescoreProgress, getBackfillProgress, cancelBackfill } from "@/app/actions/leads";
 import { cancelCrawl, getCrawlJobProgress, getActiveJobs, type ActiveJob } from "@/app/actions/crawl-jobs";
 
 type CrawlLog = {
@@ -123,11 +123,6 @@ export function ActivityDrawerButton() {
       } else if (bulkJob.type === "backfill") {
         const remaining = await getBackfillProgress();
         done = bulkJob.total - remaining;
-      } else if (bulkJob.type === "reenrich_no_email") {
-        const remaining = await getEnrichNoEmailProgress();
-        done = bulkJob.total - remaining;
-      } else if (bulkJob.type === "reenrich_bounced") {
-        done = await getEnrichBouncedProgress(new Date(bulkJob.startedAt).toISOString());
       } else if (bulkJob.type === "crawl" && bulkJob.crawl_job_id) {
         const p = await getCrawlJobProgress(bulkJob.crawl_job_id);
         done = p.scraped;
