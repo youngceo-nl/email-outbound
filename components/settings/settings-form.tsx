@@ -159,6 +159,67 @@ export function SettingsForm({
             </div>
           </CardContent>
         </Card>
+
+        <Card id="gmail">
+          <CardHeader>
+            <CardTitle>Gmail (outreach sending + inbox)</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Connects the account outreach sends from and reads replies from. Create a one-time
+              OAuth app in Google Cloud, paste its Client ID/Secret below, save, then connect.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Field label="Client ID" name="gmail_oauth_client_id" defaultValue={initial.gmail_oauth_client_id ?? ""} />
+            <Field label="Client secret" name="gmail_oauth_client_secret" defaultValue={initial.gmail_oauth_client_secret ?? ""} type="password" />
+            <div className="flex items-center gap-3 pt-1">
+              {initial.gmail_oauth_client_id ? (
+                <Button asChild size="sm" variant="outline">
+                  <a href="/api/google/oauth/start">Connect Gmail</a>
+                </Button>
+              ) : (
+                // A plain <a> ignores the `disabled` attribute/CSS pseudo-class entirely, so an
+                // asChild anchor can't actually be disabled — render a real disabled button instead.
+                <Button size="sm" variant="outline" disabled title="Save a Client ID first">
+                  Connect Gmail
+                </Button>
+              )}
+              <span className="text-sm text-muted-foreground">
+                {initial.gmail_oauth_email ? `Connected as ${initial.gmail_oauth_email}` : "Not connected"}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card id="outreach">
+          <CardHeader>
+            <CardTitle>Outreach copy</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Each Outreach Ready tab sends its own subject/body. Tokens: {"{{first_name}}"}, {"{{name}}"}, {"{{full_name}}"}, {"{{username}}"}, {"{{niche}}"}, {"{{business_model}}"}, {"{{program_name}}"}, {"{{offer_summary}}"}, {"{{external_link}}"}, {"{{sender_name}}"} — {"{{key|fallback}}"} for a fallback value.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <OutreachCategoryFields
+              label="Partnerships (agencies)"
+              prefix="partnerships"
+              subject={initial.outreach_subject_partnerships}
+              body={initial.outreach_body_partnerships}
+            />
+            <Separator />
+            <OutreachCategoryFields
+              label="Info (coaches / course sellers)"
+              prefix="info"
+              subject={initial.outreach_subject_info}
+              body={initial.outreach_body_info}
+            />
+            <Separator />
+            <OutreachCategoryFields
+              label="Other (everything else)"
+              prefix="other"
+              subject={initial.outreach_subject_other}
+              body={initial.outreach_body_other}
+            />
+          </CardContent>
+        </Card>
       </form>
 
       {/* Sticky unsaved-changes footer — only visible when the form is dirty */}
@@ -196,6 +257,28 @@ export function SettingsForm({
         </div>
       </div>
     </>
+  );
+}
+
+function OutreachCategoryFields({
+  label, prefix, subject, body,
+}: {
+  label: string; prefix: "partnerships" | "info" | "other"; subject: string; body: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">{label}</p>
+      <Field label="Subject" name={`outreach_subject_${prefix}`} defaultValue={subject} />
+      <div className="space-y-1">
+        <Label className="text-sm" htmlFor={`outreach_body_${prefix}`}>Body</Label>
+        <Textarea
+          id={`outreach_body_${prefix}`}
+          name={`outreach_body_${prefix}`}
+          defaultValue={body}
+          className="min-h-[140px] font-mono text-xs"
+        />
+      </div>
+    </div>
   );
 }
 

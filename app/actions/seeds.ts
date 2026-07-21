@@ -4,22 +4,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { toUsername, profileUrl } from "@/lib/pipeline/normalize";
 import { inngest } from "@/inngest/client";
-import { getSettings } from "@/lib/config/settings";
+import { getSettings, resolveApifyToken } from "@/lib/config/settings";
 import { getScrapedSeedIds, hasBeenScraped, checkRescrapeOverride } from "@/lib/seeds/scraped";
+import { scrapeProfiles } from "@/lib/apify/actors";
 
 async function requireUser() {
   const sb = await createClient();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) throw new Error("unauthorized");
-}
-
-function parseLimit(v: FormDataEntryValue | null): number | null {
-  if (v == null) return null;
-  const s = String(v).trim();
-  if (s === "") return null;
-  const n = Number(s);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.floor(n);
 }
 
 export async function addSeed(formData: FormData) {
@@ -28,15 +20,11 @@ export async function addSeed(formData: FormData) {
   if (!raw) return { error: "Empty input" };
   const username = toUsername(raw);
   if (!username) return { error: "Invalid username/URL" };
-  const max_profiles_to_scrape = parseLimit(formData.get("max_profiles_to_scrape"));
-  const scrape_full_following = formData.get("scrape_full_following") === "on";
 
   const sb = createAdminClient();
   const { error } = await sb.from("seeds").insert({
     username,
     profile_url: profileUrl(username),
-    max_profiles_to_scrape: scrape_full_following ? null : max_profiles_to_scrape,
-    scrape_full_following,
   });
 
   if (error) {
@@ -51,33 +39,35 @@ export async function addSeed(formData: FormData) {
   return { ok: true };
 }
 
-export async function updateSeedLimit(
-  id: string,
-  max_profiles_to_scrape: number | null,
-  scrape_full_following = false,
-) {
-  await requireUser();
-  const value =
-    max_profiles_to_scrape != null && Number.isFinite(max_profiles_to_scrape) && max_profiles_to_scrape > 0
-      ? Math.floor(max_profiles_to_scrape)
-      : null;
-  const sb = createAdminClient();
-  const { error } = await sb
-    .from("seeds")
-    // The stored limit is cleared in full mode so the number left in the box
-    // can't quietly take effect again if full is later switched off.
-    .update({ max_profiles_to_scrape: scrape_full_following ? null : value, scrape_full_following })
-    .eq("id", id);
-  if (error) return { error: error.message };
-  revalidatePath("/seeds");
-  return { ok: true };
-}
-
 export async function deleteSeed(id: string) {
   await requireUser();
   const sb = createAdminClient();
   await sb.from("seeds").delete().eq("id", id);
   revalidatePath("/seeds");
+}
+
+/**
+ * A lightweight profile lookup (not a following-list scrape) so the operator
+ * can see how big a full-account scrape will be *before* starting one — the
+ * same Apify call crawl-seed.ts already makes internally for its ceiling
+ * check, just triggerable on demand instead of only mid-crawl.
+ */
+export async function checkFollowingCount(id: string): Promise<{ ok: true; following_count: number } | { ok: false; error: string }> {
+  await requireUser();
+  const sb = createAdminClient();
+  const { data: seed } = await sb.from("seeds").select("id, username").eq("id", id).single();
+  if (!seed) return { ok: false, error: "seed_not_found" };
+
+  const settings = await getSettings(true);
+  const apifyToken = resolveApifyToken(settings);
+  if (!apifyToken) return { ok: false, error: "No Apify token configured — add one in Settings." };
+
+  const [profile] = await scrapeProfiles({ token: apifyToken, usernames: [seed.username] });
+  if (!profile) return { ok: false, error: `Apify returned nothing for @${seed.username}.` };
+
+  await sb.from("seeds").update({ following_count: profile.following }).eq("id", id);
+  revalidatePath("/seeds");
+  return { ok: true, following_count: profile.following };
 }
 
 export type ScrapeProvider = "auto" | "playwright" | "cookie" | "apify" | "scrapingbee";
@@ -103,7 +93,7 @@ export async function startAllCrawls(providerOverride?: ScrapeProvider): Promise
   const admin = createAdminClient();
   const settings = await getSettings(true);
 
-  const { data: seeds } = await admin.from("seeds").select("id, username, max_profiles_to_scrape, scrape_full_following");
+  const { data: seeds } = await admin.from("seeds").select("id, username");
   if (!seeds?.length) return { started: 0 };
 
   // Skip seeds that already have a running or queued job
@@ -134,8 +124,6 @@ export async function startAllCrawls(providerOverride?: ScrapeProvider): Promise
         crawl_job_id: job.id,
         seed_id: seed.id,
         seed_username: seed.username,
-        profile_limit: seed.max_profiles_to_scrape ?? null,
-        full_account: seed.scrape_full_following ?? false,
         provider_override: providerOverride ?? null,
       },
     });
@@ -157,7 +145,7 @@ export async function startCrawl(
   const admin = createAdminClient();
   const { data: seed } = await admin
     .from("seeds")
-    .select("id, username, max_profiles_to_scrape, scrape_full_following")
+    .select("id, username")
     .eq("id", seed_id)
     .single();
   if (!seed) return { error: "seed_not_found" };
@@ -220,8 +208,6 @@ export async function startCrawl(
       crawl_job_id: job.id,
       seed_id: seed.id,
       seed_username: seed.username,
-      profile_limit: seed.max_profiles_to_scrape ?? null,
-      full_account: seed.scrape_full_following ?? false,
       provider_override: providerOverride ?? null,
     },
   });
@@ -232,8 +218,6 @@ export async function startCrawl(
   return {
     ok: true,
     crawl_job_id: job.id,
-    profile_limit: seed.max_profiles_to_scrape ?? settings.max_profiles_per_account ?? 100,
-    full_account: seed.scrape_full_following ?? false,
     seed_username: seed.username,
   };
 }

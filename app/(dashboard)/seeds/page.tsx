@@ -49,7 +49,6 @@ export default async function SeedsPage() {
             seeds={seeds ?? []}
             exhaustedSeeds={exhaustedSeeds}
             jobs={jobs ?? []}
-            defaultLimit={settings.max_profiles_per_account}
             scrapedSeedIds={[...scrapedSeedIds]}
             systemStatus={{
               igStatus: (() => {

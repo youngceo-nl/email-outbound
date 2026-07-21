@@ -1,12 +1,14 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Eye, Loader2, Pencil, RotateCcw, Send, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Eye, ExternalLink, Loader2, Pencil, RotateCcw, Send, TriangleAlert } from "lucide-react";
 import { saveOutreachFields, sendOutreachEmail } from "@/app/actions/outreach-ready";
 import { textToHtml } from "@/lib/outreach/template";
+import { CATEGORY_LABELS, leadCategory } from "@/lib/leads/category";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import type { Draft, OutreachRow } from "./outreach-ready-client";
 
@@ -102,7 +104,21 @@ export function OutreachComposer({
         )}
 
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">@{row.username}</h2>
+          <div className="flex items-center gap-2">
+            <a
+              href={`https://www.instagram.com/${row.username}/`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 hover:underline"
+              title="Open on Instagram"
+            >
+              <h2 className="text-lg font-semibold tracking-tight">@{row.username}</h2>
+              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            </a>
+            <Badge variant="secondary" className="text-[10px]">
+              {CATEGORY_LABELS[leadCategory(row.business_model)]}
+            </Badge>
+          </div>
           <p className="text-xs text-muted-foreground">
             {row.niche ?? "unknown niche"}
             {row.overall_score != null && ` · score ${row.overall_score}`}

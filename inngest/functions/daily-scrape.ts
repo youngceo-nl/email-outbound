@@ -1,6 +1,5 @@
 import { inngest } from "@/inngest/client";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSettings } from "@/lib/config/settings";
 
 const SEEDS_PER_RUN = 4;
 
@@ -10,15 +9,14 @@ export const dailyScrape = inngest.createFunction(
   { id: "daily-scrape", name: "Daily seed scrape" },
   { cron: "0 2 * * *" },
   async ({ step }) => {
-    const settings = await step.run("load-settings", () => getSettings());
     const sb = createAdminClient();
 
-    // All seeds that aren't capped at a tiny test size and aren't fully exhausted
+    // All seeds that aren't fully exhausted — every crawl is full-account now,
+    // so there's no "capped at a tiny test size" bucket to skip any more.
     const { data: seeds } = await step.run("load-seeds", async () => {
       const { data } = await sb
         .from("seeds")
-        .select("id, username, max_profiles_to_scrape, scrape_full_following, exhausted_providers")
-        .or("max_profiles_to_scrape.is.null,max_profiles_to_scrape.gte.200");
+        .select("id, username, exhausted_providers");
       // Skip seeds where the cookie provider is exhausted (the only provider in active use)
       return { data: (data ?? []).filter((s) => !(s.exhausted_providers as string[])?.includes("cookie")) };
     });
@@ -78,8 +76,6 @@ export const dailyScrape = inngest.createFunction(
           crawl_job_id: job.id,
           seed_id: seed.id,
           seed_username: seed.username,
-          profile_limit: seed.max_profiles_to_scrape ?? settings.max_profiles_per_account ?? 800,
-          full_account: seed.scrape_full_following ?? false,
         },
       });
 

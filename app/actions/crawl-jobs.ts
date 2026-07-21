@@ -377,7 +377,7 @@ export async function retryCrawl(job_id: string, overridePassword?: string) {
 
   const { data: seed } = await admin
     .from("seeds")
-    .select("id, username, max_profiles_to_scrape, scrape_full_following")
+    .select("id, username")
     .eq("id", prev.seed_id)
     .single();
   if (!seed) return { error: "seed_not_found" };
@@ -402,8 +402,6 @@ export async function retryCrawl(job_id: string, overridePassword?: string) {
       crawl_job_id: job.id,
       seed_id: seed.id,
       seed_username: seed.username,
-      profile_limit: seed.max_profiles_to_scrape ?? null,
-      full_account: seed.scrape_full_following ?? false,
     },
   });
   await admin.from("crawl_jobs").update({ inngest_run_id: ids[0] ?? null }).eq("id", job.id);

@@ -4,7 +4,8 @@ import { getSettings } from "@/lib/config/settings";
 import { isPlausible } from "@/lib/leads/email-extract";
 import { extractFirstName, extractFirstNameFromUsername } from "@/lib/outreach/template";
 import { Card, CardContent } from "@/components/ui/card";
-import { OutreachReadyClient, type OutreachRow } from "@/components/outreach/outreach-ready-client";
+import { OutreachReadyClient, type OutreachRow, type InboxRow } from "@/components/outreach/outreach-ready-client";
+import type { CategoryTemplates } from "@/lib/leads/category";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export default async function OutreachReadyPage() {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
-  const [{ data: leads }, { count: sentToday }] = await Promise.all([
+  const [{ data: leads }, { count: sentToday }, { data: replies }] = await Promise.all([
     sb
       .from("leads")
       .select(
@@ -31,7 +32,35 @@ export default async function OutreachReadyPage() {
       .select("id", { count: "exact", head: true })
       .eq("status", "sent")
       .gte("sent_at", startOfToday.toISOString()),
+    // Replies scope to a *different* set of leads than `rows` above — a lead
+    // with outreach_count > 0 (i.e. contacted, so possibly replied) is
+    // excluded from the ready-to-send query, so business_model has to be
+    // joined here independently rather than reused from `rows`.
+    sb
+      .from("inbox_messages")
+      .select("id, from_email, from_name, subject, snippet, body_text, received_at, is_read, lead_id, leads(username, full_name, business_model)")
+      .order("received_at", { ascending: false })
+      .limit(200),
   ]);
+
+  const inboxRows: InboxRow[] = (replies ?? []).map((r) => {
+    const lead = (Array.isArray(r.leads) ? r.leads[0] : r.leads) as
+      { username?: string; full_name?: string | null; business_model?: string | null } | null;
+    return {
+      id: r.id,
+      from_email: r.from_email,
+      from_name: r.from_name,
+      subject: r.subject,
+      snippet: r.snippet,
+      body_text: r.body_text,
+      received_at: r.received_at,
+      is_read: r.is_read,
+      lead_id: r.lead_id,
+      lead_username: lead?.username ?? null,
+      lead_full_name: lead?.full_name ?? null,
+      business_model: lead?.business_model ?? null,
+    };
+  });
 
   // Same bucketing the archived batch page used, minus its first-name hard
   // block — this screen exists precisely so a bad name can be fixed inline.
@@ -72,7 +101,7 @@ export default async function OutreachReadyPage() {
     return (b.overall_score ?? 0) - (a.overall_score ?? 0);
   });
 
-  if (rows.length === 0) {
+  if (rows.length === 0 && inboxRows.length === 0) {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-semibold tracking-tight mb-4">Outreach Ready</h1>
@@ -89,11 +118,17 @@ export default async function OutreachReadyPage() {
     );
   }
 
+  const templates: CategoryTemplates = {
+    partnerships: { subject: settings.outreach_subject_partnerships, body: settings.outreach_body_partnerships },
+    info: { subject: settings.outreach_subject_info, body: settings.outreach_body_info },
+    other: { subject: settings.outreach_subject_other, body: settings.outreach_body_other },
+  };
+
   return (
     <OutreachReadyClient
       rows={rows}
-      subjectTemplate={settings.outreach_subject_template}
-      bodyTemplate={settings.outreach_body_template}
+      inboxRows={inboxRows}
+      templates={templates}
       senderName={settings.gmail_from_name}
       sentToday={sentToday ?? 0}
       dryRun={process.env.OUTREACH_DRY_RUN === "1"}

@@ -90,6 +90,13 @@ export type AppSettings = {
   // Outreach — templates rendered per lead by lib/outreach/template.ts
   outreach_subject_template: string;
   outreach_body_template: string;
+  // Per-category copy (lib/leads/category.ts) — one pair per outreach tab.
+  outreach_subject_partnerships: string;
+  outreach_body_partnerships: string;
+  outreach_subject_info: string;
+  outreach_body_info: string;
+  outreach_subject_other: string;
+  outreach_body_other: string;
   outreach_reply_to: string | null;
   // Gmail send path. gmail_from_name is the display name on outgoing mail.
   gmail_from_name: string | null;
@@ -104,11 +111,10 @@ export type Seed = {
   username: string;
   profile_url: string;
   notes: string | null;
-  max_profiles_to_scrape: number | null;
-  /** Scrape the entire following list, ignoring max_profiles_to_scrape. */
-  scrape_full_following: boolean;
   exhausted_providers: string[];
   created_at: string;
+  /** How many accounts this seed follows — the ceiling a full-account scrape will hit. Null until checked. */
+  following_count: number | null;
 };
 
 export type Lead = {

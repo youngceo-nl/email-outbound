@@ -7,10 +7,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { AppSettings } from "@/lib/types";
 
 const PAGE_SIZE = 50;  // accounts fetched per Instagram API call
-const MAX_PAGES = 40;  // safety cap — Instagram naturally limits ~250 for other users' following
-// Full-account crawls stop when the following list is exhausted rather than on
-// a new-lead target, so this cap is only a runaway guard (~20k accounts).
-const FULL_MAX_PAGES = 400;
+// Every crawl is full-account: it walks the following list to its end rather
+// than stopping at a lead target, so this cap is only a runaway guard (~20k
+// accounts) — not the normal stopping condition.
+const MAX_PAGES = 400;
 
 export const crawlSeed = inngest.createFunction(
   {
@@ -21,8 +21,7 @@ export const crawlSeed = inngest.createFunction(
   },
   { event: "crawl/seed.requested" },
   async ({ event, step }) => {
-    const { crawl_job_id, seed_id, seed_username, profile_limit, provider_override, full_account } = event.data;
-    const fullAccount = full_account ?? false;
+    const { crawl_job_id, seed_id, seed_username, provider_override } = event.data;
 
     await step.run("mark-running", async () => {
       const sb = createAdminClient();
@@ -33,10 +32,6 @@ export const crawlSeed = inngest.createFunction(
     });
 
     const settings = await step.run("load-settings", () => getSettings(true));
-    // Full-account mode has no lead target: it walks the following list to its
-    // end, so only the cursor running out (or the page guard) stops it.
-    const targetNew = fullAccount ? Infinity : (profile_limit ?? settings.max_profiles_per_account);
-    const maxPages = fullAccount ? FULL_MAX_PAGES : MAX_PAGES;
 
     const effectiveSettings = provider_override
       ? { ...settings, following_scraper_provider: provider_override as AppSettings["following_scraper_provider"] }
@@ -80,7 +75,7 @@ export const crawlSeed = inngest.createFunction(
     let lastProvider: string | null = null;
     const allNewUsernames: string[] = [];
 
-    while (totalNew < targetNew && pageIndex < maxPages) {
+    while (pageIndex < MAX_PAGES) {
       let r;
       try {
         r = await step.run(`scrape-page-${pageIndex}`, () =>
@@ -89,12 +84,12 @@ export const crawlSeed = inngest.createFunction(
             settings: effectiveSettings,
             apifyToken,
             crawl_job_id,
-            // Playwright scrolls to the full target in one session; cookie API
-            // pages naturally at ~50 per call with cursor continuation.
-            // A full crawl asks for one page at a time — targetNew is Infinity
-            // there, and the providers need a real number.
-            limitOverride: fullAccount ? PAGE_SIZE : targetNew - totalNew,
-            fullAccount,
+            // Playwright/Apify walk the whole list in one session regardless of
+            // this number (fullAccount governs that); the cookie API pages
+            // naturally at ~50 per call with cursor continuation, so it's the
+            // one provider this value actually paces.
+            limitOverride: PAGE_SIZE,
+            fullAccount: true,
             startCursor: cursor,
           }),
         );
@@ -141,7 +136,7 @@ export const crawlSeed = inngest.createFunction(
           action: "scraped_following",
           depth: 0,
           detail:
-            `provider=${r.provider} page=${pageIndex} total=${r.items.length} inserted_new=${inserted} duplicates=${duplicates} excluded=${excluded} cumulative_new=${totalNew}/${fullAccount ? "full" : targetNew}` +
+            `provider=${r.provider} page=${pageIndex} total=${r.items.length} inserted_new=${inserted} duplicates=${duplicates} excluded=${excluded} cumulative_new=${totalNew}/full` +
             // A downgrade is the thing worth noticing in this log, so it goes
             // on the same line rather than only into error_logs.
             (r.fellBackFrom?.length
