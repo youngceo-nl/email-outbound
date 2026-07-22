@@ -1,26 +1,55 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { ChevronDown, ChevronRight, Handshake, Upload } from "lucide-react";
 import type { AccountHandover } from "@/lib/handover/overview";
 import { AccountHandoverBlock } from "@/components/handover/account-handover-block";
-import { applyEnrichmentGlobal } from "@/app/actions/handover";
+import { applyEnrichmentGlobal, getHandoverAccounts } from "@/app/actions/handover";
 import { Button } from "@/components/ui/button";
+
+const POLL_MS = 5000;
+const IDLE_POLL_MS = 20000;
 
 /**
  * The per-account handover blocks, collapsed by default so they never push the
  * leads table off screen as source accounts accumulate.
  */
-export function HandoverSection({ accounts }: { accounts: AccountHandover[] }) {
+export function HandoverSection({ initial }: { initial: AccountHandover[] }) {
+  const [accounts, setAccounts] = useState<AccountHandover[]>(initial);
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      setAccounts(await getHandoverAccounts());
+    } catch {
+      /* transient — keep the last good view rather than blanking the section */
+    }
+  }, []);
+
+  // A qualified-lead count can climb by the hundreds during an active
+  // full-account backfill/scoring run — without this the section only ever
+  // shows whatever was true at the last full page load, which reads as
+  // "stuck at 0/N" even though real progress is happening every minute.
+  // Always polling (not just while processing) matches SeedPipelineList's
+  // reasoning: an account finishing elsewhere still needs to show up here
+  // without a manual reload, just at a slower cadence when idle.
+  const anyProcessing = accounts.some((a) => a.stillProcessing);
+  useEffect(() => {
+    timer.current = setInterval(refresh, anyProcessing ? POLL_MS : IDLE_POLL_MS);
+    return () => {
+      if (timer.current) clearInterval(timer.current);
+      timer.current = null;
+    };
+  }, [anyProcessing, refresh]);
 
   if (!accounts.length) return null;
 
-  const done = accounts.reduce((sum, a) => sum + a.done, 0);
-  const total = accounts.reduce((sum, a) => sum + a.total, 0);
+  const ready = accounts.reduce((sum, a) => sum + a.total, 0);
+  const handedOver = accounts.reduce((sum, a) => sum + a.done, 0);
   const openBatches = accounts.filter((a) => a.openBatch).length;
 
   // One CSV can cover leads from several dispatched accounts at once — rows
@@ -62,7 +91,7 @@ export function HandoverSection({ accounts }: { accounts: AccountHandover[] }) {
           <Handshake className="h-4 w-4" />
           <span className="font-medium">Handover</span>
           <span className="text-muted-foreground text-xs">
-            {accounts.length} account{accounts.length === 1 ? "" : "s"} · {done}/{total} enriched
+            {accounts.length} account{accounts.length === 1 ? "" : "s"} · {ready.toLocaleString()} ready for handover · {handedOver.toLocaleString()} handed over
             {openBatches > 0 && ` · ${openBatches} batch${openBatches === 1 ? "" : "es"} open`}
           </span>
         </button>

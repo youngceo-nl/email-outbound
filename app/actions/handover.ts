@@ -9,6 +9,7 @@ import {
   HandoverError,
 } from "@/lib/handover/batch";
 import { HandoverCsvError } from "@/lib/handover/format";
+import { getAccountHandoverStats } from "@/lib/handover/overview";
 
 async function requireUser() {
   const sb = await createClient();
@@ -58,4 +59,16 @@ export async function closeBatch(parentUsername: string) {
 export async function getDispatchState() {
   await requireUser();
   return dispatchState();
+}
+
+/**
+ * Drives HandoverSection's live refresh — no revalidatePath, this is a plain
+ * read polled from the client (same shape as getDispatchState above).
+ * Without this the section only ever showed whatever was true at the last
+ * full page load, which reads as "stuck" during an active backfill/scoring
+ * run even though the real numbers are changing underneath every minute.
+ */
+export async function getHandoverAccounts() {
+  await requireUser();
+  return getAccountHandoverStats();
 }

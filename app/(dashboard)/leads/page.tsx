@@ -197,7 +197,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         </div>
       </div>
 
-      <HandoverSection accounts={handoverAccounts} />
+      <HandoverSection initial={handoverAccounts} />
 
       <Card>
         <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
