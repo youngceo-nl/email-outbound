@@ -55,6 +55,16 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     groq_api_key: String(formData.get("groq_api_key") ?? "") || null,
     groq_model: String(formData.get("groq_model") ?? prev.groq_model),
     capsolver_api_key: String(formData.get("capsolver_api_key") ?? "") || null,
+    // refresh_token/email are intentionally absent — those are server-set only,
+    // via the OAuth callback (app/api/google/oauth/callback), never form-editable.
+    gmail_oauth_client_id: String(formData.get("gmail_oauth_client_id") ?? "") || null,
+    gmail_oauth_client_secret: String(formData.get("gmail_oauth_client_secret") ?? "") || null,
+    outreach_subject_partnerships: String(formData.get("outreach_subject_partnerships") ?? prev.outreach_subject_partnerships),
+    outreach_body_partnerships: String(formData.get("outreach_body_partnerships") ?? prev.outreach_body_partnerships),
+    outreach_subject_info: String(formData.get("outreach_subject_info") ?? prev.outreach_subject_info),
+    outreach_body_info: String(formData.get("outreach_body_info") ?? prev.outreach_body_info),
+    outreach_subject_other: String(formData.get("outreach_subject_other") ?? prev.outreach_subject_other),
+    outreach_body_other: String(formData.get("outreach_body_other") ?? prev.outreach_body_other),
   };
   await updateSettings(patch);
 

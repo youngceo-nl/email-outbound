@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, ChevronDown, ChevronRight, Copy } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, Loader2 } from "lucide-react";
 import { claimBatch, closeBatch } from "@/app/actions/handover";
 import { BATCH_SIZE } from "@/lib/handover/format";
-import { UNATTRIBUTED, type AccountHandover } from "@/lib/handover/overview";
+import { UNATTRIBUTED, hardFilterReasonLabel, type AccountHandover } from "@/lib/handover/overview";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { InfoTip } from "@/components/ui/info-tip";
+import { MarkBadLeadButton } from "@/components/leads/mark-bad-lead-button";
 
 export function AccountHandoverBlock({ account }: { account: AccountHandover }) {
   const [pending, start] = useTransition();
@@ -15,8 +17,25 @@ export function AccountHandoverBlock({ account }: { account: AccountHandover }) 
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
 
-  const { parentUsername, username, total, done, openBatch, poolLeads, poolMore } = account;
+  const {
+    parentUsername, username, total, done, openBatch, poolLeads, poolMore, stillProcessing,
+    found, backfilled, hardFiltered, hardFilterReasons, aiScored, processing,
+  } = account;
   const remaining = total - done;
+
+  // "1865 followers too low · 853 engagement too low · …" for the tooltip.
+  const hardFilterBreakdown = hardFilterReasons
+    .map((r) => `${r.count.toLocaleString()} ${hardFilterReasonLabel(r.reason)}`)
+    .join(" · ");
+
+  // What the "processing" spinner is actually waiting on, for its tooltip.
+  const processingBreakdown = [
+    processing.awaitingBackfill > 0 && `${processing.awaitingBackfill.toLocaleString()} awaiting backfill (fetching followers/bio)`,
+    processing.awaitingFilterScore > 0 && `${processing.awaitingFilterScore.toLocaleString()} awaiting filter & AI scoring`,
+    processing.awaitingAiScore > 0 && `${processing.awaitingAiScore.toLocaleString()} awaiting AI scoring`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const copyToClipboard = async (text: string) => {
     await navigator.clipboard.writeText(text);
@@ -59,14 +78,32 @@ export function AccountHandoverBlock({ account }: { account: AccountHandover }) 
     <div className="rounded-md border">
       <div className="flex items-center gap-3 px-3 py-2.5">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-sm truncate">
               {parentUsername === UNATTRIBUTED ? username : `@${username}`}
             </span>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {done}/{total} enriched
-            </span>
+            {stillProcessing && (
+              <span className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                processing
+                <InfoTip text={processingBreakdown || "Leads still moving through the pipeline."} />
+              </span>
+            )}
             {openBatch && <Badge variant="secondary" className="text-[10px]">batch open</Badge>}
+          </div>
+          {/* Full pipeline funnel, absolute counts. Each stage is a subset of
+              the one before it: found → backfilled → (hard-filtered drops out) →
+              AI-scored → ready for handover → handed over. */}
+          <div className="mt-1 flex items-center gap-x-3 gap-y-0.5 flex-wrap text-xs text-muted-foreground tabular-nums">
+            <Stat n={found} label="found" />
+            <Stat n={backfilled} label="backfilled" />
+            <span className="inline-flex items-center gap-1">
+              <Stat n={hardFiltered} label="hard-filtered" />
+              {hardFiltered > 0 && <InfoTip text={hardFilterBreakdown || "no breakdown available"} />}
+            </span>
+            <Stat n={aiScored} label="AI-scored" />
+            <Stat n={total} label="ready for handover" highlight />
+            <Stat n={done} label="handed over" />
           </div>
           <div className="mt-1.5 h-1 w-full max-w-xs rounded-full bg-muted overflow-hidden">
             <div
@@ -82,7 +119,7 @@ export function AccountHandoverBlock({ account }: { account: AccountHandover }) 
               // Scraped, but nothing qualified without an email. Say so rather
               // than offering a dead "Batch 0" button.
               <span className="text-xs text-muted-foreground pr-1">
-                {total === 0 ? "no leads to enrich" : "all handed over"}
+                {total === 0 ? (stillProcessing ? "no leads to enrich yet" : "no leads to enrich") : "all handed over"}
               </span>
             ) : (
               <Button size="sm" variant="outline" disabled={pending} onClick={claimAndCopy}>
@@ -138,6 +175,9 @@ export function AccountHandoverBlock({ account }: { account: AccountHandover }) 
                           <span className="text-muted-foreground">pending</span>
                         )}
                       </td>
+                      <td className="px-3 py-1.5 text-right">
+                        <MarkBadLeadButton leadId={lead.id} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -169,5 +209,17 @@ export function AccountHandoverBlock({ account }: { account: AccountHandover }) 
         </div>
       )}
     </div>
+  );
+}
+
+/** One funnel stage: the count in foreground weight, the label muted after it. */
+function Stat({ n, label, highlight }: { n: number; label: string; highlight?: boolean }) {
+  return (
+    <span>
+      <span className={highlight ? "font-medium text-foreground" : "font-medium text-foreground/80"}>
+        {n.toLocaleString()}
+      </span>{" "}
+      {label}
+    </span>
   );
 }

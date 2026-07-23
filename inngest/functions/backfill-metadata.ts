@@ -22,6 +22,13 @@ import { persistIgCookieStatus } from "@/app/actions/settings";
 // cookie, since it fails every profile while looking configured.
 
 const APIFY_BATCH = 100;
+// How many APIFY_BATCH-sized actor runs to fire at once. Nothing in the Apify
+// client serializes calls (see the comment above processBatch below) — this
+// was purely how fast one backfill run went, not an account safety limit like
+// the cookie path's pacing is. 5 is comfortably under default Apify account
+// concurrent-run caps while still being a real multiple of the old 1-at-a-time
+// throughput.
+const APIFY_CONCURRENCY = 5;
 const COOKIE_BATCH = 50;
 // 4 000ms base with ±40% jitter → 2.4–5.6s per profile, ~12–25 profiles/min.
 // The web_profile_info endpoint is rate-limited per account, not per IP —
@@ -219,20 +226,24 @@ export const backfillMetadata = inngest.createFunction(
         });
         scraped += result.s;
         updated += result.u;
-        allUpdatedLeadIds.push(...(result.updatedLeadIds as string[]));
+        const batchLeadIds = result.updatedLeadIds as string[];
+        allUpdatedLeadIds.push(...batchLeadIds);
         halt = result.halt;
-      }
 
-      // Auto-score every lead we just enriched. Each lead becomes its own
-      // `lead/score.requested` event; score-lead runs them with high concurrency.
-      if (allUpdatedLeadIds.length > 0) {
-        await step.sendEvent(
-          "fan-out-score",
-          allUpdatedLeadIds.map((lead_id) => ({
-            name: "lead/score.requested" as const,
-            data: { lead_id, crawl_job_id: crawl_job_id ?? null },
-          })),
-        );
+        // Score this batch's leads as soon as it's enriched, not after every
+        // batch in the whole backfill finishes — a full-account backfill can
+        // be thousands of accounts across dozens of batches, and gating every
+        // lead's scoring on the very last one meant qualified leads (and
+        // handover eligibility) never appeared until the entire run did.
+        if (batchLeadIds.length > 0) {
+          await step.sendEvent(
+            `fan-out-score-${bi}`,
+            batchLeadIds.map((lead_id) => ({
+              name: "lead/score.requested" as const,
+              data: { lead_id, crawl_job_id: crawl_job_id ?? null },
+            })),
+          );
+        }
       }
 
       await logCrawl({
@@ -257,7 +268,15 @@ export const backfillMetadata = inngest.createFunction(
     let updated = 0;
     let scraped = 0;
     const apifyLeadIds: string[] = [];
-    for (let bi = 0; bi < batches.length; bi++) {
+
+    // One batch's full scrape -> write -> bump -> fan-out-score chain. Kept as
+    // its own function so waves of these can run concurrently below — nothing
+    // in the Apify client (lib/apify/client.ts) serializes actor runs itself,
+    // so running them one at a time was purely this loop's own doing, not an
+    // Apify account limit. APIFY_BATCH (profiles per actor call) stays as-is
+    // since it's the proven-safe unit; APIFY_CONCURRENCY is what multiplies
+    // throughput on top of it.
+    const processBatch = async (bi: number) => {
       const batch = batches[bi];
       const result = await step.run(`apify-batch-${bi}`, async () => {
         try {
@@ -288,7 +307,6 @@ export const backfillMetadata = inngest.createFunction(
           return [];
         }
       });
-      scraped += result.length;
 
       const wrote = await step.run(`update-apify-batch-${bi}`, async () => {
         const sb = createAdminClient();
@@ -341,24 +359,38 @@ export const backfillMetadata = inngest.createFunction(
         }
         return { count: wroteCount, ids };
       });
-      updated += wrote.count;
-      apifyLeadIds.push(...wrote.ids);
+
       if (wrote.count > 0) {
         await step.run(`bump-backfilled-${bi}`, () =>
           bumpFunnelCounters({ crawl_job_id: crawl_job_id ?? null, backfilled: wrote.count }),
         );
+        // Score this batch's leads now, not after every batch in the whole
+        // backfill finishes — see the matching comment in the cookie path
+        // above for why waiting until the end starves handover/filtering of
+        // any leads for the entire (potentially hours-long) backfill run.
+        await step.sendEvent(
+          `fan-out-score-${bi}`,
+          wrote.ids.map((lead_id) => ({
+            name: "lead/score.requested" as const,
+            data: { lead_id, crawl_job_id: crawl_job_id ?? null },
+          })),
+        );
       }
-    }
 
-    // Auto-score every enriched lead (no follower gate), same as the cookie path.
-    if (apifyLeadIds.length > 0) {
-      await step.sendEvent(
-        "fan-out-score",
-        apifyLeadIds.map((lead_id) => ({
-          name: "lead/score.requested" as const,
-          data: { lead_id, crawl_job_id: crawl_job_id ?? null },
-        })),
+      return { scraped: result.length, updated: wrote.count, ids: wrote.ids };
+    };
+
+    for (let wave = 0; wave < batches.length; wave += APIFY_CONCURRENCY) {
+      const waveIndices = Array.from(
+        { length: Math.min(APIFY_CONCURRENCY, batches.length - wave) },
+        (_, k) => wave + k,
       );
+      const results = await Promise.all(waveIndices.map(processBatch));
+      for (const r of results) {
+        scraped += r.scraped;
+        updated += r.updated;
+        apifyLeadIds.push(...r.ids);
+      }
     }
 
     await logCrawl({

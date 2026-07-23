@@ -2,7 +2,6 @@
 import { useTransition, useState } from "react";
 import { Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { addSeed, startCrawl, type ScrapeProvider } from "@/app/actions/seeds";
 
 const PROVIDER_OPTIONS: { value: ScrapeProvider; label: string }[] = [
@@ -16,16 +15,13 @@ const PROVIDER_OPTIONS: { value: ScrapeProvider; label: string }[] = [
 export function ScrapeFromHistoryButton({
   username,
   seedId,
-  defaultLimit,
 }: {
   username: string;
   seedId?: string;
-  defaultLimit: number;
 }) {
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [provider, setProvider] = useState<ScrapeProvider>("auto");
-  const [limit, setLimit] = useState<string>("");
 
   const handleScrape = () =>
     start(async () => {
@@ -34,7 +30,6 @@ export function ScrapeFromHistoryButton({
       if (!id) {
         const fd = new FormData();
         fd.append("input", username);
-        if (limit) fd.append("max_profiles_to_scrape", limit);
         const res = await addSeed(fd);
         if ("error" in res && res.error) { setMsg(`Error: ${res.error}`); return; }
         const { createClient } = await import("@/lib/supabase/client");
@@ -53,15 +48,6 @@ export function ScrapeFromHistoryButton({
 
   return (
     <div className="flex items-center gap-2 justify-end">
-      <Input
-        type="number"
-        min={1}
-        value={limit}
-        onChange={(e) => setLimit(e.target.value)}
-        placeholder={`default ${defaultLimit}`}
-        className="w-36 h-8 text-xs"
-        aria-label="How many accounts to check"
-      />
       <select
         value={provider}
         onChange={(e) => setProvider(e.target.value as ScrapeProvider)}

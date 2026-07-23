@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrapeFromHistoryButton } from "@/components/seeds/add-from-history-button";
 import { ChevronLeft, AlertCircle } from "lucide-react";
-import { getSettings } from "@/lib/config/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +19,6 @@ function friendlyError(msg: string | null) {
 
 export default async function SeedHistoryPage() {
   const sb = createAdminClient();
-  const settings = await getSettings();
 
   // All distinct seed usernames ever used, with lead counts and last-used timestamp
   const { data: rows } = await sb
@@ -138,7 +136,7 @@ export default async function SeedHistoryPage() {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{row.leadCount}</TableCell>
                   <TableCell className="text-right">
-                    <ScrapeFromHistoryButton username={row.username} seedId={row.seedId} defaultLimit={settings.max_profiles_per_account} />
+                    <ScrapeFromHistoryButton username={row.username} seedId={row.seedId} />
                   </TableCell>
                 </TableRow>
               ))}
