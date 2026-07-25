@@ -42,6 +42,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ use
     id: row.id,
     status: row.status,
     error: row.error,
+    hasPdf: Boolean(row.pdf_path),
     createdAt: row.created_at,
     createdBy: row.created_by,
   }));

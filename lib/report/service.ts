@@ -108,8 +108,18 @@ export async function saveContent(
   });
 }
 
-export async function markReady(id: string, pdfPath: string): Promise<void> {
-  await patch(id, { status: "ready", pdf_path: pdfPath, error: null });
+/**
+ * `pdfPath` is null when the document rendered but no headless browser was
+ * available to print it.
+ *
+ * That is a usable outcome, not a failure: the preview route serves the same HTML
+ * and its stylesheet is already A4, so a human can produce the PDF with Ctrl+P.
+ * Treating it as a failure would make the entire feature depend on a remote
+ * browser endpoint being configured first, which is a poor trade for a document
+ * that is finished and correct.
+ */
+export async function markReady(id: string, pdfPath: string | null, note?: string): Promise<void> {
+  await patch(id, { status: "ready", pdf_path: pdfPath, error: note ?? null });
 }
 
 export async function markFailed(id: string, message: string): Promise<void> {

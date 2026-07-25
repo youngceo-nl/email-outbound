@@ -104,35 +104,51 @@ export const generateReport = inngest.createFunction(
       return { content, profilePicUrl: lead.profile_pic_url };
     });
 
+    /*
+     * Best-effort by design. Chromium cannot launch on a serverless runtime, so
+     * this needs BROWSER_WS_ENDPOINT pointing at a remote browser — and if that is
+     * not configured, the right outcome is a report you can read and print
+     * yourself, not a failed job. The document is already saved by this point.
+     */
     await step.run("render-pdf", async () => {
       const photo = await fetchProspectImage(built.profilePicUrl);
       const html = await buildReportHtml(built.content, {
         prospectPhoto: photo.ok ? photo.image.dataUri : null,
       });
 
-      const { browser, context } = await connectBrowser({ headless: true });
       try {
-        const page = await context.newPage();
-        // setContent rather than navigating to the print route: the HTML is fully
-        // self-contained (fonts and images inlined), so there is nothing for a
-        // remote browser to fetch back from us and no auth hop to arrange.
-        await page.setContent(html, { waitUntil: "load" });
-        await page.evaluate(() => document.fonts.ready);
+        const { browser, context } = await connectBrowser({ headless: true });
+        try {
+          const page = await context.newPage();
+          // setContent rather than navigating to the preview route: the HTML is
+          // fully self-contained (fonts and images inlined), so a remote browser
+          // has nothing to fetch back from us and no auth hop to arrange.
+          await page.setContent(html, { waitUntil: "load" });
+          await page.evaluate(() => document.fonts.ready);
 
-        const pdf = await page.pdf({
-          format: "A4",
-          margin: { top: "16mm", bottom: "14mm", left: "0", right: "0" },
-          printBackground: true,
-          displayHeaderFooter: true,
-          headerTemplate: HEADER,
-          footerTemplate: FOOTER,
-        });
+          const pdf = await page.pdf({
+            format: "A4",
+            margin: { top: "16mm", bottom: "14mm", left: "0", right: "0" },
+            printBackground: true,
+            displayHeaderFooter: true,
+            headerTemplate: HEADER,
+            footerTemplate: FOOTER,
+          });
 
-        const path = await uploadPdf(report_id, Buffer.from(pdf));
-        await markReady(report_id, path);
-        return { path };
-      } finally {
-        await browser.close();
+          await markReady(report_id, await uploadPdf(report_id, Buffer.from(pdf)));
+          return { pdf: true };
+        } finally {
+          await browser.close();
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        await markReady(
+          report_id,
+          null,
+          "Ready to read. Automatic PDF rendering is unavailable — open the preview and print to PDF, or set BROWSER_WS_ENDPOINT to enable it.",
+        );
+        await logError({ context: "generate-report/render-pdf", error_message: `report ${report_id}: ${message}` });
+        return { pdf: false, reason: message.slice(0, 300) };
       }
     });
 

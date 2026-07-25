@@ -21,6 +21,8 @@ export type ReportSummary = {
   id: string;
   status: "queued" | "generating" | "ready" | "failed";
   error: string | null;
+  /** False when the document is ready but no browser was available to print it. */
+  hasPdf: boolean;
   createdAt: string;
   createdBy: string | null;
 };
@@ -161,7 +163,11 @@ export function ReportPanel({
                       {report.createdBy ? ` · ${report.createdBy}` : ""}
                     </span>
                   </div>
-                  {report.error && <p className="mt-1 truncate text-xs text-red-600">{report.error}</p>}
+                  {report.error && (
+                    <p className={`mt-1 text-xs ${report.status === "failed" ? "text-red-600" : "text-amber-700"}`}>
+                      {report.error}
+                    </p>
+                  )}
                 </div>
                 {report.status === "ready" && (
                   <div className="flex shrink-0 gap-2">
@@ -170,11 +176,13 @@ export function ReportPanel({
                         <Eye className="mr-1 h-3 w-3" /> Preview
                       </a>
                     </Button>
-                    <Button asChild variant="outline" size="sm">
-                      <a href={`/api/reports/${report.id}/pdf`} target="_blank" rel="noreferrer">
-                        <Download className="mr-1 h-3 w-3" /> PDF
-                      </a>
-                    </Button>
+                    {report.hasPdf && (
+                      <Button asChild variant="outline" size="sm">
+                        <a href={`/api/reports/${report.id}/pdf`} target="_blank" rel="noreferrer">
+                          <Download className="mr-1 h-3 w-3" /> PDF
+                        </a>
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
