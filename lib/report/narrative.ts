@@ -35,6 +35,10 @@ export type NarrativeResult = {
   /** Which model answered, for the record. */
   model?: string;
   analysis?: Analysis;
+  /** Evidence ids the model cited that match no gathered fact. */
+  unknownCitations: string[];
+  /** Reviewer-facing, never rendered: conflicting evidence the analysis spotted. */
+  contradictions: Analysis["contradictions"];
 };
 
 /**
@@ -100,15 +104,65 @@ function applyPassage(content: ReportContent, key: SectionKey, text: string): bo
 }
 
 /**
- * The analysis's own conclusions, added as content the deterministic pass cannot
- * produce: a fit verdict, the risks it identified, and the event it recommends.
+ * Turns cited evidence ids into the human labels behind them.
  *
- * These are the parts a strategist would otherwise write by hand, and they carry
- * no figures — so the numeric gate has nothing to reject and they always survive.
+ * Unknown ids come back separately rather than being silently dropped: a claim
+ * citing evidence we never gathered is exactly what the ids exist to catch, and it
+ * should be visible rather than quietly rendering as an uncited assertion.
  */
-function applyAnalysisBlocks(content: ReportContent, analysis: Analysis): void {
+function resolveCitations(ids: string[], facts: Fact[]): { labels: string[]; unknown: string[] } {
+  const byId = new Map(facts.map((f) => [f.id, f]));
+  const labels: string[] = [];
+  const unknown: string[] = [];
+  for (const id of ids) {
+    const fact = byId.get(id);
+    if (fact) labels.push(`${fact.label}: ${fact.display}`);
+    else unknown.push(id);
+  }
+  return { labels, unknown };
+}
+
+/**
+ * The analysis's own conclusions, as content the deterministic pass cannot produce:
+ * the opportunity chain, the bottleneck, the fit verdict, the recommended event,
+ * and what still needs validating.
+ *
+ * These carry no invented figures — they are judgements plus citations — so the
+ * numeric gate has nothing to reject and they always survive.
+ *
+ * Contradictions are deliberately NOT rendered. The brief gives them a
+ * reviewer_action, which makes them internal QA rather than something a prospect
+ * should read; they go back to the caller instead.
+ */
+function applyAnalysisBlocks(content: ReportContent, analysis: Analysis, facts: Fact[]): string[] {
+  const unknownCitations: string[] = [];
+  const cite = (ids: string[]) => {
+    const { labels, unknown } = resolveCitations(ids, facts);
+    unknownCitations.push(...unknown);
+    return labels;
+  };
+
+  // The opportunity chain exactly as the brief specifies it: observation, meaning,
+  // action, effect. It sits in the verdict because it is the report's argument.
   const verdict = content.sections.find((s) => s.key === "verdict");
   if (verdict) {
+    const opp = analysis.primary_opportunity;
+    const basis = cite(opp.evidence_ids);
+    verdict.blocks.push({
+      type: "table",
+      variant: "default",
+      emphasizeColumn: null,
+      columns: ["The opportunity", "Detail"],
+      rows: [
+        ["What we observed", opp.observation],
+        ["What it means commercially", opp.business_meaning],
+        ["What we recommend", opp.recommended_action],
+        ["What it is meant to change", opp.expected_effect],
+        ...(basis.length > 0 ? [["Based on", basis.join("; ")]] : []),
+        ["Confidence", opp.confidence],
+      ],
+    });
+
     const tone = analysis.fit_verdict === "poor" ? "risk" : analysis.fit_verdict === "strong" ? "good" : "note";
     verdict.blocks.push({
       type: "callout",
@@ -123,6 +177,27 @@ function applyAnalysisBlocks(content: ReportContent, analysis: Analysis): void {
     });
   }
 
+  const assets = content.sections.find((s) => s.key === "assets");
+  if (assets) {
+    if (analysis.strongest_assets.length > 0) {
+      assets.blocks.push({
+        type: "table",
+        variant: "default",
+        emphasizeColumn: null,
+        columns: ["Strongest assets", "What that rests on"],
+        rows: analysis.strongest_assets.map((a) => [a.statement, cite(a.evidence_ids).join("; ") || "Interpretation"]),
+      });
+    }
+    if (analysis.offer_gaps.length > 0) {
+      assets.blocks.push({
+        type: "callout",
+        tone: "note",
+        title: "Gaps in the current offer ladder",
+        text: analysis.offer_gaps.join(" "),
+      });
+    }
+  }
+
   const positioning = content.sections.find((s) => s.key === "positioning");
   if (positioning) {
     const event = analysis.recommended_event;
@@ -133,62 +208,81 @@ function applyAnalysisBlocks(content: ReportContent, analysis: Analysis): void {
         variant: "default",
         emphasizeColumn: null,
         columns: ["Event structure", "What it covers"],
-        rows: [
-          ...event.pillars.map((pillar, i) => [`Pillar ${i + 1}`, pillar]),
-          ["Call to action", event.cta],
-        ],
+        rows: [...event.pillars.map((pillar, i) => [`Pillar ${i + 1}`, pillar]), ["Call to action", event.cta]],
       });
     }
   }
 
-  // What exists versus what must be built, from the analysis rather than a template.
-  const funnel = content.sections.find((s) => s.key === "funnel");
-  if (funnel && (analysis.funnel_diagnosis.exists.length || analysis.funnel_diagnosis.missing.length)) {
-    const rows: string[][] = [
-      ...analysis.funnel_diagnosis.exists.map((item) => [item, "Already in place"]),
-      ...analysis.funnel_diagnosis.missing.map((item) => [item, "Would need building"]),
-    ];
-    funnel.blocks.push({
-      type: "table",
-      variant: "default",
-      emphasizeColumn: null,
-      columns: ["Funnel component", "Status"],
-      rows,
-    });
-  }
-
-  const decision = content.sections.find((s) => s.key === "decision");
-  if (decision && analysis.risks.length > 0) {
-    decision.blocks.unshift({
-      type: "callout",
-      tone: "risk",
-      title: "What would put this launch at risk",
-      text: analysis.risks.join(" "),
-    });
-  }
-
-  // Content findings carry their evidence, which is the point — a claim about
-  // their posting that cites the post it came from.
+  // Findings sit next to the measurement they came from, which is the whole point.
   const contentSection = content.sections.find((s) => s.key === "content");
   if (contentSection && analysis.content_findings.length > 0) {
     contentSection.blocks.push({
       type: "table",
       variant: "default",
       emphasizeColumn: null,
-      columns: ["Observation", "What it is based on"],
-      rows: analysis.content_findings.map((f) => [f.finding, f.evidence]),
+      columns: ["Observation", "What it rests on"],
+      rows: analysis.content_findings.map((f) => [f.statement, cite(f.evidence_ids).join("; ") || "Interpretation"]),
     });
   }
 
-  const assets = content.sections.find((s) => s.key === "assets");
-  if (assets && analysis.offer_gaps.length > 0) {
-    assets.blocks.push({
+  const funnel = content.sections.find((s) => s.key === "funnel");
+  if (funnel) {
+    funnel.blocks.push({
+      type: "callout",
+      tone: "risk",
+      title: "The bottleneck",
+      text: `${analysis.bottleneck.statement} ${analysis.bottleneck.why_it_matters}`,
+    });
+    if (analysis.funnel_diagnosis.exists.length || analysis.funnel_diagnosis.missing.length) {
+      funnel.blocks.push({
+        type: "table",
+        variant: "default",
+        emphasizeColumn: null,
+        columns: ["Funnel component", "Status"],
+        rows: [
+          ...analysis.funnel_diagnosis.exists.map((item) => [item, "Already in place"]),
+          ...analysis.funnel_diagnosis.missing.map((item) => [item, "Would need building"]),
+        ],
+      });
+    }
+  }
+
+  // Which assumption most moves the outcome. The brief asks for this explicitly,
+  // and it is the honest counterweight to a table of projections.
+  const pnl = content.sections.find((s) => s.key === "pnl");
+  if (pnl) {
+    pnl.blocks.push({
       type: "callout",
       tone: "note",
-      title: "Gaps in the current offer ladder",
-      text: analysis.offer_gaps.join(" "),
+      title: "The assumption that matters most",
+      text: analysis.most_sensitive_assumption,
     });
   }
+
+  const decision = content.sections.find((s) => s.key === "decision");
+  if (decision) {
+    if (analysis.risks.length > 0) {
+      decision.blocks.unshift({
+        type: "callout",
+        tone: "risk",
+        title: "What would put this launch at risk",
+        text: analysis.risks.join(" "),
+      });
+    }
+    // "What must be validated" is in the required flow, and stating it is what
+    // separates a diagnosis from a pitch.
+    if (analysis.missing_information.length > 0) {
+      decision.blocks.push({
+        type: "table",
+        variant: "default",
+        emphasizeColumn: null,
+        columns: ["Still to confirm", "Why it matters", "How to resolve it"],
+        rows: analysis.missing_information.map((m) => [m.item, m.why_it_matters, m.recommended_resolution]),
+      });
+    }
+  }
+
+  return unknownCitations;
 }
 
 export async function generateNarrativeDetailed(args: {
@@ -210,20 +304,28 @@ export async function generateNarrativeDetailed(args: {
   if (!analysed.ok) {
     // A complete template report is a valid outcome. The document says what it
     // knows and what it assumed either way.
-    return { content: args.content, rejected: [{ slot: "analysis", reason: analysed.reason }], usedModel: false };
+    return {
+      content: args.content,
+      rejected: [{ slot: "analysis", reason: analysed.reason }],
+      usedModel: false,
+      unknownCitations: [],
+      contradictions: [],
+    };
   }
 
   const written = await writePassages({ dossier, analysis: analysed.analysis });
   if (!written.ok) {
     // The analysis is still worth having even if the prose pass failed — its
     // verdict, risks and recommended event carry no figures and stand alone.
-    applyAnalysisBlocks(args.content, analysed.analysis);
+    const unknown = applyAnalysisBlocks(args.content, analysed.analysis, args.facts);
     return {
       content: args.content,
       rejected: [{ slot: "passages", reason: written.reason }],
       usedModel: true,
       model: analysed.model,
       analysis: analysed.analysis,
+      unknownCitations: unknown,
+      contradictions: analysed.analysis.contradictions,
     };
   }
 
@@ -244,7 +346,7 @@ export async function generateNarrativeDetailed(args: {
     }
   }
 
-  applyAnalysisBlocks(args.content, analysed.analysis);
+  const unknownCitations = applyAnalysisBlocks(args.content, analysed.analysis, args.facts);
 
   return {
     content: args.content,
@@ -252,6 +354,8 @@ export async function generateNarrativeDetailed(args: {
     usedModel: true,
     model: written.model,
     analysis: analysed.analysis,
+    unknownCitations,
+    contradictions: analysed.analysis.contradictions,
   };
 }
 
@@ -264,6 +368,17 @@ export async function generateNarrative(args: {
   scenarios: ScenarioSet;
 }): Promise<ReportContent> {
   const result = await generateNarrativeDetailed(args);
+  if (result.unknownCitations.length > 0) {
+    // Cited evidence that does not exist is a model error worth seeing, even though
+    // the claim still renders as an interpretation rather than as a fact.
+    console.warn(`[narrative] unresolved evidence citations: ${result.unknownCitations.join(", ")}`);
+  }
+  if (result.contradictions.length > 0) {
+    console.warn(
+      `[narrative] ${result.contradictions.length} contradiction(s) for review:`,
+      result.contradictions.map((c) => c.description).join("; "),
+    );
+  }
   if (result.rejected.length > 0) {
     console.warn(
       `[narrative] kept template prose for ${result.rejected.length} passage(s):`,
