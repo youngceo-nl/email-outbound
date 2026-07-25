@@ -28,6 +28,8 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     apify_api_key: String(formData.get("apify_api_key") ?? "") || null,
     claude_api_key: String(formData.get("claude_api_key") ?? "") || null,
     claude_model: String(formData.get("claude_model") ?? prev.claude_model),
+    report_model: String(formData.get("report_model") ?? prev.report_model),
+    report_strategy_notes: String(formData.get("report_strategy_notes") ?? "") || null,
     scrapingbee_api_key: String(formData.get("scrapingbee_api_key") ?? "") || null,
     max_profiles_per_account: num(formData.get("max_profiles_per_account"), prev.max_profiles_per_account),
     crawl_score_threshold: num(formData.get("crawl_score_threshold"), prev.crawl_score_threshold),
