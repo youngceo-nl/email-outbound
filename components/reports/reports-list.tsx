@@ -7,6 +7,7 @@ import { Download, Eye, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RunButton } from "@/components/reports/run-button";
 
 export type ReportListItem = {
   id: string;
@@ -22,13 +23,14 @@ export type ReportListItem = {
 
 export function ReportsList({ reports }: { reports: ReportListItem[] }) {
   const router = useRouter();
-  const inFlight = reports.some((r) => r.status === "queued" || r.status === "generating");
-
   /*
-   * Generation runs in a background job, so this page has no way to learn that it
-   * finished. Polling only while something is actually in flight avoids leaving a
-   * permanent timer running on an idle page.
+   * Only "generating" counts as in flight. "queued" is a resting state now that
+   * nothing starts rows automatically — a row stranded in queued (an old Inngest
+   * event that never arrived, say) would otherwise poll this page forever.
    */
+  const inFlight = reports.some((r) => r.status === "generating");
+
+  // Nothing pushes an update when a run finishes, so poll while one is running.
   useEffect(() => {
     if (!inFlight) return;
     const timer = setInterval(() => router.refresh(), 4000);
@@ -76,22 +78,31 @@ export function ReportsList({ reports }: { reports: ReportListItem[] }) {
                   )}
                 </div>
 
-                {(report.status === "ready" || report.hasPdf) && (
-                  <div className="flex shrink-0 gap-2">
-                    <Button asChild variant="ghost" size="sm">
-                      <a href={`/api/reports/${report.id}/preview`} target="_blank" rel="noreferrer">
-                        <Eye className="mr-1 h-3 w-3" /> Preview
-                      </a>
-                    </Button>
-                    {report.hasPdf && (
-                      <Button asChild variant="outline" size="sm">
-                        <a href={`/api/reports/${report.id}/pdf`} target="_blank" rel="noreferrer">
-                          <Download className="mr-1 h-3 w-3" /> PDF
+                <div className="flex shrink-0 gap-2">
+                  {report.status === "ready" ? (
+                    <>
+                      <Button asChild variant="ghost" size="sm">
+                        <a href={`/api/reports/${report.id}/preview`} target="_blank" rel="noreferrer">
+                          <Eye className="mr-1 h-3 w-3" /> Preview
                         </a>
                       </Button>
-                    )}
-                  </div>
-                )}
+                      {report.hasPdf && (
+                        <Button asChild variant="outline" size="sm">
+                          <a href={`/api/reports/${report.id}/pdf`} target="_blank" rel="noreferrer">
+                            <Download className="mr-1 h-3 w-3" /> PDF
+                          </a>
+                        </Button>
+                      )}
+                      {/* Regenerating is a normal action: it picks up a price that
+                          has since been scraped, or inputs someone has confirmed. */}
+                      <RunButton reportId={report.id} label="Regenerate" />
+                    </>
+                  ) : (
+                    /* queued, generating or failed. Nothing retries on its own now,
+                       so this is the only way a stalled row moves. */
+                    <RunButton reportId={report.id} label={report.status === "failed" ? "Retry" : "Run"} />
+                  )}
+                </div>
               </div>
             ))}
           </div>

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { generateReportForLead, type PanelInput } from "@/app/actions/reports";
+import { RunButton } from "@/components/reports/run-button";
 
 /*
  * The Generate Report surface on a lead.
@@ -57,13 +58,14 @@ export function ReportPanel({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const inFlight = reports.some((r) => r.status === "queued" || r.status === "generating");
-
   /*
-   * Generation runs in a background job, so the page has no way to know it
-   * finished. Polling only while something is actually in flight keeps this from
-   * being a permanent timer on every lead page.
+   * Only "generating" counts. Including "queued" here was a real trap: a row
+   * stranded in queued would disable the Generate button permanently, so a single
+   * stuck report would block the lead from ever getting another one.
    */
+  const inFlight = reports.some((r) => r.status === "generating");
+
+  // Nothing pushes an update when a run finishes, so poll while one is running.
   useEffect(() => {
     if (!inFlight) return;
     const timer = setInterval(() => router.refresh(), 4000);
@@ -179,22 +181,26 @@ export function ReportPanel({
                     </p>
                   )}
                 </div>
-                {report.status === "ready" && (
-                  <div className="flex shrink-0 gap-2">
-                    <Button asChild variant="ghost" size="sm">
-                      <a href={`/api/reports/${report.id}/preview`} target="_blank" rel="noreferrer">
-                        <Eye className="mr-1 h-3 w-3" /> Preview
-                      </a>
-                    </Button>
-                    {report.hasPdf && (
-                      <Button asChild variant="outline" size="sm">
-                        <a href={`/api/reports/${report.id}/pdf`} target="_blank" rel="noreferrer">
-                          <Download className="mr-1 h-3 w-3" /> PDF
+                <div className="flex shrink-0 gap-2">
+                  {report.status === "ready" ? (
+                    <>
+                      <Button asChild variant="ghost" size="sm">
+                        <a href={`/api/reports/${report.id}/preview`} target="_blank" rel="noreferrer">
+                          <Eye className="mr-1 h-3 w-3" /> Preview
                         </a>
                       </Button>
-                    )}
-                  </div>
-                )}
+                      {report.hasPdf && (
+                        <Button asChild variant="outline" size="sm">
+                          <a href={`/api/reports/${report.id}/pdf`} target="_blank" rel="noreferrer">
+                            <Download className="mr-1 h-3 w-3" /> PDF
+                          </a>
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <RunButton reportId={report.id} label={report.status === "failed" ? "Retry" : "Run"} />
+                  )}
+                </div>
               </div>
             ))}
           </div>
