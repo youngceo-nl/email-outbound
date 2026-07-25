@@ -87,10 +87,14 @@ export async function runReport(reportId: string): Promise<RunResult> {
       confirmedBy: report.confirmed_by,
     });
 
-    // The model rewrites four argued passages and nothing else. Any figure it
-    // emits that does not already exist in the fact set or the calculator output
-    // is rejected and the template sentence kept.
+    /*
+     * Two model passes: analyse the prospect from their own words, then argue the
+     * findings into prose. The lead is passed so the dossier can include the raw
+     * bio and post captions — handing the model only formatted metrics was what
+     * made the earlier output generic.
+     */
     const narrative = await generateNarrativeDetailed({
+      lead: enriched,
       content: built.content,
       facts: built.facts,
       signals: built.signals,

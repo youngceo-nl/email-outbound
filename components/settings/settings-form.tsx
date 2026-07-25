@@ -105,6 +105,35 @@ export function SettingsForm({
         </Card>
 
         <Card>
+          <CardHeader><CardTitle>Report generation</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="report_model">Report model</Label>
+              <Input id="report_model" name="report_model" defaultValue={initial.report_model ?? ""} placeholder="gpt-5.6-terra" />
+              <p className="text-xs text-muted-foreground">
+                Separate from the scoring model. Reports run a few times a day and do open-ended analysis, so a
+                stronger model is worth it here. Falls back to the scoring model if this id is rejected.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="report_strategy_notes">House strategy brief</Label>
+              <Textarea
+                id="report_strategy_notes"
+                name="report_strategy_notes"
+                rows={8}
+                defaultValue={initial.report_strategy_notes ?? ""}
+                placeholder="Which prospects are a poor fit for us · what we actually deliver and never promise · pricing we work with · claims to avoid"
+              />
+              <p className="text-xs text-muted-foreground">
+                Added to the analysis prompt on every report. This is where your own judgement goes — which
+                prospects to warn about, what the standard engagement looks like, anything the report must never
+                claim. Leave blank to use the built-in prompt alone.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader><CardTitle>Cookie management</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div id="instagram" className="space-y-2">
