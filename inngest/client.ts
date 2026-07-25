@@ -33,11 +33,6 @@ type Events = {
       crawl_job_id?: string | null;
     };
   };
-  "report/generate.requested": {
-    data: {
-      report_id: string;
-    };
-  };
   "lead/score.requested": {
     data: {
       lead_id: string;

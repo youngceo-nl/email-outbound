@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { inngest } from "@/inngest/client";
 import { createClient } from "@/lib/supabase/server";
 import { resolveAssumptions } from "@/lib/report/assumptions/resolve";
 import { ASSUMPTION_LABEL, type AssumptionKey } from "@/lib/report/assumptions/defaults";
@@ -10,10 +9,9 @@ import { getLeadForReport, createReport, listReportsForLead } from "@/lib/report
 /*
  * Server actions behind the Generate Report button.
  *
- * Generation is queued rather than run inline: it scrapes an offer page, calls a
- * model, and drives a headless browser, which together take far longer than a
- * request should live. The action returns as soon as the row exists and the UI
- * polls for status.
+ * This only creates the row. The actual run happens in
+ * /api/reports/<id>/generate, driven by the client — see runReport for why it is
+ * not an Inngest job.
  */
 
 export type GenerateResult = { ok: true; reportId: string } | { ok: false; error: string };
@@ -72,8 +70,11 @@ export async function generateReportForLead(leadId: string, formData: FormData):
       createdBy: user.email ?? null,
     });
 
-    await inngest.send({ name: "report/generate.requested", data: { report_id: report.id } });
     revalidatePath(`/leads/${lead.username}`);
+    // The caller now POSTs to /api/reports/<id>/generate. Deliberately not
+    // triggered here: work started inside a server action can be killed the
+    // instant the action returns, whereas a client-held fetch keeps the function
+    // alive until generation answers.
     return { ok: true, reportId: report.id };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not queue the report." };

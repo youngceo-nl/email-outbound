@@ -14,21 +14,9 @@ export const processProfile = inngest.createFunction(
     id: "process-profile",
     name: "Process discovered profile",
     retries: 3,
-    /*
-     * Lowered to fit the Inngest plan's per-function ceiling of 5.
-     *
-     * This is throughput tuning, not correctness — jobs queue in Redis and drain
-     * more slowly rather than failing. It was lowered because the previous values
-     * made the whole app fail to sync, which silently blocked every new function
-     * from being registered at all (the report generator was the first to hit it).
-     *
-     * ORIGINAL VALUES, restore these on a paid plan:
-     *   { limit: 10, key: "event.data.crawl_job_id" }
-     *   { limit: 30 }
-     */
     concurrency: [
-      { limit: 5, key: "event.data.crawl_job_id" },
-      { limit: 5 },
+      { limit: 10, key: "event.data.crawl_job_id" }, // 10 profiles per crawl
+      { limit: 30 },                                  // 30 globally
     ],
   },
   { event: "crawl/profile.discovered" },
