@@ -16,21 +16,9 @@ export const scoreLead = inngest.createFunction(
     id: "score-lead",
     name: "Score lead from cached metadata",
     retries: 2,
-    /*
-     * Lowered to fit the Inngest plan's per-function ceiling of 5.
-     *
-     * This is throughput tuning, not correctness — jobs queue in Redis and drain
-     * more slowly rather than failing. It was lowered because the previous values
-     * made the whole app fail to sync, which silently blocked every new function
-     * from being registered at all (the report generator was the first to hit it).
-     *
-     * ORIGINAL VALUES, restore these on a paid plan:
-     *   { limit: 8, key: "event.data.crawl_job_id" }
-     *   { limit: 16 }
-     */
     concurrency: [
-      { limit: 5, key: "event.data.crawl_job_id" },
-      { limit: 5 },
+      { limit: 8, key: "event.data.crawl_job_id" }, // 8 concurrent scores per crawl
+      { limit: 16 },                                  // 16 globally
     ],
   },
   { event: "lead/score.requested" },

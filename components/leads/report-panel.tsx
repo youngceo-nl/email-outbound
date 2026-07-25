@@ -75,12 +75,22 @@ export function ReportPanel({
   function submit(formData: FormData) {
     setError(null);
     startTransition(async () => {
-      const result = await generateReportForLead(leadId, formData);
-      if (!result.ok) setError(result.error);
-      else {
-        setOpen(false);
-        router.refresh();
+      const created = await generateReportForLead(leadId, formData);
+      if (!created.ok) {
+        setError(created.error);
+        return;
       }
+      setOpen(false);
+      router.refresh();
+
+      // Awaited so the serverless function survives the whole run; the row's own
+      // status is the source of truth either way.
+      const response = await fetch(`/api/reports/${created.reportId}/generate`, { method: "POST" });
+      if (!response.ok && response.status !== 409) {
+        const body = await response.json().catch(() => null);
+        setError(body?.note ?? "Generation failed — see the report row below.");
+      }
+      router.refresh();
     });
   }
 
