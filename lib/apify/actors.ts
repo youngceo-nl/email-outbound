@@ -139,6 +139,7 @@ export async function scrapeProfiles(opts: {
         username,
         full_name: str(it.fullName) ?? str(it.full_name) ?? null,
         profile_url: str(it.url) ?? `https://www.instagram.com/${username}/`,
+        profile_pic_url: str(it.profilePicUrlHD) ?? str(it.profilePicUrl) ?? str(it.profile_pic_url) ?? null,
         bio: str(it.biography) ?? str(it.bio) ?? null,
         external_link: str(it.externalUrl) ?? str(it.external_url) ?? null,
         followers: num(it.followersCount) ?? num(it.followers) ?? 0,

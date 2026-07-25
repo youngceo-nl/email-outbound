@@ -8,6 +8,37 @@ export type EmailKeyStatus = {
 
 export type LeadStatus = "qualified" | "review" | "rejected" | "pending";
 
+/**
+ * Where a lead's offer is hosted, as classified by lib/funnel/classify.ts.
+ *
+ * This type went missing from here while the funnel enricher sat in archive/,
+ * which is why that code no longer compiled. Aggregators (link-in-bio pages) are
+ * distinguished because the enricher drills through them to the real offer page
+ * rather than reading a list of links.
+ */
+export type FunnelPlatform =
+  | "linktree"
+  | "stan"
+  | "beacons"
+  | "skool"
+  | "whop"
+  | "circle"
+  | "gumroad"
+  | "clickfunnels"
+  | "kajabi"
+  | "systeme"
+  | "gohighlevel"
+  | "shopify"
+  | "thrivecart"
+  | "podia"
+  | "teachable"
+  | "thinkific"
+  | "wix"
+  | "wordpress"
+  | "squarespace"
+  | "custom"
+  | "unknown";
+
 // A cookie account managed by the system: credentials are stored so the auto-
 // refresh cron can re-login without user input. Passwords never leave the server.
 export type CheckpointState = {
@@ -122,6 +153,10 @@ export type Lead = {
   username: string;
   full_name: string | null;
   profile_url: string;
+  /** Instagram CDN URL, captured at scrape time. The URL is signed and expires,
+   *  so the bytes are fetched fresh when a report is generated rather than trusted
+   *  to still resolve later. */
+  profile_pic_url: string | null;
   bio: string | null;
   external_link: string | null;
   is_private: boolean;
@@ -165,8 +200,20 @@ export type Lead = {
   email_v2_provider: string | null;
   // Funnel enrichment — funnel_program_name feeds {{program_name}} in the
   // outreach subject line, so junk values are visible to the prospect.
+  //
+  // All seven columns come from migration 0008_funnel_enrichment.sql; only the
+  // first two were ever declared here because only they had a consumer. The rest
+  // are read by app/api/leads/export/route.ts and now by the report generator,
+  // which is what surfaced the drift.
   funnel_program_name: string | null;
   funnel_offer_summary: string | null;
+  funnel_url: string | null;
+  /** "skool", "kajabi", "linktree", … as classified by the funnel enricher. */
+  funnel_platform: string | null;
+  /** Free text as it appeared on the page — see lib/report/assumptions/price.ts. */
+  funnel_price: string | null;
+  funnel_extracted_at: string | null;
+  funnel_extraction_error: string | null;
   // Outreach counters, maintained application-side (no DB trigger).
   outreach_count: number;
   last_outreach_at: string | null;
@@ -197,6 +244,8 @@ export type ScrapedProfile = {
   username: string;
   full_name: string | null;
   profile_url: string;
+  /** Instagram CDN URL. Signed and short-lived — see lib/report/renderer/prospect-image.ts. */
+  profile_pic_url: string | null;
   bio: string | null;
   external_link: string | null;
   followers: number;

@@ -25,6 +25,7 @@ export function ensureProfileFields(p: Partial<ScrapedProfile>): ScrapedProfile 
     username,
     full_name: p.full_name ?? null,
     profile_url: p.profile_url ?? profileUrl(username),
+    profile_pic_url: p.profile_pic_url ?? null,
     bio: p.bio ?? null,
     external_link: p.external_link ?? null,
     followers: p.followers ?? 0,

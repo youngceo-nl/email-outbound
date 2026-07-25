@@ -545,7 +545,7 @@ export async function triggerSeedFilter(
   const { data: leads, error } = await sb
     .from("leads")
     .select(
-      "id, username, full_name, profile_url, bio, external_link, followers, following, posts, is_private, is_verified, recent_posts",
+      "id, username, full_name, profile_url, profile_pic_url, bio, external_link, followers, following, posts, is_private, is_verified, recent_posts",
     )
     .eq("parent_username", seed.username)
     .not("followers", "is", null)
@@ -567,6 +567,7 @@ export async function triggerSeedFilter(
       username: lead.username,
       full_name: lead.full_name,
       profile_url: lead.profile_url,
+      profile_pic_url: lead.profile_pic_url ?? null,
       bio: lead.bio,
       external_link: lead.external_link,
       followers: lead.followers ?? 0,
