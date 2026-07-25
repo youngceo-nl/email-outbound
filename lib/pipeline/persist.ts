@@ -23,6 +23,7 @@ export async function persistLead(args: Args) {
     username: args.profile.username,
     full_name: args.profile.full_name,
     profile_url: args.profile.profile_url,
+    profile_pic_url: args.profile.profile_pic_url,
     bio: args.profile.bio,
     external_link: args.profile.external_link,
     is_private: args.profile.is_private,

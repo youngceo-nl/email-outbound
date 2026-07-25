@@ -24,6 +24,9 @@ type IgUser = {
   full_name?: string;
   biography?: string;
   external_url?: string;
+  /** 150px thumbnail. profile_pic_url_hd is the 320px+ version. */
+  profile_pic_url?: string;
+  profile_pic_url_hd?: string;
   is_verified?: boolean;
   is_private?: boolean;
   edge_followed_by?: { count?: number };
@@ -76,6 +79,8 @@ export async function scrapeProfileWithPostsViaScrapingBee(opts: {
     username: user.username.toLowerCase(),
     full_name: user.full_name ?? null,
     profile_url: `https://www.instagram.com/${user.username}/`,
+    // _hd first: the standard field is a 150px thumbnail, too small for a cover.
+    profile_pic_url: user.profile_pic_url_hd ?? user.profile_pic_url ?? null,
     bio: user.biography ?? null,
     external_link: user.external_url ?? null,
     followers: user.edge_followed_by?.count ?? 0,

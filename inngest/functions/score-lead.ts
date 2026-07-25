@@ -40,6 +40,7 @@ export const scoreLead = inngest.createFunction(
       username: lead.username,
       full_name: lead.full_name,
       profile_url: lead.profile_url,
+      profile_pic_url: lead.profile_pic_url ?? null,
       bio: lead.bio,
       external_link: lead.external_link,
       followers: lead.followers ?? 0,

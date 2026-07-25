@@ -10,6 +10,9 @@ import { formatNumber, formatPct, scoreColor } from "@/lib/utils";
 import { actionLabel, statusLabel } from "@/lib/labels";
 import type { Lead, RecentPost } from "@/lib/types";
 import { NotesSection } from "@/components/leads/notes-section";
+import { ReportPanel, type ReportSummary } from "@/components/leads/report-panel";
+import { getAssumptionPanel } from "@/app/actions/reports";
+import { listReportsForLead } from "@/lib/report/service";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +34,17 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ use
   ]);
 
   const l = lead as Lead;
+
+  // Resolved through the assumptions cascade so the panel opens pre-filled with
+  // the scraped price and the basis for every other input.
+  const [panel, reportRows] = await Promise.all([getAssumptionPanel(l.id), listReportsForLead(l.id)]);
+  const reports: ReportSummary[] = reportRows.map((row) => ({
+    id: row.id,
+    status: row.status,
+    error: row.error,
+    createdAt: row.created_at,
+    createdBy: row.created_by,
+  }));
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -173,6 +187,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ use
           )}
         </CardContent>
       </Card>
+
+      {panel && (
+        <ReportPanel leadId={l.id} inputs={panel.inputs} warnings={panel.warnings} reports={reports} />
+      )}
 
       <NotesSection leadId={l.id} notes={(notes ?? []) as { id: string; body: string; created_at: string }[]} />
     </div>
