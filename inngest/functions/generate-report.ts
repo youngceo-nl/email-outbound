@@ -30,7 +30,18 @@ import { logError } from "@/lib/pipeline/persist";
 const STALE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const generateReport = inngest.createFunction(
-  { id: "generate-report", name: "Generate opportunity report", retries: 2 },
+  {
+    id: "generate-report",
+    name: "Generate opportunity report",
+    retries: 2,
+    /*
+     * Capped at 2 deliberately. The plan's concurrency ceiling is shared across
+     * the account, so an unbounded report function could occupy every slot and
+     * stall a running crawl. Reports are a handful a day; the crawl is thousands
+     * of profiles, so the crawl gets the headroom.
+     */
+    concurrency: { limit: 2 },
+  },
   { event: "report/generate.requested" },
   async ({ event, step }) => {
     const { report_id } = event.data;

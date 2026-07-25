@@ -11,9 +11,20 @@ export const recurseFollowing = inngest.createFunction(
     id: "recurse-following",
     name: "Recurse a qualified lead's following (following-only)",
     retries: 2,
+    /*
+     * Lowered to fit the Inngest plan's per-function ceiling of 5.
+     *
+     * This is throughput tuning, not correctness — jobs queue in Redis and drain
+     * more slowly rather than failing. It was lowered because the previous values
+     * made the whole app fail to sync, which silently blocked every new function
+     * from being registered at all (the report generator was the first to hit it).
+     *
+     * ORIGINAL VALUES, restore these on a paid plan:
+     *   { limit: 12 } globally; the per-crawl 4 was already within the ceiling.
+     */
     concurrency: [
       { limit: 4, key: "event.data.crawl_job_id" },
-      { limit: 12 },
+      { limit: 5 },
     ],
   },
   { event: "crawl/recurse.requested" },
