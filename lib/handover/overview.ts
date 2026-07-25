@@ -8,6 +8,15 @@ export const UNATTRIBUTED = "(unattributed)";
 /** Read-only row preview cap — bounds render cost for accounts with a large pool. */
 const PREVIEW_LIMIT = 50;
 
+/**
+ * How recently an in-flight lead must have been touched for the account to
+ * count as *actively* processing rather than stalled. The touch_leads trigger
+ * bumps updated_at on every write, so an active backfill/scoring run keeps this
+ * fresh; a run that stopped (or leads that were discovered but never enqueued)
+ * goes stale and is reported as stalled, not processing.
+ */
+const ACTIVITY_WINDOW_MS = 30 * 60 * 1000;
+
 export type HardFilterReason = { reason: string; count: number };
 
 /** Turn a raw filter reason (lib/pipeline/filter.ts) into plain language for the tooltip. */
@@ -33,9 +42,12 @@ export type AccountHandover = {
   /** parent_username, or UNATTRIBUTED. The key batches are opened against. */
   parentUsername: string;
   username: string;
-  /** Qualified leads from this account that need an email — the account's work.
-   *  Displayed as the "ready for handover" funnel stage. */
+  /** Approved, qualified leads from this account that need an email — the
+   *  claimable work. Displayed as the "ready for handover" funnel stage. */
   total: number;
+  /** Qualified no-email leads still awaiting manual review — they can't be
+   *  handed over until approved (the review gate). The "in manual scoring" stage. */
+  awaitingReview: number;
   /** Of those, how many have been through a handover batch. Displayed as "handed over". */
   done: number;
   // ── Pipeline funnel, all absolute counts, sourced from lead_counts_by_parent
@@ -68,9 +80,19 @@ export type AccountHandover = {
    * crawl_jobs row can already read `completed` while backfill/scoring for
    * its leads runs on for a long time afterward as a separate Inngest chain,
    * so crawl status alone can't answer this.
+   *
+   * Gated on *recent activity*, not just the presence of in-flight leads: a
+   * process is only "processing" if it's actually touching leads (see
+   * ACTIVITY_WINDOW_MS). Leads discovered but never backfilled read as
+   * `stalled` instead, not a perpetual spinner.
    */
   stillProcessing: boolean;
-  /** What exactly is still in flight — drives the "processing" badge's tooltip. */
+  /** Outstanding in-flight work exists, but nothing has touched it recently —
+   *  a stopped/orphaned run that needs a manual backfill kick, not active work. */
+  stalled: boolean;
+  /** Newest touch across the in-flight leads, for the stalled tooltip. */
+  lastActivityAt: string | null;
+  /** What exactly is still in flight — drives the badge tooltips. */
   processing: {
     /** Backfilled?no — waiting on metadata (followers/bio/…). */
     awaitingBackfill: number;
@@ -97,13 +119,18 @@ export type AccountHandover = {
 export async function getAccountHandoverStats(): Promise<AccountHandover[]> {
   const sb = createAdminClient();
 
-  const [{ data: leads }, { data: batches }, { data: seeds }, scrapedIds, { data: counts }, { data: hardReasons }] = await Promise.all([
+  const [{ data: leads }, { data: batches }, { data: seeds }, scrapedIds, { data: counts }, { data: hardReasons }, { data: handedOver }] = await Promise.all([
     // Qualified leads without an email are what handover exists to fix. Rows
     // already in a batch are included so an open batch still counts.
+    // Fetched *ungated* by review verdict so the funnel can show the real
+    // pipeline — `review_decision` is selected and split in JS: approved →
+    // "ready for handover" (the claimable set, matching the gate in batch.ts),
+    // unreviewed → "awaiting review". Only the ready count and the claim itself
+    // are gated; the display tells the truth (docs/KPI/scoring-improvement.md).
     sb
       .from("leads")
       .select(
-        "id, username, full_name, niche, external_link, profile_url, bio, parent_username, handover_batch_id, handover_enriched_at, email",
+        "id, username, full_name, niche, external_link, profile_url, bio, parent_username, handover_batch_id, handover_enriched_at, email, review_decision",
       )
       .eq("status", "qualified")
       .is("email", null)
@@ -117,7 +144,18 @@ export async function getAccountHandoverStats(): Promise<AccountHandover[]> {
     // Per-account "why were these dropped before AI" breakdown for the
     // hard-filtered stage's hover tooltip.
     sb.rpc("hard_filter_reasons_by_parent"),
+    // Every lead ever handed over (through a Clay batch), for the true "handed
+    // over" tally — counted regardless of email or review, since it's history.
+    // Kept separate from the no-email pool query above, which excludes leads
+    // that came back with an email (they've left the funnel onto Outreach Ready).
+    sb.from("leads").select("parent_username").not("handover_enriched_at", "is", null),
   ]);
+
+  const handedOverByParent = new Map<string, number>();
+  for (const row of handedOver ?? []) {
+    const key = row.parent_username ?? UNATTRIBUTED;
+    handedOverByParent.set(key, (handedOverByParent.get(key) ?? 0) + 1);
+  }
 
   type CountRow = {
     parent_username: string;
@@ -127,6 +165,7 @@ export async function getAccountHandoverStats(): Promise<AccountHandover[]> {
     pending_backfill: number;
     needs_filter: number;
     needs_verify: number;
+    last_inflight_activity: string | null;
   };
   const countsByParent = new Map(((counts ?? []) as CountRow[]).map((r) => [r.parent_username, r]));
 
@@ -161,20 +200,39 @@ export async function getAccountHandoverStats(): Promise<AccountHandover[]> {
       const batchId = openByParent.get(key) ?? null;
       const batchLeads = batchId ? rows.filter((row) => row.handover_batch_id === batchId) : [];
 
+      // Leads still needing handover (no email, not yet run through Clay). Those
+      // already handed over are counted separately (handedOverByParent) so they
+      // don't show up as "awaiting review" or "ready" again.
+      const notHandedOver = rows.filter((row) => !row.handover_enriched_at);
+
       // Pool = eligible but not yet claimed into a batch — same definition as
-      // claimBatch/getPoolCount in lib/handover/batch.ts.
-      const pool = rows.filter((row) => !row.handover_batch_id).sort((a, b) => a.username.localeCompare(b.username));
+      // claimBatch/getPoolCount in lib/handover/batch.ts, including the review
+      // gate (only approved leads are actually claimable).
+      const pool = notHandedOver
+        .filter((row) => !row.handover_batch_id && row.review_decision === "approved")
+        .sort((a, b) => a.username.localeCompare(b.username));
+
+      // Approved & no-email = ready to claim; unreviewed = still in manual scoring.
+      const readyForHandover = notHandedOver.filter((row) => row.review_decision === "approved").length;
+      const awaitingReview = notHandedOver.filter((row) => !row.review_decision).length;
+      const done = handedOverByParent.get(key) ?? 0;
 
       const c = countsByParent.get(key);
       const reasons = (reasonsByParent.get(key) ?? []).sort((a, b) => b.count - a.count);
       const hardFiltered = reasons.reduce((sum, r) => sum + r.count, 0);
       const outstanding = c ? c.pending_backfill + c.needs_filter + c.needs_verify : 0;
+      // Only "processing" if a job is actually touching these leads recently;
+      // otherwise the outstanding work is stalled (a stopped run, or leads that
+      // were discovered but never enqueued for backfill).
+      const lastActivity = c?.last_inflight_activity ? Date.parse(c.last_inflight_activity) : 0;
+      const activelyProcessing = outstanding > 0 && Date.now() - lastActivity < ACTIVITY_WINDOW_MS;
 
       return {
         parentUsername: key,
         username: key === UNATTRIBUTED ? "Unattributed (imports & manual)" : key,
-        total: rows.length,
-        done: rows.filter((row) => row.handover_enriched_at).length,
+        total: readyForHandover,
+        awaitingReview,
+        done,
         found: c ? Number(c.total) : rows.length,
         backfilled: c ? Number(c.backfilled) : 0,
         hardFiltered,
@@ -191,7 +249,9 @@ export async function getAccountHandoverStats(): Promise<AccountHandover[]> {
           : null,
         poolLeads: pool.slice(0, PREVIEW_LIMIT).map((row) => ({ username: row.username, full_name: row.full_name })),
         poolMore: Math.max(0, pool.length - PREVIEW_LIMIT),
-        stillProcessing: outstanding > 0,
+        stillProcessing: activelyProcessing,
+        stalled: outstanding > 0 && !activelyProcessing,
+        lastActivityAt: c?.last_inflight_activity ?? null,
         processing: {
           awaitingBackfill: c ? Number(c.pending_backfill) : 0,
           awaitingFilterScore: c ? Number(c.needs_filter) : 0,

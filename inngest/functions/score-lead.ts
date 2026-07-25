@@ -1,9 +1,10 @@
 import { inngest } from "@/inngest/client";
 import { getSettings } from "@/lib/config/settings";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hardFilter, metricsGate } from "@/lib/pipeline/filter";
+import { hardFilter, infopreneurGate } from "@/lib/pipeline/filter";
 import { computeMetrics } from "@/lib/pipeline/metrics";
 import { scoreProfileRouted } from "@/lib/scoring/score";
+import { leadTrackFor } from "@/lib/leads/category";
 import { bumpFunnelCounters, logCrawl, logError } from "@/lib/pipeline/persist";
 import type { ScrapedProfile } from "@/lib/types";
 
@@ -88,50 +89,12 @@ export const scoreLead = inngest.createFunction(
 
     // Compute engagement / activity metrics from recent_posts
     const metrics = computeMetrics(profile);
-
-    // Gate 2 — metrics gate (engagement, post frequency)
     const reelSample = profile.recent_posts.filter((p) => p.is_reel).length;
-    const mg = metricsGate(metrics, settings, reelSample);
-    if (!mg.ok) {
-      await step.run("persist-rejected-metrics", async () => {
-        const sb = createAdminClient();
-        await sb
-          .from("leads")
-          .update({
-            status: "rejected",
-            rejection_reason: mg.reason,
-            overall_score: null,
-            // Same staleness fix as the hard-filter rejection above.
-            reason_for_score: null,
-            recommended_action: null,
-            avg_likes: metrics.avg_likes,
-            avg_comments: metrics.avg_comments,
-            avg_views: metrics.avg_views,
-            engagement_rate: metrics.engagement_rate,
-            posts_last_30_days: metrics.posts_last_30_days,
-            reels_last_30_days: metrics.reels_last_30_days,
-            activity_status: metrics.activity_status,
-          })
-          .eq("id", lead_id);
-      });
-      await logCrawl({
-        crawl_job_id: crawl_job_id ?? null,
-        profile_username: lead.username,
-        parent_username: lead.parent_username,
-        action: "filtered_metrics",
-        depth: lead.crawl_depth,
-        detail: mg.reason,
-      });
-      return { status: "rejected", reason: mg.reason };
-    }
 
-    // Survived hardFilter and metricsGate — this is the "filtered" stage of the
-    // funnel on the Activity page (accounts that got through, not that were cut).
-    await step.run("bump-filtered", () =>
-      bumpFunnelCounters({ crawl_job_id: crawl_job_id ?? null, filtered: 1 }),
-    );
-
-    // AI classification + deterministic scoring
+    // Classify FIRST — the activity gate is now infopreneur-specific, so we need
+    // the AI business_model before we know whether to apply it (see filter.ts /
+    // the partnership track). Costs one classify call even for leads an
+    // infopreneur activity gate would later reject — the price of the split.
     let scored;
     try {
       scored = await step.run("score", () =>
@@ -149,8 +112,58 @@ export const scoreLead = inngest.createFunction(
     }
 
     const score = scored.score;
+    const track = leadTrackFor(score.business_model);
+
+    // Infopreneur track only: the activity gate (no recent posts, engagement,
+    // reels). Partnerships skip it — they're judged on audience fit, not cadence.
+    if (track === "infopreneur") {
+      const gate = infopreneurGate(profile, metrics, settings, reelSample);
+      if (!gate.ok) {
+        await step.run("persist-rejected-metrics", async () => {
+          const sb = createAdminClient();
+          await sb
+            .from("leads")
+            .update({
+              status: "rejected",
+              rejection_reason: gate.reason,
+              overall_score: null,
+              reason_for_score: null,
+              recommended_action: null,
+              lead_type: "infopreneur",
+              niche: score.niche,
+              business_model: score.business_model,
+              avg_likes: metrics.avg_likes,
+              avg_comments: metrics.avg_comments,
+              avg_views: metrics.avg_views,
+              engagement_rate: metrics.engagement_rate,
+              posts_last_30_days: metrics.posts_last_30_days,
+              reels_last_30_days: metrics.reels_last_30_days,
+              activity_status: metrics.activity_status,
+            })
+            .eq("id", lead_id);
+        });
+        await logCrawl({
+          crawl_job_id: crawl_job_id ?? null,
+          profile_username: lead.username,
+          parent_username: lead.parent_username,
+          action: "filtered_metrics",
+          depth: lead.crawl_depth,
+          detail: gate.reason,
+        });
+        return { status: "rejected", reason: gate.reason };
+      }
+    }
+
+    await step.run("bump-filtered", () =>
+      bumpFunnelCounters({ crawl_job_id: crawl_job_id ?? null, filtered: 1 }),
+    );
+
+    // Partnership leads pass through to the Partnership review queue (manual
+    // vetting in Phase 1); infopreneur status comes from the score's verdict.
     const status =
-      score.recommended_action === "qualified"
+      track === "partnership"
+        ? "qualified"
+        : score.recommended_action === "qualified"
         ? "qualified"
         : score.recommended_action === "review"
         ? "review"
@@ -184,6 +197,7 @@ export const scoreLead = inngest.createFunction(
           // so the funnel reads "qualified / no_recent_posts".
           rejection_reason: status === "rejected" ? score.reason_for_score : null,
           status,
+          lead_type: track,
         })
         .eq("id", lead_id);
     });

@@ -39,5 +39,15 @@ export function businessModelsFor(category: LeadCategory): string[] | null {
   return null;
 }
 
+// The two qualification tracks. Routed by business_model, reusing the same
+// agency = partnership mapping the outreach category uses. Everything that isn't
+// a partnership (agency) — coach/course/ecom/saas/creator/unknown — is judged on
+// the infopreneur rubric as before.
+export type LeadTrack = "infopreneur" | "partnership";
+
+export function leadTrackFor(businessModel: string | null | undefined): LeadTrack {
+  return businessModel && PARTNERSHIPS_MODELS.includes(businessModel) ? "partnership" : "infopreneur";
+}
+
 export type CategoryTemplate = { subject: string; body: string };
 export type CategoryTemplates = Record<LeadCategory, CategoryTemplate>;

@@ -147,11 +147,11 @@ export function computeScores(args: {
   const overall = CLAMP(raw, 0, cap);
 
   const qualifiedThreshold = settings.crawl_score_threshold;
-  const reviewThreshold = Math.max(0, qualifiedThreshold - 2);
 
+  // Hard binary — at or above the threshold qualifies (and goes to manual
+  // review); anything below is rejected. No soft "review" band.
   const recommended_action: ClaudeScore["recommended_action"] =
-    overall >= qualifiedThreshold ? "qualified" :
-    overall >= reviewThreshold    ? "review"    : "reject";
+    overall >= qualifiedThreshold ? "qualified" : "reject";
 
   const icpSignalLabel =
     classification.business_model === "ecom" && classification.icp_signal !== "weak"

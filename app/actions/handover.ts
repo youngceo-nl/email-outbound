@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
   claimBatch as claim,
+  claimNextReadyBatch as claimNext,
   applyEnrichmentAll as applyAll,
   closeBatch as close,
   getDispatchState as dispatchState,
@@ -42,6 +43,12 @@ async function run<T>(fn: () => Promise<T>): Promise<HandoverResult<T>> {
 export async function claimBatch(parentUsername: string) {
   await requireUser();
   return run(() => claim(parentUsername));
+}
+
+/** One-click dispatch of the next batch of ready leads across all accounts — see claimNextReadyBatch. */
+export async function claimReadyBatch() {
+  await requireUser();
+  return run(() => claimNext());
 }
 
 /**

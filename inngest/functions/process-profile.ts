@@ -1,9 +1,10 @@
 import { inngest } from "@/inngest/client";
 import { getSettings } from "@/lib/config/settings";
 import { scrapeProfileWithFallback } from "@/lib/pipeline/scrape-profile";
-import { hardFilter, metricsGate } from "@/lib/pipeline/filter";
+import { hardFilter, infopreneurGate } from "@/lib/pipeline/filter";
 import { computeMetrics } from "@/lib/pipeline/metrics";
 import { scoreProfileRouted } from "@/lib/scoring/score";
+import { leadTrackFor } from "@/lib/leads/category";
 import { bumpJobCounters, getJobStatus, logCrawl, logError, persistLead } from "@/lib/pipeline/persist";
 
 // One profile through the full pipeline:
@@ -66,25 +67,11 @@ export const processProfile = inngest.createFunction(
 
     // 3. Metrics
     const metrics = computeMetrics(profile);
-
-    // 4. Metrics gate
     const reelSample = profile.recent_posts.filter((p) => p.is_reel).length;
-    const gate = metricsGate(metrics, settings, reelSample);
-    if (!gate.ok) {
-      await persistLead({
-        profile, metrics, score: null,
-        status: "rejected", rejection_reason: gate.reason,
-        crawl_depth: depth, source_seed_id: seed_id, parent_username,
-      });
-      await logCrawl({
-        crawl_job_id, profile_username: username, parent_username,
-        action: "filtered_metrics", depth, detail: gate.reason,
-      });
-      await bumpJobCounters({ crawl_job_id, rejected: 1 });
-      return { status: "rejected_metrics", reason: gate.reason };
-    }
 
-    // 5. AI classifies (niche / business_model / offer) → code computes scores.
+    // 4. AI classifies FIRST — the activity gate is now infopreneur-specific, so
+    // we need business_model to know whether it applies (partnership track skips
+    // it). See filter.ts.
     let score;
     let scoringProvider: "openai" | "claude" | "gemini" | "groq";
     try {
@@ -105,10 +92,33 @@ export const processProfile = inngest.createFunction(
       throw err;
     }
 
-    // 6. Decide status from score
+    const track = leadTrackFor(score.business_model);
+
+    // 5. Infopreneur-only activity gate (post-classify). Partnerships skip it.
+    if (track === "infopreneur") {
+      const gate = infopreneurGate(profile, metrics, settings, reelSample);
+      if (!gate.ok) {
+        await persistLead({
+          profile, metrics, score: null,
+          status: "rejected", rejection_reason: gate.reason, lead_type: "infopreneur",
+          crawl_depth: depth, source_seed_id: seed_id, parent_username,
+        });
+        await logCrawl({
+          crawl_job_id, profile_username: username, parent_username,
+          action: "filtered_metrics", depth, detail: gate.reason,
+        });
+        await bumpJobCounters({ crawl_job_id, rejected: 1 });
+        return { status: "rejected_metrics", reason: gate.reason };
+      }
+    }
+
+    // 6. Decide status. Partnerships pass through to manual review; infopreneurs
+    // take the score's verdict.
     const overall = score.overall_score;
     const status: "qualified" | "review" | "rejected" =
-      score.recommended_action === "qualified"
+      track === "partnership"
+        ? "qualified"
+        : score.recommended_action === "qualified"
         ? "qualified"
         : score.recommended_action === "reject"
         ? "rejected"
@@ -120,6 +130,7 @@ export const processProfile = inngest.createFunction(
         status,
         rejection_reason: status === "rejected" ? score.reason_for_score : null,
         crawl_depth: depth, source_seed_id: seed_id, parent_username,
+        lead_type: track,
       }),
     );
 

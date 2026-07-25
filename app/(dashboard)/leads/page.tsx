@@ -21,9 +21,6 @@ import { LeadsSearchBar } from "@/components/leads/search-bar";
 import { DoubleClickRow } from "@/components/leads/double-click-row";
 import { LeadEditDialog } from "@/components/leads/lead-edit-dialog";
 import { getSettings, resolveApifyToken } from "@/lib/config/settings";
-import { getAccountHandoverStats } from "@/lib/handover/overview";
-import { HandoverSection } from "@/components/handover/handover-section";
-import { DispatchLock } from "@/components/handover/dispatch-lock";
 import { MarkBadLeadButton } from "@/components/leads/mark-bad-lead-button";
 import { BadLeadsTable, type RejectedLeadRow } from "@/components/leads/bad-leads-table";
 
@@ -93,7 +90,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     { count: rejectedWithScore },
     { count: rejectedCount },
     { count: backfillCount },
-    handoverAccounts,
     { data: badLeadRows },
   ] = await Promise.all([
     getSettings().catch(() => null),
@@ -113,9 +109,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     sb.from("leads").select("id", { count: "exact", head: true })
       .is("followers", null).or("backfill_error.is.null,backfill_error.eq.apify_exhausted")
       .neq("status", "rejected"),
-    // Empty rather than fatal: a missing handover table (migration not yet
-    // applied) must not take the whole leads page down.
-    getAccountHandoverStats().catch(() => []),
     // The bad-leads training collection (docs/bottlenecks/bottleneck02.md) —
     // empty rather than fatal for the same reason as handoverAccounts above.
     sb.from("rejected_leads")
@@ -165,10 +158,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     : "unknown";
 
   return (
-    <div className="relative">
-      {/* absolute, not fixed — covers this page's content only, not the dashboard sidebar */}
-      <DispatchLock />
-      <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6">
       {/* Cookie warnings only matter when Apify can't cover the work. Apify is
           the standard provider for both following scrapes and backfill, so a
           dead cookie is not an error while a token is configured — the old
@@ -205,8 +195,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           />
         </div>
       </div>
-
-      <HandoverSection initial={handoverAccounts} />
 
       <Card>
         <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
@@ -342,7 +330,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
       <Pagination page={page} totalPages={totalPages} sp={sp} />
       <LeadEditDialog />
-      </div>
     </div>
   );
 }

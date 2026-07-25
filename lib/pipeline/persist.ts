@@ -15,6 +15,8 @@ type Args = {
   source_seed_id: string | null;
   parent_username: string | null;
   lead_source?: string | null;
+  /** "infopreneur" (default) | "partnership" — which qualification track. */
+  lead_type?: string | null;
 };
 
 export async function persistLead(args: Args) {
@@ -59,6 +61,7 @@ export async function persistLead(args: Args) {
     source_seed_id: args.source_seed_id,
     parent_username: args.parent_username,
     lead_source: args.lead_source ?? null,
+    lead_type: args.lead_type ?? "infopreneur",
   };
 
   const { data, error } = await sb
