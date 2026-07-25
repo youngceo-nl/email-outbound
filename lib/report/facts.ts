@@ -19,6 +19,15 @@ import type { SourceNote, Tier } from "./schema";
  */
 
 export type Fact = {
+  /**
+   * Stable citation id, e.g. "ev_followers".
+   *
+   * Exists so the model can cite the specific fact behind a claim and we can check
+   * the citation resolves. A claim citing ev_engagement_rate when no such fact was
+   * gathered is caught mechanically, rather than relying on the prose sounding
+   * plausible.
+   */
+  id: string;
   key: string;
   label: string;
   /** Print-ready. The renderer never formats. */
@@ -49,7 +58,7 @@ function fact(
   source: string,
   observedAt: string | null,
 ): Fact {
-  return { key, label, value, display, tier: "observed", source, observedAt };
+  return { id: `ev_${key}`, key, label, value, display, tier: "observed", source, observedAt };
 }
 
 /**
