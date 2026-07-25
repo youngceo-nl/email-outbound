@@ -22,6 +22,7 @@ export function DispatchLock() {
   const [state, setState] = useState<DispatchState | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copiedAll, setCopiedAll] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
@@ -40,9 +41,15 @@ export function DispatchLock() {
 
   if (!state?.locked) return null;
 
-  const copyAgain = async (text: string) => {
-    await navigator.clipboard.writeText(text);
-    setMessage("Copied.");
+  const copyAll = async () => {
+    if (!state) return;
+    try {
+      await navigator.clipboard.writeText(state.allCopyText);
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 2000);
+    } catch {
+      setMessage("Couldn't copy — check clipboard permissions.");
+    }
   };
 
   const upload = (file: File) => {
@@ -59,7 +66,9 @@ export function DispatchLock() {
           return;
         }
         const parts = [`${result.withEmail} email${result.withEmail === 1 ? "" : "s"} found`];
+        if (result.withoutEmail) parts.push(`${result.withoutEmail} no email`);
         if (result.markedBad) parts.push(`${result.markedBad} marked bad`);
+        if (result.returnedToPool) parts.push(`${result.returnedToPool} returned to pool`);
         if (result.skipped) parts.push(`${result.skipped} row(s) skipped (no match)`);
         setMessage(parts.join(", ") + ".");
         await refresh();
@@ -93,9 +102,15 @@ export function DispatchLock() {
             <h2 className="font-semibold text-sm">Batch dispatched — page locked</h2>
           </div>
           <p className="text-xs text-muted-foreground">
-            Leads are out with Clay. Paste them in there, then upload the enriched CSV to unlock —
-            or cancel a batch to return its leads to the pool.
+            Leads are out with Clay. Copy them all, paste into Clay, then upload the enriched CSV.
+            One upload tracks everything automatically — anything Clay didn&apos;t return goes back to
+            the pool.
           </p>
+
+          <Button size="sm" variant="outline" className="w-full" onClick={copyAll}>
+            <Copy className="h-3.5 w-3.5 mr-1.5" />
+            {copiedAll ? "Copied" : `Copy all ${state.totalLeads} lead${state.totalLeads === 1 ? "" : "s"}`}
+          </Button>
 
           <div className="space-y-1.5">
             {state.batches.map((b) => (
@@ -107,20 +122,15 @@ export function DispatchLock() {
                 <span className="text-muted-foreground tabular-nums shrink-0">
                   {b.enriched}/{b.total}
                 </span>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => copyAgain(b.copyText)}>
-                    <Copy className="h-3 w-3 mr-1" /> Copy
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-destructive hover:text-destructive"
-                    disabled={busy}
-                    onClick={() => cancelDispatch(b.parentUsername)}
-                  >
-                    <X className="h-3 w-3 mr-1" /> Cancel
-                  </Button>
-                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-destructive hover:text-destructive shrink-0"
+                  disabled={busy}
+                  onClick={() => cancelDispatch(b.parentUsername)}
+                >
+                  <X className="h-3 w-3 mr-1" /> Cancel
+                </Button>
               </div>
             ))}
           </div>

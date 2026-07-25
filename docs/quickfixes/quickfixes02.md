@@ -1,0 +1,1 @@
+we want the review page to have an option to toggle between if you want to leads shown to you from low scoring to high scoring order or high scoring to low scoring order: reason is that we want to have the ability to quickly get high scored leads past the manual gate in specific cases.

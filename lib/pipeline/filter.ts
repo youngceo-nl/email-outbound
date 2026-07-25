@@ -1,8 +1,15 @@
 import type { AppSettings, ScrapedProfile } from "@/lib/types";
+import type { ComputedMetrics } from "@/lib/pipeline/metrics";
 
 export type FilterResult = { ok: true } | { ok: false; reason: string };
 
-// Hard filter — runs BEFORE Claude. Cheap rejections to save API spend.
+// Universal hard filter — runs BEFORE classification for every lead (info or
+// partnership). Only truly disqualifying, ICP-agnostic checks live here: an
+// account that's private, out of the follower range, or has no bio/is junk
+// can't be a lead of any kind. Activity-based checks (no_recent_posts, reels,
+// engagement) are infopreneur-specific and moved to `infopreneurGate`, which
+// runs AFTER classification so a quiet-but-relevant partnership candidate (e.g.
+// an agency with reach but few recent posts) isn't cut before we know it's one.
 export function hardFilter(profile: ScrapedProfile, settings: AppSettings): FilterResult {
   if (profile.is_private) return { ok: false, reason: "private_account" };
 
@@ -15,10 +22,6 @@ export function hardFilter(profile: ScrapedProfile, settings: AppSettings): Filt
 
   if (!profile.bio || profile.bio.trim().length < 5) {
     return { ok: false, reason: "no_bio" };
-  }
-
-  if (!profile.recent_posts || profile.recent_posts.length === 0) {
-    return { ok: false, reason: "no_recent_posts" };
   }
 
   // Keyword filters.
@@ -80,4 +83,20 @@ export function metricsGate(
     };
   }
   return { ok: true };
+}
+
+// Infopreneur-only gate — runs AFTER classification, applied only when a lead is
+// routed to the infopreneur track. Infopreneurs are judged partly on being an
+// active content seller (recent posts, engagement, reel cadence); partnerships
+// are judged on audience/niche complementarity instead and skip this entirely.
+export function infopreneurGate(
+  profile: ScrapedProfile,
+  metrics: ComputedMetrics,
+  settings: AppSettings,
+  reelSampleSize: number,
+): FilterResult {
+  if (!profile.recent_posts || profile.recent_posts.length === 0) {
+    return { ok: false, reason: "no_recent_posts" };
+  }
+  return metricsGate(metrics, settings, reelSampleSize);
 }

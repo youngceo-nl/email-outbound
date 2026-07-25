@@ -16,9 +16,23 @@ const IDLE_POLL_MS = 20000;
  * The per-account handover blocks, collapsed by default so they never push the
  * leads table off screen as source accounts accumulate.
  */
+const OPEN_KEY = "handover:section-open";
+
 export function HandoverSection({ initial }: { initial: AccountHandover[] }) {
   const [accounts, setAccounts] = useState<AccountHandover[]>(initial);
+  // Stable false for SSR/hydration, then restored from the last visit on mount
+  // so a reload keeps whatever state the operator left it in.
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const stored = localStorage.getItem(OPEN_KEY);
+    if (stored != null) setOpen(stored === "1");
+  }, []);
+  const toggleOpen = () =>
+    setOpen((v) => {
+      const next = !v;
+      localStorage.setItem(OPEN_KEY, next ? "1" : "0");
+      return next;
+    });
   const [pending, start] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   // Set only when the CSV's identifying/email column couldn't be confidently
@@ -55,6 +69,7 @@ export function HandoverSection({ initial }: { initial: AccountHandover[] }) {
   if (!accounts.length) return null;
 
   const ready = accounts.reduce((sum, a) => sum + a.total, 0);
+  const awaitingReview = accounts.reduce((sum, a) => sum + a.awaitingReview, 0);
   const handedOver = accounts.reduce((sum, a) => sum + a.done, 0);
   const openBatches = accounts.filter((a) => a.openBatch).length;
 
@@ -72,6 +87,7 @@ export function HandoverSection({ initial }: { initial: AccountHandover[] }) {
     const parts = [`${result.withEmail} email${result.withEmail === 1 ? "" : "s"} found`];
     if (result.withoutEmail) parts.push(`${result.withoutEmail} with none`);
     if (result.markedBad) parts.push(`${result.markedBad} marked bad`);
+    if (result.returnedToPool) parts.push(`${result.returnedToPool} returned to pool`);
     if (result.skipped) parts.push(`${result.skipped} row(s) skipped (no match)`);
     if (result.closedBatches) {
       parts.push(`${result.closedBatches} batch${result.closedBatches === 1 ? "" : "es"} closed`);
@@ -117,7 +133,7 @@ export function HandoverSection({ initial }: { initial: AccountHandover[] }) {
       <div className="flex items-center gap-2 px-3 py-2.5">
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={toggleOpen}
           className="flex items-center gap-2 flex-1 min-w-0 text-left text-sm hover:opacity-80 transition-opacity"
         >
           {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -125,6 +141,7 @@ export function HandoverSection({ initial }: { initial: AccountHandover[] }) {
           <span className="font-medium">Handover</span>
           <span className="text-muted-foreground text-xs">
             {accounts.length} account{accounts.length === 1 ? "" : "s"} · {ready.toLocaleString()} ready for handover · {handedOver.toLocaleString()} handed over
+            {awaitingReview > 0 && ` · ${awaitingReview.toLocaleString()} awaiting review`}
             {openBatches > 0 && ` · ${openBatches} batch${openBatches === 1 ? "" : "es"} open`}
           </span>
         </button>
@@ -150,7 +167,7 @@ export function HandoverSection({ initial }: { initial: AccountHandover[] }) {
       {open && (
         <div className="p-3 pt-0 space-y-2">
           {accounts.map((account) => (
-            <AccountHandoverBlock key={account.parentUsername} account={account} />
+            <AccountHandoverBlock key={account.parentUsername} account={account} onResumed={refresh} />
           ))}
         </div>
       )}

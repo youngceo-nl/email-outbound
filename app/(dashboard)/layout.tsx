@@ -1,18 +1,23 @@
 import Link from "next/link";
-import { LayoutDashboard, Users, Settings, Sprout, LogOut, Activity, MailCheck } from "lucide-react";
+import { LayoutDashboard, Users, Settings, Sprout, LogOut, Activity, MailCheck, ClipboardCheck, Handshake } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
 import { ActivityDrawerButton } from "@/components/logs/activity-drawer";
+import { getReviewPendingCount } from "@/app/actions/review";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/seeds", label: "Source Accounts", icon: Sprout },
   { href: "/leads", label: "Leads", icon: Users },
+  { href: "/review", label: "Review", icon: ClipboardCheck },
+  { href: "/handover", label: "Handover", icon: Handshake },
   { href: "/outreach-ready", label: "Outreach Ready", icon: MailCheck },
   { href: "/logs", label: "Pipeline", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  // Best-effort — a nav badge should never take the whole shell down.
+  const pendingReview = await getReviewPendingCount().catch(() => 0);
   return (
     <div className="grid grid-cols-[220px_1fr] h-screen overflow-hidden">
       <aside className="border-r bg-muted/20 overflow-y-auto">
@@ -31,6 +36,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
               >
                 <item.icon className="h-4 w-4" />
                 {item.label}
+                {item.href === "/review" && pendingReview > 0 && (
+                  <span className="ml-auto text-[11px] tabular-nums rounded-full bg-primary/15 text-primary px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                    {pendingReview > 99 ? "99+" : pendingReview}
+                  </span>
+                )}
               </Link>
             ))}
 

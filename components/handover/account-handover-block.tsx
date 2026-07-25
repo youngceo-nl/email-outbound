@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Check, ChevronDown, ChevronRight, Copy, Loader2 } from "lucide-react";
 import { claimBatch, closeBatch } from "@/app/actions/handover";
 import { BATCH_SIZE } from "@/lib/handover/format";
@@ -9,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/info-tip";
 import { MarkBadLeadButton } from "@/components/leads/mark-bad-lead-button";
+import { StalledBadge } from "@/components/handover/stalled-badge";
 
-export function AccountHandoverBlock({ account }: { account: AccountHandover }) {
+export function AccountHandoverBlock({ account, onResumed }: { account: AccountHandover; onResumed?: () => void }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -18,10 +20,14 @@ export function AccountHandoverBlock({ account }: { account: AccountHandover }) 
   const [open, setOpen] = useState(false);
 
   const {
-    parentUsername, username, total, done, openBatch, poolLeads, poolMore, stillProcessing,
-    found, backfilled, hardFiltered, hardFilterReasons, aiScored, processing,
+    parentUsername, username, total, awaitingReview, done, openBatch, poolLeads, poolMore, stillProcessing,
+    stalled, lastActivityAt, found, backfilled, hardFiltered, hardFilterReasons, aiScored, processing,
   } = account;
-  const remaining = total - done;
+  // Claimable now = approved, no-email, not-yet-handed-over leads (= `total`,
+  // "ready for handover"); `done` is a separate lifetime tally, so it can't be
+  // subtracted here. Progress is share of all handover work already handed over.
+  const remaining = total;
+  const workTotal = total + awaitingReview + done;
 
   // "1865 followers too low · 853 engagement too low · …" for the tooltip.
   const hardFilterBreakdown = hardFilterReasons
@@ -36,6 +42,16 @@ export function AccountHandoverBlock({ account }: { account: AccountHandover }) 
   ]
     .filter(Boolean)
     .join(" · ");
+
+  // Same breakdown, but the work isn't moving — nothing has touched these leads
+  // recently. Tell the operator what's stuck and how long, so a stalled run is
+  // actionable (re-run Backfill) instead of a silent gap in the funnel.
+  const stalledSince = lastActivityAt
+    ? new Date(lastActivityAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : null;
+  const stalledBreakdown =
+    `${processingBreakdown || "leads still mid-pipeline"} — no activity since ${stalledSince ?? "a while ago"}. ` +
+    `Run Backfill from the Leads page to finish these.`;
 
   const copyToClipboard = async (text: string) => {
     await navigator.clipboard.writeText(text);
@@ -89,11 +105,12 @@ export function AccountHandoverBlock({ account }: { account: AccountHandover }) 
                 <InfoTip text={processingBreakdown || "Leads still moving through the pipeline."} />
               </span>
             )}
+            {stalled && <StalledBadge parentUsername={parentUsername} detail={stalledBreakdown} onResumed={onResumed} />}
             {openBatch && <Badge variant="secondary" className="text-[10px]">batch open</Badge>}
           </div>
           {/* Full pipeline funnel, absolute counts. Each stage is a subset of
               the one before it: found → backfilled → (hard-filtered drops out) →
-              AI-scored → ready for handover → handed over. */}
+              AI-scored → awaiting review → ready for handover → handed over. */}
           <div className="mt-1 flex items-center gap-x-3 gap-y-0.5 flex-wrap text-xs text-muted-foreground tabular-nums">
             <Stat n={found} label="found" />
             <Stat n={backfilled} label="backfilled" />
@@ -102,13 +119,23 @@ export function AccountHandoverBlock({ account }: { account: AccountHandover }) 
               {hardFiltered > 0 && <InfoTip text={hardFilterBreakdown || "no breakdown available"} />}
             </span>
             <Stat n={aiScored} label="AI-scored" />
+            {/* Gated stage: qualified leads can't be handed over until approved
+                in Review. Amber + linked when any are waiting, so the reason
+                "ready for handover" is low is visible and actionable. */}
+            {awaitingReview > 0 ? (
+              <Link href="/review" className="text-amber-600 dark:text-amber-400 hover:underline">
+                <span className="font-medium">{awaitingReview.toLocaleString()}</span> awaiting review
+              </Link>
+            ) : (
+              <Stat n={0} label="awaiting review" />
+            )}
             <Stat n={total} label="ready for handover" highlight />
             <Stat n={done} label="handed over" />
           </div>
           <div className="mt-1.5 h-1 w-full max-w-xs rounded-full bg-muted overflow-hidden">
             <div
               className="h-full bg-emerald-500 transition-all"
-              style={{ width: total ? `${(done / total) * 100}%` : "0%" }}
+              style={{ width: workTotal ? `${Math.min(100, (done / workTotal) * 100)}%` : "0%" }}
             />
           </div>
         </div>
@@ -116,10 +143,18 @@ export function AccountHandoverBlock({ account }: { account: AccountHandover }) 
         <div className="flex items-center gap-1.5">
           {!openBatch ? (
             remaining === 0 ? (
-              // Scraped, but nothing qualified without an email. Say so rather
-              // than offering a dead "Batch 0" button.
+              // Nothing ready to claim — say why rather than offering a dead
+              // "Batch 0" button. Awaiting-review takes priority (it's the
+              // actionable blocker), then a fully-handed-over account, then
+              // still-processing, then genuinely empty.
               <span className="text-xs text-muted-foreground pr-1">
-                {total === 0 ? (stillProcessing ? "no leads to enrich yet" : "no leads to enrich") : "all handed over"}
+                {awaitingReview > 0
+                  ? "review leads first"
+                  : done > 0
+                    ? "all handed over"
+                    : stillProcessing
+                      ? "no leads to enrich yet"
+                      : "no leads to enrich"}
               </span>
             ) : (
               <Button size="sm" variant="outline" disabled={pending} onClick={claimAndCopy}>

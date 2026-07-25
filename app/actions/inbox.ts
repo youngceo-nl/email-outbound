@@ -2,9 +2,11 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSettings } from "@/lib/config/settings";
+import { getSettings, resolveClaudeKey } from "@/lib/config/settings";
 import { gmailOAuthConfigured } from "@/lib/google/oauth";
 import { gmailGetThread, gmailGetMessage, gmailSearch, type ThreadMessage } from "@/lib/google/gmail-api";
+import { classifyReplySentiment } from "@/lib/claude/classify-reply";
+import { notifyDiscord } from "@/lib/discord/notify";
 
 export type SyncInboxResponse = {
   ok: boolean;
@@ -141,7 +143,7 @@ export async function syncInbox(): Promise<SyncInboxResponse> {
         },
         { onConflict: "gmail_message_id", ignoreDuplicates: true },
       )
-      .select("id")
+      .select("id, leads(username, full_name)")
       .maybeSingle();
     if (!error && row) {
       inserted++;
@@ -151,6 +153,27 @@ export async function syncInbox(): Promise<SyncInboxResponse> {
       if (!owner.thread_id && m.threadId) {
         owner.thread_id = m.threadId;
         await admin.from("outreach_messages").update({ gmail_thread_id: m.threadId }).eq("id", owner.outreach_id);
+      }
+      // Best-effort: classify sentiment and ping Discord on positive replies.
+      // Never let a classification/notify failure drop the reply itself.
+      try {
+        const apiKey = resolveClaudeKey(settings);
+        const sentiment = await classifyReplySentiment({ apiKey, subject: m.subject ?? null, body: m.text || snippet });
+        await admin.from("inbox_messages").update({ sentiment }).eq("id", row.id);
+        if (sentiment === "positive") {
+          const leadsField = row.leads as unknown;
+          const lead = (Array.isArray(leadsField) ? leadsField[0] : leadsField) as
+            { username?: string; full_name?: string } | null;
+          await notifyDiscord(
+            `📩  New Positive Reply:\n\n` +
+              `Full name: ${lead?.full_name ?? "(unknown)"}\n` +
+              `Instagram: ${lead?.username ? `@${lead.username}` : "(unknown)"}\n` +
+              `Replied with: ${snippet || "(no text)"}\n\n` +
+              `Reply to this email with a custom loom audit as soon as possible!`,
+          );
+        }
+      } catch (err) {
+        console.error("[inbox] reply sentiment classification failed:", (err as Error).message);
       }
     }
   }

@@ -14,10 +14,11 @@ export type OpenBatch = {
 };
 
 // Leads eligible for handover, scoped to the account whose following list they
-// came from (parent_username, not the originating seed): qualified, but
-// with no email from either discovery pass. Finding those missing emails is
-// exactly what the Clay waterfall is for — anything already reachable
-// shouldn't burn credits.
+// came from (parent_username, not the originating seed): qualified AND
+// manually approved in review (docs/KPI/scoring-improvement.md), but with no
+// email from either discovery pass. Finding those missing emails is exactly
+// what the Clay waterfall is for — anything already reachable shouldn't burn
+// credits, and anything a human hasn't approved shouldn't either.
 // Kept as two inline chains rather than a shared helper: threading Supabase's
 // builder generics through a wrapper trips the type instantiation depth limit.
 
@@ -28,6 +29,7 @@ export async function getPoolCount(parentUsername: string): Promise<number> {
     .select("id", { count: "exact", head: true })
     .eq("parent_username", parentUsername)
     .eq("status", "qualified")
+    .eq("review_decision", "approved")
     .is("email", null)
     .is("email_v2", null)
     .is("handover_batch_id", null);
@@ -82,6 +84,7 @@ export async function claimBatch(parentUsername: string): Promise<{ id: string; 
     .select("id, username, full_name, profile_url, bio")
     .eq("parent_username", parentUsername)
     .eq("status", "qualified")
+    .eq("review_decision", "approved")
     .is("email", null)
     .is("email_v2", null)
     .is("handover_batch_id", null)
@@ -89,7 +92,7 @@ export async function claimBatch(parentUsername: string): Promise<{ id: string; 
     .limit(BATCH_SIZE);
 
   const claimed = pool ?? [];
-  if (!claimed.length) throw new HandoverError("No qualified leads from this account are waiting for an email.");
+  if (!claimed.length) throw new HandoverError("No approved leads from this account are waiting for an email. Review its qualified leads first.");
   const ids = claimed.map((lead) => lead.id);
 
   const { data: batch, error } = await sb
@@ -121,6 +124,97 @@ export async function claimBatch(parentUsername: string): Promise<{ id: string; 
 }
 
 /**
+ * One-click dispatch of the next standard batch (BATCH_SIZE) of ready leads,
+ * highest-scoring first, across all accounts — so the operator copies one blob
+ * into Clay per click rather than going account by account. Ready = the same
+ * predicate claimBatch uses (qualified, review-approved, no email, unclaimed).
+ *
+ * The top 15 may span accounts; a batch is opened per account among them (the
+ * round-trip fans back out by username regardless). Accounts that already have
+ * an open batch are excluded — the one-open-batch-per-parent index forbids a
+ * second — so their still-unclaimed leads wait for the next run.
+ */
+export async function claimNextReadyBatch(): Promise<{
+  claimed: number;
+  accounts: number;
+  copyText: string;
+}> {
+  const sb = createAdminClient();
+
+  const { data: openBatches } = await sb
+    .from("handover_batches")
+    .select("parent_username")
+    .eq("status", "open");
+  const alreadyOpen = new Set((openBatches ?? []).map((b) => b.parent_username));
+
+  const { data: ready } = await sb
+    .from("leads")
+    .select("id, username, full_name, profile_url, bio, parent_username")
+    .eq("status", "qualified")
+    .eq("review_decision", "approved")
+    .is("email", null)
+    .is("email_v2", null)
+    .is("handover_batch_id", null)
+    .not("parent_username", "is", null)
+    .order("overall_score", { ascending: false, nullsFirst: false });
+
+  // Top BATCH_SIZE claimable leads by score (skip accounts already out with Clay).
+  const claimable = (ready ?? [])
+    .filter((l) => !alreadyOpen.has(l.parent_username as string))
+    .slice(0, BATCH_SIZE);
+
+  if (!claimable.length) {
+    throw new HandoverError(
+      (ready ?? []).length
+        ? "Every account with ready leads already has an open batch — upload or cancel those first."
+        : "No leads are ready for handover. Approve leads in Review first.",
+    );
+  }
+
+  const byParent = new Map<string, typeof claimable>();
+  for (const lead of claimable) {
+    const key = lead.parent_username as string;
+    const list = byParent.get(key);
+    if (list) list.push(lead);
+    else byParent.set(key, [lead]);
+  }
+
+  const claimedLeads: typeof claimable = [];
+  let accounts = 0;
+
+  for (const [parentUsername, leads] of byParent) {
+    const { data: batch, error } = await sb
+      .from("handover_batches")
+      .insert({ parent_username: parentUsername, status: "open" })
+      .select("id")
+      .single();
+    // A racing open batch (23505) just means this account is skipped, not fatal.
+    if (error || !batch) continue;
+
+    const ids = leads.map((l) => l.id);
+    const { error: assignError } = await sb
+      .from("leads")
+      .update({ handover_batch_id: batch.id })
+      .in("id", ids)
+      .is("handover_batch_id", null);
+
+    if (assignError) {
+      await sb.from("handover_batches").delete().eq("id", batch.id);
+      continue;
+    }
+
+    claimedLeads.push(...leads);
+    accounts++;
+  }
+
+  if (!claimedLeads.length) {
+    throw new HandoverError("Could not open a batch — please try again.");
+  }
+
+  return { claimed: claimedLeads.length, accounts, copyText: toClipboardText(claimedLeads) };
+}
+
+/**
  * Applies one returned Clay export across *every* open batch at once, rather
  * than one account at a time. The clipboard export is just bare handles, so
  * rows are matched to dispatched leads by username (unique in the leads
@@ -146,7 +240,7 @@ export async function applyEnrichmentAll(
   csvText: string,
   markedBy: string | null = null,
   mapping?: ColumnMapping,
-): Promise<{ withEmail: number; withoutEmail: number; markedBad: number; skipped: number; closedBatches: number }> {
+): Promise<{ withEmail: number; withoutEmail: number; markedBad: number; skipped: number; closedBatches: number; returnedToPool: number }> {
   const sb = createAdminClient();
   const rows = parseEnrichedCsv(csvText, mapping);
 
@@ -180,7 +274,9 @@ export async function applyEnrichmentAll(
       const { error: upsertErr } = await sb.from("rejected_leads").upsert({
         lead_id: lead.id,
         username: lead.username,
-        category: "other",
+        // Free-text reason from Clay in `note`; 'uncategorized' marks it for the
+        // later categorizer, same as review rejects (app/actions/review.ts).
+        category: "uncategorized",
         note: row.badReason,
         prior_status: "qualified",
         marked_by: markedBy,
@@ -216,20 +312,27 @@ export async function applyEnrichmentAll(
     if (error) throw new HandoverError(error.message);
   }
 
+  // Finalize every batch this upload touched, so one hand-back completes the
+  // round-trip automatically and unlocks — even when Clay didn't return every
+  // dispatched lead. Whatever came back (email or "no email") is stamped and
+  // tracked above; anything missing goes back to the pool to be re-dispatched.
+  // Batches with no rows in this CSV are left open — they simply weren't part
+  // of this hand-back.
   let closedBatches = 0;
+  let returnedToPool = 0;
   for (const batchId of touchedBatchIds) {
-    const { count: remaining } = await sb
+    const { data: returned } = await sb
       .from("leads")
-      .select("id", { count: "exact", head: true })
+      .update({ handover_batch_id: null })
       .eq("handover_batch_id", batchId)
-      .is("handover_enriched_at", null);
-    if ((remaining ?? 0) === 0) {
-      await sb.from("handover_batches").update({ status: "closed", closed_at: now }).eq("id", batchId);
-      closedBatches++;
-    }
+      .is("handover_enriched_at", null)
+      .select("id");
+    returnedToPool += returned?.length ?? 0;
+    await sb.from("handover_batches").update({ status: "closed", closed_at: now }).eq("id", batchId);
+    closedBatches++;
   }
 
-  return { withEmail, withoutEmail, markedBad, skipped, closedBatches };
+  return { withEmail, withoutEmail, markedBad, skipped, closedBatches, returnedToPool };
 }
 
 /**
@@ -270,6 +373,10 @@ export type DispatchState = {
   /** True while any open batch still has un-enriched dispatched leads. */
   locked: boolean;
   batches: DispatchBatch[];
+  /** Every open batch's leads as one clipboard blob — copy all accounts at once. */
+  allCopyText: string;
+  /** Total leads out across all open batches. */
+  totalLeads: number;
 };
 
 /**
@@ -285,7 +392,7 @@ export async function getDispatchState(): Promise<DispatchState> {
     .from("handover_batches")
     .select("id, parent_username")
     .eq("status", "open");
-  if (!openBatches?.length) return { locked: false, batches: [] };
+  if (!openBatches?.length) return { locked: false, batches: [], allCopyText: "", totalLeads: 0 };
 
   const ids = openBatches.map((b) => b.id);
   const { data: leads } = await sb
@@ -293,9 +400,10 @@ export async function getDispatchState(): Promise<DispatchState> {
     .select("username, full_name, profile_url, bio, handover_batch_id, handover_enriched_at")
     .in("handover_batch_id", ids);
 
+  const allLeads = leads ?? [];
   const batches = openBatches
     .map((b) => {
-      const batchLeads = (leads ?? []).filter((l) => l.handover_batch_id === b.id);
+      const batchLeads = allLeads.filter((l) => l.handover_batch_id === b.id);
       return {
         parentUsername: b.parent_username,
         total: batchLeads.length,
@@ -307,5 +415,11 @@ export async function getDispatchState(): Promise<DispatchState> {
     // assigns at least one lead — but defensive against a race mid-claim).
     .filter((b) => b.total > 0);
 
-  return { locked: batches.some((b) => b.enriched < b.total), batches };
+  return {
+    locked: batches.some((b) => b.enriched < b.total),
+    batches,
+    // One blob for all accounts, single header row — the "copy everything" path.
+    allCopyText: toClipboardText(allLeads),
+    totalLeads: allLeads.length,
+  };
 }

@@ -36,7 +36,7 @@ export function BadLeadsTable({ rows }: { rows: RejectedLeadRow[] }) {
             <TableRow>
               <TableHead>Account</TableHead>
               <TableHead>Category</TableHead>
-              <TableHead>Note</TableHead>
+              <TableHead>Reason</TableHead>
               <TableHead>Marked</TableHead>
               <TableHead />
             </TableRow>
