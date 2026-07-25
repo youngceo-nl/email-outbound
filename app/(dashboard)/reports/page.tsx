@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, Search } from "lucide-react";
+import { FileText, MessageSquareHeart, Search } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +66,44 @@ export default async function ReportsPage({
     };
   });
 
+  /*
+   * Leads who replied positively are the ones a report is actually for — the
+   * moment someone says "tell me more" is the moment a deep document earns its
+   * cost. inbox_messages.sentiment is classified by Claude when the reply lands
+   * (it already drives the Discord alert), so this needs no new pipeline.
+   *
+   * Ordered newest-first and deduped to one row per lead: someone who replied
+   * three times is one prospect to write for, not three.
+   */
+  const { data: positiveReplies } = await sb
+    .from("inbox_messages")
+    .select("lead_id, snippet, received_at")
+    .eq("sentiment", "positive")
+    .order("received_at", { ascending: false })
+    .limit(60);
+
+  const newestReplyByLead = new Map<string, { snippet: string | null; receivedAt: string }>();
+  for (const reply of positiveReplies ?? []) {
+    if (!newestReplyByLead.has(reply.lead_id)) {
+      newestReplyByLead.set(reply.lead_id, { snippet: reply.snippet, receivedAt: reply.received_at });
+    }
+  }
+
+  const repliedIds = [...newestReplyByLead.keys()];
+  const { data: repliedLeadRows } = repliedIds.length
+    ? await sb
+        .from("leads")
+        .select("id, username, full_name, followers, niche, funnel_price, funnel_platform")
+        .in("id", repliedIds)
+    : { data: [] };
+
+  // Which of them already have a report, so nobody writes a second one by accident.
+  const leadsWithReports = new Set(rows.map((r) => r.lead_id));
+
+  const replied = (repliedLeadRows ?? [])
+    .map((lead) => ({ lead, reply: newestReplyByLead.get(lead.id)! }))
+    .sort((a, b) => b.reply.receivedAt.localeCompare(a.reply.receivedAt));
+
   // Candidates: qualified leads, best-scored first. A lead with a report already
   // is still listed — regenerating after confirming a price is a normal action.
   let candidateQuery = sb
@@ -94,6 +132,57 @@ export default async function ReportsPage({
           where it came from.
         </p>
       </header>
+
+      {replied.length > 0 && (
+        <Card className="border-emerald-200 bg-emerald-50/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MessageSquareHeart className="h-4 w-4 text-emerald-700" />
+              Replied positively
+              <Badge variant="secondary">{replied.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="divide-y rounded-md border bg-background">
+              {replied.map(({ lead, reply }) => (
+                <div key={lead.id} className="flex items-start justify-between gap-4 p-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Link href={`/leads/${lead.username}`} className="font-medium hover:underline">
+                        @{lead.username}
+                      </Link>
+                      <span className="text-xs text-muted-foreground">{relativeTime(reply.receivedAt)}</span>
+                      {leadsWithReports.has(lead.id) && (
+                        <Badge variant="outline" className="text-[10px]">
+                          report exists
+                        </Badge>
+                      )}
+                    </div>
+                    {reply.snippet && (
+                      <p className="mt-1 line-clamp-2 text-sm italic text-muted-foreground">
+                        &ldquo;{reply.snippet.trim()}&rdquo;
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {[
+                        lead.full_name,
+                        lead.niche,
+                        lead.followers ? `${formatNumber(lead.followers)} followers` : null,
+                        lead.funnel_price
+                          ? `${lead.funnel_price}${lead.funnel_platform ? ` on ${lead.funnel_platform}` : ""}`
+                          : "no price found — deal value will be an assumption",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                  <GenerateButton leadId={lead.id} />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -162,4 +251,13 @@ export default async function ReportsPage({
       <ReportsList reports={reports} />
     </div>
   );
+}
+
+/** Coarse relative time; a reply's age matters, its exact minute does not. */
+function relativeTime(iso: string): string {
+  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (minutes < 60) return `${Math.max(1, minutes)}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
 }
