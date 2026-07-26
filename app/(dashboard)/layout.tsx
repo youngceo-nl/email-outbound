@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LayoutDashboard, Users, Settings, Sprout, LogOut, Activity, MailCheck, ClipboardCheck, Handshake, Megaphone } from "lucide-react";
+import { LayoutDashboard, Users, Settings, Sprout, LogOut, Activity, MailCheck, ClipboardCheck, Handshake, Megaphone, FileText } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
 import { ActivityDrawerButton } from "@/components/logs/activity-drawer";
 import { getReviewPendingCount } from "@/app/actions/review";
@@ -12,6 +12,7 @@ const NAV = [
   { href: "/handover", label: "Handover", icon: Handshake },
   { href: "/outreach-ready", label: "Outreach Ready", icon: MailCheck },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
+  { href: "/reports", label: "Reports", icon: FileText },
   { href: "/logs", label: "Pipeline", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

@@ -13,7 +13,11 @@
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && eslint . && rm -rf .next && next build",
     "inngest:dev": "inngest dev -u http://localhost:${DEV_PORT:-3417}/api/inngest",
-    "db:push": "supabase db push"
+    "db:push": "supabase db push",
+    "report:render": "tsx --tsconfig tsconfig.scripts.json scripts/render-report.tsx",
+    "report:shots": "tsx --tsconfig tsconfig.scripts.json scripts/screenshot-report.ts",
+    "report:lead": "tsx --tsconfig tsconfig.scripts.json scripts/render-lead-report.ts",
+    "report:test": "tsx --test lib/report/calculations/formulas.test.ts lib/report/assumptions/resolve.test.ts lib/report/renderer/prospect-image.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

@@ -1,0 +1,11 @@
+{
+  // The app's tsconfig sets "jsx": "preserve" because Next does its own JSX
+  // transform. Standalone scripts run through tsx/esbuild instead, which honours
+  // that setting literally and emits JSX that Node cannot parse — so scripts get
+  // their own config with a real transform. Nothing else differs.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  },
+  "include": ["scripts/**/*.ts", "scripts/**/*.tsx", "lib/**/*.ts", "lib/**/*.tsx"]
+}
