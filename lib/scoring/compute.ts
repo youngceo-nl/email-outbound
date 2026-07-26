@@ -139,19 +139,34 @@ export function computeScores(args: {
   // Weights: ICP fit raised to 35% — being the right kind of account matters most.
   const raw = traction * 0.25 + activity * 0.15 + monetization * 0.25 + icp_fit * 0.35;
 
-  // Hard cap: "weak" ICP signal or physical-product ecom means wrong industry —
-  // never let high engagement or monetization alone push them through.
+  // Hard cap by ICP band: ICP fit is the dominant gate, not just a 35% weight.
+  // "weak" = wrong industry (physical-product ecom, B2B SaaS, service biz, pure
+  // creator) — it belongs in the bottom band no matter how strong its
+  // engagement/activity/monetization are, so cap it at 3.0 (well under any sane
+  // threshold). The old 6.5 cap only worked because the threshold was 7.5; once
+  // it dropped to 5.5, capped-weak leads scored 5.5–6.5 and qualified — the #1
+  // human-rejection reason (docs/scrape/rejectedleads.md). A weak lead should
+  // never *score* above the bar, not merely be rejected after the fact.
   const effectiveIcpSignal =
     (classification.business_model === "ecom" && !hasInfoProductLink(profile)) ? "weak" : classification.icp_signal;
-  const cap = effectiveIcpSignal === "weak" ? 6.5 : 10;
+  const cap = effectiveIcpSignal === "weak" ? 3.0 : 10;
   const overall = CLAMP(raw, 0, cap);
 
   const qualifiedThreshold = settings.crawl_score_threshold;
 
-  // Hard binary — at or above the threshold qualifies (and goes to manual
-  // review); anything below is rejected. No soft "review" band.
+  // Weak ICP (wrong industry — physical-product/ecom without an info link,
+  // B2B SaaS, service business, pure creator) can never qualify, regardless of
+  // threshold. The old `cap = 6.5` relied on the threshold being 7.5; once it
+  // dropped to 5.5, weak leads (esp. clothing/jewelry brands) started landing
+  // 5.5–6.5 and qualifying — the #1 human-rejection reason (docs/scrape/
+  // rejectedleads.md). Rejecting weak outright decouples this from the threshold.
+  // Otherwise hard binary: at/above threshold qualifies, below rejects.
   const recommended_action: ClaudeScore["recommended_action"] =
-    overall >= qualifiedThreshold ? "qualified" : "reject";
+    effectiveIcpSignal === "weak"
+      ? "reject"
+      : overall >= qualifiedThreshold
+      ? "qualified"
+      : "reject";
 
   const icpSignalLabel =
     classification.business_model === "ecom" && classification.icp_signal !== "weak"

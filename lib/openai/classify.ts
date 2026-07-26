@@ -17,6 +17,9 @@ icp_signal:
 - "strong": account clearly sells a digital knowledge product — bio/captions mention coaching program, course, mastermind, DM to apply, book a call, webinar, or show client results/revenue proof — OR is an ad/sales agency with visible client results, case studies, testimonials, or a clear "DM/book a call to work with us" offer
 - "moderate": account is in the right INDUSTRY (education, coaching, consulting, or a marketing/ad/sales agency) but the offer or proof is unclear — e.g., educates in their niche or runs an agency but no paid product / client results are obvious
 - "weak": EVERYTHING ELSE — this includes:
+  • Realtors / real-estate agents, mortgage brokers, or financial advisors selling a personal in-person service (not a digital product or a B2B agency)
+  • Coaches/consultants who work ONLY 1:1 or in person with no scalable digital product (course, cohort, community, membership) — nothing productized to sell
+  • A physical-product brand stays "weak" even if the bio also mentions "coaching", "course", or "mentorship" — classify by the CORE business, not a name-drop
   • Any physical product brand (food, candy, clothing, beauty, supplements, DTC, merch) — even if the founder is an "influencer"
   • Service businesses unrelated to marketing/sales (restaurant, salon, contractor, transport)
   • Agencies with no visible client results, case studies, or B2B offer — just a name/logo

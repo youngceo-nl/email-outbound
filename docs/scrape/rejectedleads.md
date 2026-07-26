@@ -1,0 +1,1 @@
+there's a lot of data now on rejected leads. can you make a plan for improving the system based on that data?
