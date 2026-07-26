@@ -116,6 +116,11 @@ export function OutreachLeadRail({
                     {row.business_model ?? "unclassified"}
                   </Badge>
                 )}
+                {row.campaign && (
+                  <Badge variant="outline" className="text-[10px] shrink-0">
+                    {row.campaign.name} · step {row.campaign.stepNumber}
+                  </Badge>
+                )}
                 {row.parent_username && (
                   <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
                     <OutreachSourceBadge username={row.parent_username} outcome={row.sourceOutcome} />

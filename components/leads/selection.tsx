@@ -10,8 +10,9 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Trash2, Loader2, AlertCircle } from "lucide-react";
+import { Trash2, Loader2, AlertCircle, Megaphone } from "lucide-react";
 import { deleteLeads } from "@/app/actions/leads";
+import { assignLeadsToCampaign } from "@/app/actions/campaigns";
 
 type Ctx = {
   allIds: string[];
@@ -153,6 +154,67 @@ export function BulkDeleteBar() {
       </Button>
       <Button variant="ghost" size="sm" onClick={clear} disabled={busy}>
         Clear
+      </Button>
+      {error && (
+        <span className="inline-flex items-center gap-1 text-xs text-red-600">
+          <AlertCircle className="h-3.5 w-3.5" /> {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function BulkAssignCampaignBar({
+  campaigns,
+}: {
+  campaigns: { id: string; name: string }[];
+}) {
+  const { selected, clear } = useContext(SelectionContext);
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [campaignId, setCampaignId] = useState("");
+  const router = useRouter();
+  const count = selected.size;
+
+  if (count === 0) return null;
+
+  const onAssign = () => {
+    if (!campaignId) return;
+    const ids = [...selected];
+    setError(null);
+    start(async () => {
+      const r = await assignLeadsToCampaign(ids, campaignId);
+      if (r.ok) {
+        clear();
+        setCampaignId("");
+        router.refresh();
+      } else {
+        setError(r.error ?? "assign failed");
+      }
+    });
+  };
+
+  return (
+    <div className="flex items-center gap-3 rounded-md border bg-muted/40 px-3 py-2">
+      <span className="text-sm font-medium tabular-nums">{count} selected</span>
+      <select
+        className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+        value={campaignId}
+        onChange={(e) => setCampaignId(e.target.value)}
+        disabled={pending}
+      >
+        <option value="">Assign to campaign…</option>
+        {campaigns.map((c) => (
+          <option key={c.id} value={c.id}>{c.name}</option>
+        ))}
+      </select>
+      <Button variant="secondary" size="sm" onClick={onAssign} disabled={pending || !campaignId}>
+        {pending ? (
+          <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+        ) : (
+          <Megaphone className="h-3.5 w-3.5 mr-1.5" />
+        )}
+        {pending ? "Assigning…" : "Assign"}
       </Button>
       {error && (
         <span className="inline-flex items-center gap-1 text-xs text-red-600">

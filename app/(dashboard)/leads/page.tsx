@@ -11,7 +11,8 @@ import { ProcessButton } from "@/components/leads/process-button";
 import { HeaderWithTip } from "@/components/ui/info-tip";
 import { SourceBadge } from "@/components/leads/source-badge";
 import { AnalyzeProvider } from "@/components/leads/analyze-context";
-import { SelectionProvider, SelectAllCheckbox, LeadCheckbox, BulkDeleteBar } from "@/components/leads/selection";
+import { SelectionProvider, SelectAllCheckbox, LeadCheckbox, BulkDeleteBar, BulkAssignCampaignBar } from "@/components/leads/selection";
+import { listCampaigns } from "@/app/actions/campaigns";
 import { formatNumber, formatPct, scoreColor } from "@/lib/utils";
 import { buildKeywordOr } from "@/lib/leads/keyword-filter";
 import { statusLabel } from "@/lib/labels";
@@ -157,6 +158,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     : settings?.ig_cookie_status === "live" ? "ok"
     : "unknown";
 
+  const campaigns = (await listCampaigns().catch(() => []))
+    .filter((c) => c.status === "active")
+    .map((c) => ({ id: c.id, name: c.name }));
+
   return (
     <div className="p-6 space-y-6">
       {/* Cookie warnings only matter when Apify can't cover the work. Apify is
@@ -204,7 +209,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       </Card>
 
       <SelectionProvider allIds={allIds}>
-      <BulkDeleteBar />
+      <div className="flex items-center gap-3 flex-wrap">
+        <BulkDeleteBar />
+        <BulkAssignCampaignBar campaigns={campaigns} />
+      </div>
       <Card>
         <CardContent className="p-0">
           <div className="leads-table">

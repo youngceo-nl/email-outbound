@@ -85,7 +85,13 @@ export function OutreachComposer({
 
     setError(null);
     startSend(async () => {
-      const r = await sendOutreachEmail({ leadId: row.id, to, subject, body: effectiveBody });
+      const r = await sendOutreachEmail({
+        leadId: row.id,
+        to,
+        subject,
+        body: effectiveBody,
+        campaignStepNumber: row.campaign?.stepNumber,
+      });
       if (r.ok) onSent();
       else setError(r.error ?? "Send failed");
     });
@@ -118,12 +124,22 @@ export function OutreachComposer({
             <Badge variant="secondary" className="text-[10px]">
               {CATEGORY_LABELS[leadCategory(row.business_model)]}
             </Badge>
+            {row.campaign && (
+              <Badge variant="outline" className="text-[10px]">
+                {row.campaign.name} — step {row.campaign.stepNumber} of {row.campaign.totalSteps}
+              </Badge>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
             {row.niche ?? "unknown niche"}
             {row.overall_score != null && ` · score ${row.overall_score}`}
             {row.email_provider && ` · email via ${row.email_provider}`}
           </p>
+          {row.campaign && !row.campaign.isDue && row.campaign.dueAt && (
+            <p className="text-xs text-amber-700 mt-1">
+              Not due until {new Date(row.campaign.dueAt).toLocaleDateString()} — sending now sends it early.
+            </p>
+          )}
         </div>
 
         {/* The two fields automation gets wrong. Raw DB values shown beneath so

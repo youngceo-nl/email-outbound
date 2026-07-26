@@ -12,6 +12,17 @@ import { OutreachInboxRail } from "./outreach-inbox-rail";
 import { OutreachComposer } from "./outreach-composer";
 import { InboxDetail } from "./inbox-detail";
 
+export type OutreachCampaignInfo = {
+  id: string;
+  name: string;
+  stepNumber: number;
+  totalSteps: number;
+  isDue: boolean;
+  dueAt: string | null;
+  subjectTemplate: string;
+  bodyTemplate: string;
+};
+
 export type OutreachRow = {
   id: string;
   username: string;
@@ -29,6 +40,7 @@ export type OutreachRow = {
   needsFix: boolean;
   parent_username: string | null;
   sourceOutcome: HandoverOutcome | null;
+  campaign: OutreachCampaignInfo | null;
 };
 
 export type InboxRow = {
@@ -187,7 +199,9 @@ export function OutreachReadyClient({
       },
       senderName,
     });
-    const template = templates[leadCategory(selected.business_model)];
+    const template = selected.campaign
+      ? { subject: selected.campaign.subjectTemplate, body: selected.campaign.bodyTemplate }
+      : templates[leadCategory(selected.business_model)];
     return {
       subject: renderTemplate(template.subject, ctx),
       body: renderTemplate(template.body, ctx),

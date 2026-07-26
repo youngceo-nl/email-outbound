@@ -12,6 +12,9 @@ export const dynamic = "force-dynamic";
 
 const BAD_EMAIL_STATUS = /^(bounced|invalid)$/i;
 
+const LEAD_SELECT =
+  "id, username, full_name, niche, business_model, funnel_program_name, funnel_offer_summary, external_link, email, email_provider, email_status, email_v2, email_v2_provider, email_v2_status, overall_score, status, outreach_count, parent_username, campaign_id, campaign_step, last_campaign_send_at, reply_count";
+
 export default async function OutreachReadyPage() {
   const sb = createAdminClient();
   const settings = await getSettings();
@@ -19,14 +22,23 @@ export default async function OutreachReadyPage() {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
-  const [{ data: leads }, { count: sentToday }, { data: replies }, handoverOutcomes] = await Promise.all([
+  const [{ data: leads }, { data: followupLeads }, { count: sentToday }, { data: replies }, handoverOutcomes] = await Promise.all([
     sb
       .from("leads")
-      .select(
-        "id, username, full_name, niche, business_model, funnel_program_name, funnel_offer_summary, external_link, email, email_provider, email_status, email_v2, email_v2_provider, email_v2_status, overall_score, status, outreach_count, parent_username",
-      )
+      .select(LEAD_SELECT)
       .in("status", ["qualified", "review"])
       .or("outreach_count.is.null,outreach_count.eq.0")
+      .order("overall_score", { ascending: false, nullsFirst: false }),
+    // Campaign follow-ups: a lead that already sent its first campaign step
+    // (outreach_count > 0) drops out of the query above forever, but a
+    // multi-step campaign still owes it a follow-up — surface those here
+    // instead of only ever showing a lead once.
+    sb
+      .from("leads")
+      .select(LEAD_SELECT)
+      .in("status", ["qualified", "review"])
+      .not("campaign_id", "is", null)
+      .gt("outreach_count", 0)
       .order("overall_score", { ascending: false, nullsFirst: false }),
     sb
       .from("outreach_messages")
@@ -44,6 +56,64 @@ export default async function OutreachReadyPage() {
       .limit(200),
     getHandoverOutcomesByParent(),
   ]);
+
+  // Campaign step lookup for both the "never contacted" leads (which may
+  // already be step-1 campaign-assigned) and the follow-up candidates above.
+  const campaignIds = [
+    ...new Set(
+      [...(leads ?? []), ...(followupLeads ?? [])]
+        .map((l) => l.campaign_id)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  const [{ data: campaignRows }, { data: campaignStepRows }] = campaignIds.length
+    ? await Promise.all([
+        sb.from("campaigns").select("id, name").in("id", campaignIds),
+        sb.from("campaign_steps").select("*").in("campaign_id", campaignIds).order("step_number", { ascending: true }),
+      ])
+    : [{ data: [] }, { data: [] }];
+
+  const campaignNameById = new Map((campaignRows ?? []).map((c) => [c.id, c.name]));
+  const stepsByCampaign = new Map<string, typeof campaignStepRows>();
+  for (const s of campaignStepRows ?? []) {
+    const arr = stepsByCampaign.get(s.campaign_id) ?? [];
+    arr.push(s);
+    stepsByCampaign.set(s.campaign_id, arr);
+  }
+
+  function buildCampaignInfo(lead: {
+    campaign_id: string | null;
+    campaign_step: number | null;
+    last_campaign_send_at: string | null;
+  }): OutreachRow["campaign"] {
+    if (!lead.campaign_id) return null;
+    const steps = stepsByCampaign.get(lead.campaign_id) ?? [];
+    const totalSteps = steps.length;
+    const nextStepNumber = (lead.campaign_step ?? 0) + 1;
+    if (nextStepNumber > totalSteps) return null; // sequence complete
+    const step = steps.find((s) => s.step_number === nextStepNumber);
+    if (!step) return null;
+
+    let isDue = true;
+    let dueAt: string | null = null;
+    if ((lead.campaign_step ?? 0) > 0 && lead.last_campaign_send_at) {
+      const due = new Date(lead.last_campaign_send_at);
+      due.setDate(due.getDate() + step.delay_days);
+      dueAt = due.toISOString();
+      isDue = Date.now() >= due.getTime();
+    }
+
+    return {
+      id: lead.campaign_id,
+      name: campaignNameById.get(lead.campaign_id) ?? "Campaign",
+      stepNumber: nextStepNumber,
+      totalSteps,
+      isDue,
+      dueAt,
+      subjectTemplate: step.subject_template,
+      bodyTemplate: step.body_template,
+    };
+  }
 
   const inboxRows: InboxRow[] = (replies ?? []).map((r) => {
     const lead = (Array.isArray(r.leads) ? r.leads[0] : r.leads) as
@@ -67,13 +137,19 @@ export default async function OutreachReadyPage() {
   // Same bucketing the archived batch page used, minus its first-name hard
   // block — this screen exists precisely so a bad name can be fixed inline.
   const rows: OutreachRow[] = [];
-  for (const lead of leads ?? []) {
+  for (const lead of [...(leads ?? []), ...(followupLeads ?? [])]) {
     if (BAD_EMAIL_STATUS.test(lead.email_status ?? "")) continue;
 
     const resolved = lead.email ?? lead.email_v2;
     if (!resolved || !isPlausible(resolved)) continue;
     // Fell back to v2 — apply v2's own status check.
     if (!lead.email && BAD_EMAIL_STATUS.test(lead.email_v2_status ?? "")) continue;
+
+    // Follow-up candidates: stop once the lead has replied, or once its
+    // sequence is already exhausted (buildCampaignInfo returns null for both
+    // — a completed sequence and a replied lead have nothing left to send).
+    const campaign = (lead.reply_count ?? 0) > 0 ? null : buildCampaignInfo(lead);
+    if ((lead.outreach_count ?? 0) > 0 && !campaign) continue; // already-contacted, no follow-up owed
 
     const firstName =
       extractFirstName(lead.full_name) ?? extractFirstNameFromUsername(lead.username);
@@ -95,6 +171,7 @@ export default async function OutreachReadyPage() {
       needsFix: !lead.funnel_program_name || firstName === null,
       parent_username: lead.parent_username,
       sourceOutcome: lead.parent_username ? handoverOutcomes.get(lead.parent_username) ?? null : null,
+      campaign,
     });
   }
 

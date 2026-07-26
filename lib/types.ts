@@ -171,8 +171,33 @@ export type Lead = {
   outreach_count: number;
   last_outreach_at: string | null;
   last_outreach_error: string | null;
+  // Campaign assignment (optional, layered on top of the category system).
+  // campaign_step counts steps already sent — the next due step is +1.
+  campaign_id: string | null;
+  campaign_step: number;
+  last_campaign_send_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type CampaignStatus = "active" | "paused" | "archived";
+
+export type Campaign = {
+  id: string;
+  name: string;
+  angle: string | null;
+  status: CampaignStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CampaignStep = {
+  id: string;
+  campaign_id: string;
+  step_number: number;
+  delay_days: number;
+  subject_template: string;
+  body_template: string;
 };
 
 export type OutreachMessage = {
@@ -190,6 +215,8 @@ export type OutreachMessage = {
   sent_at: string;
   bounced_at: string | null;
   email_type: "outreach" | "followup";
+  campaign_id: string | null;
+  step_number: number | null;
 };
 
 // Raw scraped profile shape (post-normalization, pre-scoring)

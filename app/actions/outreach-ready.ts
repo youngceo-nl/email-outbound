@@ -67,6 +67,9 @@ export async function sendOutreachEmail(opts: {
   to: string;
   subject: string;
   body: string;
+  // Required when the lead is campaign-assigned — the step being sent
+  // (lead.campaign_step + 1). Non-campaign leads ignore this.
+  campaignStepNumber?: number;
 }): Promise<SendOutreachResponse> {
   const user = await requireUser();
 
@@ -84,11 +87,49 @@ export async function sendOutreachEmail(opts: {
   // that stops a stale tab or a double-click from sending twice.
   const { data: lead, error: leadErr } = await admin
     .from("leads")
-    .select("id, username, outreach_count")
+    .select("id, username, outreach_count, campaign_id, campaign_step, reply_count")
     .eq("id", opts.leadId)
     .single();
   if (leadErr || !lead) return { ok: false, error: leadErr?.message ?? "Lead not found" };
-  if ((lead.outreach_count ?? 0) > 0) return { ok: false, error: "Already sent to this lead." };
+
+  const campaignId = lead.campaign_id as string | null;
+  const campaignStep = (lead.campaign_step as number | null) ?? 0;
+
+  if (!campaignId) {
+    // Non-campaign leads: unchanged — one send, ever.
+    if ((lead.outreach_count ?? 0) > 0) return { ok: false, error: "Already sent to this lead." };
+  } else {
+    // Campaign leads: the guard is step-aware instead of count-aware, since a
+    // campaign is allowed to send multiple times (its own sequence).
+    const stepNumber = opts.campaignStepNumber;
+    if (!stepNumber) return { ok: false, error: "Missing campaign step number." };
+    if (stepNumber !== campaignStep + 1) {
+      return { ok: false, error: "This lead's campaign step is out of date — reload and try again." };
+    }
+    if (((lead as { reply_count?: number | null }).reply_count ?? 0) > 0) {
+      return { ok: false, error: "Lead has replied — sequence stopped." };
+    }
+
+    const { data: existing } = await admin
+      .from("outreach_messages")
+      .select("id")
+      .eq("lead_id", opts.leadId)
+      .eq("campaign_id", campaignId)
+      .eq("step_number", stepNumber)
+      .maybeSingle();
+    if (existing) return { ok: false, error: "This step was already sent." };
+
+    const { data: maxStepRow } = await admin
+      .from("campaign_steps")
+      .select("step_number")
+      .eq("campaign_id", campaignId)
+      .order("step_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (maxStepRow && stepNumber > maxStepRow.step_number) {
+      return { ok: false, error: "No more steps in this campaign." };
+    }
+  }
 
   // Bail before Gmail and before any write.
   if (dryRunEnabled()) return { ok: true, message_id: "dry-run", dryRun: true };
@@ -119,14 +160,20 @@ export async function sendOutreachEmail(opts: {
       message_id: result.messageId,
       gmail_thread_id: result.threadId,
       sent_by: user.id,
+      campaign_id: campaignId,
+      step_number: campaignId ? opts.campaignStepNumber : null,
     });
 
+    const now = new Date().toISOString();
     await admin
       .from("leads")
       .update({
         outreach_count: (lead.outreach_count ?? 0) + 1,
-        last_outreach_at: new Date().toISOString(),
+        last_outreach_at: now,
         last_outreach_error: null,
+        ...(campaignId
+          ? { campaign_step: campaignStep + 1, last_campaign_send_at: now }
+          : {}),
       })
       .eq("id", opts.leadId);
 
@@ -153,6 +200,8 @@ export async function sendOutreachEmail(opts: {
       status: "failed",
       error: msg,
       sent_by: user.id,
+      campaign_id: campaignId,
+      step_number: campaignId ? opts.campaignStepNumber : null,
     });
     await admin.from("leads").update({ last_outreach_error: msg }).eq("id", opts.leadId);
 
