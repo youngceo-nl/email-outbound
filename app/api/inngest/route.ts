@@ -8,7 +8,6 @@ import { scoreLead } from "@/inngest/functions/score-lead";
 import { retryBlockedLeads } from "@/inngest/functions/retry-blocked-leads";
 import { refreshIgCookies } from "@/inngest/functions/refresh-ig-cookies";
 import { batchWatchdog } from "@/inngest/functions/batch-watchdog";
-import { generateReport, reportGenerationFailed } from "@/inngest/functions/generate-report";
 
 // dailyScrape is intentionally NOT registered here, permanently. Accounts are
 // scraped once and re-scraping takes the override password (lib/seeds/scraped.ts),
@@ -16,5 +15,5 @@ import { generateReport, reportGenerationFailed } from "@/inngest/functions/gene
 // Do not add it back without revisiting that policy.
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [crawlSeed, processProfile, recurseFollowing, backfillMetadata, scoreLead, retryBlockedLeads, refreshIgCookies, batchWatchdog, generateReport, reportGenerationFailed],
+  functions: [crawlSeed, processProfile, recurseFollowing, backfillMetadata, scoreLead, retryBlockedLeads, refreshIgCookies, batchWatchdog],
 });
