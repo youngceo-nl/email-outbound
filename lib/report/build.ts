@@ -22,6 +22,7 @@ import {
 import { accessLimitations, internalSignals, leadFacts, sourceNotesFrom, type Fact, type InternalSignals } from "./facts";
 import { analyseContent, contentObservations } from "./content";
 import { compact, count, peopleRange, pct, reportDate, usd } from "./format";
+import { TESTIMONIALS } from "./template/testimonials";
 import type { ForAgainstRow, ReportBlock, ReportContent, ScenarioSet, Stat } from "./schema";
 
 /*
@@ -493,9 +494,19 @@ export function buildReport(args: BuildArgs): BuiltReport {
       {
         key: "proof",
         title: "Operating Proof",
-        subtitle: "These cases support the operating model. They do not supply this forecast.",
+        subtitle: "Built for people in your seat — each card links to the live page.",
         appendix: true,
         blocks: [
+          {
+            type: "client_wall",
+            clients: TESTIMONIALS.map((t) => ({
+              name: t.name,
+              handle: t.handle,
+              href: t.href,
+              image: t.image,
+              work: t.work,
+            })),
+          },
           {
             type: "table",
             variant: "figures",

@@ -214,6 +214,22 @@ export const ForAgainstBlockSchema = z.object({
   againstRows: z.array(ForAgainstRowSchema).min(1),
 });
 
+/** The company's client wall: who, what was built, and where to see it live. */
+export const ClientWallBlockSchema = z.object({
+  type: z.literal("client_wall"),
+  clients: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        handle: z.string().min(1),
+        href: z.string().min(1),
+        image: z.string().min(1),
+        work: z.string().min(1),
+      }),
+    )
+    .min(1),
+});
+
 export const ReportBlockSchema = z.discriminatedUnion("type", [
   ParagraphBlockSchema,
   StatGridBlockSchema,
@@ -227,6 +243,7 @@ export const ReportBlockSchema = z.discriminatedUnion("type", [
   ChartLineBlockSchema,
   ChartFunnelBlockSchema,
   ForAgainstBlockSchema,
+  ClientWallBlockSchema,
 ]);
 
 export type Stat = z.infer<typeof StatSchema>;
@@ -244,6 +261,7 @@ export type ChartLineBlock = z.infer<typeof ChartLineBlockSchema>;
 export type ChartFunnelBlock = z.infer<typeof ChartFunnelBlockSchema>;
 export type ForAgainstBlock = z.infer<typeof ForAgainstBlockSchema>;
 export type ForAgainstRow = z.infer<typeof ForAgainstRowSchema>;
+export type ClientWallBlock = z.infer<typeof ClientWallBlockSchema>;
 
 // ── document ────────────────────────────────────────────────────────────────
 

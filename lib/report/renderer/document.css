@@ -792,3 +792,47 @@
   text-transform: uppercase;
   color: var(--accent-dark);
 }
+
+/* ── client wall (document) ──────────────────────────────────────────────── */
+.cb-wall {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4mm;
+  margin: 5mm 0;
+}
+.cb-wall__card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--brand-200);
+  background: #fff;
+  overflow: hidden;
+  break-inside: avoid;
+}
+.cb-wall__card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+  border-bottom: 1px solid var(--brand-200);
+}
+.cb-wall__name {
+  display: block;
+  font-weight: 700;
+  font-size: 8.5pt;
+  padding: 2.5mm 3mm 0;
+}
+.cb-wall__work {
+  display: block;
+  font-size: 7.5pt;
+  color: var(--brand-700);
+  padding: 0.5mm 3mm 0;
+}
+.cb-wall__handle {
+  display: block;
+  font-family: var(--mono);
+  font-size: 6.5pt;
+  color: var(--brand-600);
+  padding: 0.5mm 3mm 2.5mm;
+}

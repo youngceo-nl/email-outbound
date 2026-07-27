@@ -166,14 +166,24 @@ export function ChartLine({ block }: { block: ChartLineBlock }) {
   );
 }
 
-/** Chart 2 pattern — descending horizontal bars with stage conversions between them. */
+/**
+ * Chart 2 pattern — descending horizontal bars with stage conversions between
+ * them.
+ *
+ * Widths are log-scaled. An 84,000-strong audience next to 20 buyers is four
+ * orders of magnitude, and linear widths rendered every stage after the first
+ * as a 3px sliver — a chart that looked broken. Log keeps the ordering and the
+ * shape readable; the exact figure sits on every bar, so nothing is hidden by
+ * the scale.
+ */
 export function ChartFunnel({ block }: { block: ChartFunnelBlock }) {
   const W = 700;
   const ROW = 44;
   const GAP = 10;
   const LABEL_W = 190;
   const H = block.stages.length * (ROW + GAP) + 8;
-  const max = Math.max(...block.stages.map((s) => s.value), 1);
+  const logOf = (v: number) => Math.log10(Math.max(1, v) + 1);
+  const max = Math.max(...block.stages.map((s) => logOf(s.value)), 1);
   const plotW = W - LABEL_W - 96;
 
   return (
@@ -181,7 +191,7 @@ export function ChartFunnel({ block }: { block: ChartFunnelBlock }) {
       <svg viewBox={`0 0 ${W} ${H}`} role="img" style={{ width: "100%", height: "auto", display: "block" }}>
         {block.stages.map((stage, i) => {
           const top = i * (ROW + GAP);
-          const width = Math.max(3, (stage.value / max) * plotW);
+          const width = Math.max(24, (logOf(stage.value) / max) * plotW);
           return (
             <g key={i}>
               <text x={LABEL_W - 10} y={top + ROW / 2 + 4} textAnchor="end" fontFamily={FONT} fontSize={12.5} fill={INK}>
