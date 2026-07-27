@@ -99,6 +99,7 @@ export async function runReport(reportId: string): Promise<RunResult> {
       facts: built.facts,
       signals: built.signals,
       scenarios: built.scenarios,
+      ladder: built.ladder,
     });
 
     // Saved before the PDF is attempted: the document is the expensive part, and a

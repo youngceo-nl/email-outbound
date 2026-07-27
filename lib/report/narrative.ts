@@ -2,6 +2,7 @@ import "server-only";
 import { analyseProspect, type Analysis } from "./ai/analyse";
 import { buildDossier } from "./ai/dossier";
 import { SLOT_TO_SECTION, writePassages, type Slot } from "./ai/write";
+import type { LadderResult } from "./build";
 import type { Fact, InternalSignals } from "./facts";
 import { count, pct, usd } from "./format";
 import type { Lead } from "@/lib/types";
@@ -285,12 +286,34 @@ function applyAnalysisBlocks(content: ReportContent, analysis: Analysis, facts: 
   return unknownCitations;
 }
 
+/*
+ * The viability gate, deterministic and unskippable: a projected case that loses
+ * money can never be presented as a strong fit. The old generator shipped a
+ * -$5,278 net beside a "proceed" recommendation — the model wrote confidently
+ * about a launch its own numbers said would fail. The model still writes the
+ * reasoning; what it may not do is contradict the arithmetic.
+ */
+function enforceViability(analysis: Analysis, ladder: LadderResult): void {
+  if (ladder.viable) return;
+  if (analysis.fit_verdict === "strong") analysis.fit_verdict = "workable";
+  const preface =
+    ladder.decision.route === "repricing" || ladder.decision.route === "missing_mid"
+      ? "At the price observed today the projected case loses money; the launch case rests on the mid-ticket offer, not on running the current numbers."
+      : "The projected case is negative at the modelled inputs, so this cannot be read as a proceed recommendation.";
+  if (!analysis.fit_reasoning.startsWith(preface)) {
+    analysis.fit_reasoning = `${preface} ${analysis.fit_reasoning}`;
+  }
+}
+
 export async function generateNarrativeDetailed(args: {
   lead: Lead;
   content: ReportContent;
   facts: Fact[];
   signals: InternalSignals;
   scenarios: ScenarioSet;
+  /** From buildReport(). Optional so older callers keep working; without it the
+   *  viability gate and ladder context are simply absent, as before. */
+  ladder?: LadderResult;
 }): Promise<NarrativeResult> {
   const dossier = buildDossier({
     lead: args.lead,
@@ -298,9 +321,11 @@ export async function generateNarrativeDetailed(args: {
     scenarios: args.scenarios,
     assumptions: args.content.assumptions,
     limitations: args.content.limitations,
+    offerLadder: args.ladder?.summary ?? null,
   });
 
   const analysed = await analyseProspect(dossier);
+  if (analysed.ok && args.ladder) enforceViability(analysed.analysis, args.ladder);
   if (!analysed.ok) {
     // A complete template report is a valid outcome. The document says what it
     // knows and what it assumed either way.

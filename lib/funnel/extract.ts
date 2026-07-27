@@ -5,8 +5,17 @@ export type FunnelExtraction = {
   program_name: string | null;
   offer_summary: string | null;
   price: string | null;
+  /** Every price on the page, with enough surrounding text to keep its meaning. */
+  prices: ExtractedPrice[];
   raw_text_for_llm: string;
   good_enough: boolean;
+};
+
+export type ExtractedPrice = {
+  /** The price with its own qualifiers attached: "$97/mo", "$497", "3 x $199". */
+  raw: string;
+  /** ~40 chars either side — where tier names and billing periods live. */
+  context: string;
 };
 
 const BAD_TITLES = new Set([
@@ -56,6 +65,7 @@ export function extractFunnel(opts: { html: string; platform: string }): FunnelE
   const program_name = pickBest([ogTitle, h1, docTitle, h2, footerName], opts.platform);
   const offer_summary = firstNonEmpty([ogDesc, metaDesc, h2]);
   const price = extractPrice($);
+  const prices = extractAllPrices($);
 
   const raw_text_for_llm = bodyText($).slice(0, 4000);
 
@@ -66,7 +76,7 @@ export function extractFunnel(opts: { html: string; platform: string }): FunnelE
     !/\s\|\s/.test(program_name) &&
     !BAD_TITLES.has(program_name.toLowerCase());
 
-  return { program_name, offer_summary, price, raw_text_for_llm, good_enough };
+  return { program_name, offer_summary, price, prices, raw_text_for_llm, good_enough };
 }
 
 function pickBest(candidates: (string | null)[], platform: string): string | null {
@@ -96,6 +106,39 @@ function extractPrice($: cheerio.CheerioAPI): string | null {
     text.match(/\$\s?[\d]{1,3}(?:,\d{3})+(?:\.\d{2})?/) ||
     text.match(/\$\s?[\d]{2,5}(?:\.\d{2})?/);
   return m ? m[0].replace(/\s/g, "") : null;
+}
+
+/*
+ * Every price on the page, not just the first. The first-match version is how a
+ * $12/mo app subscription became the sole input to a revenue model while the
+ * $497 program further down the same page went unread. Each match keeps its
+ * trailing period qualifier ("/mo", "per month") and enough surrounding text for
+ * a tier name to survive into classification.
+ */
+const PRICE_PATTERN =
+  /[$€£]\s?\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?(?:\s?k\b)?(\s?\/\s?(?:mo|month|yr|year|m|wk|week)\b|\s?per\s+(?:month|year|week)\b)?/gi;
+
+const MAX_CAPTURED_PRICES = 12;
+
+function extractAllPrices($: cheerio.CheerioAPI): ExtractedPrice[] {
+  const text = $("body").text().replace(/\s+/g, " ");
+  const out: ExtractedPrice[] = [];
+  const seen = new Set<string>();
+
+  for (const match of text.matchAll(PRICE_PATTERN)) {
+    const raw = match[0].trim();
+    const key = raw.replace(/\s+/g, "").toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const at = match.index ?? 0;
+    const context = text.slice(Math.max(0, at - 40), at + raw.length + 40).trim();
+    out.push({ raw, context });
+    // A pricing page with dozens of numbers is usually a comparison table plus
+    // testimonials; past a dozen distinct prices the extra ones are noise.
+    if (out.length >= MAX_CAPTURED_PRICES) break;
+  }
+  return out;
 }
 
 function bodyText($: cheerio.CheerioAPI): string {

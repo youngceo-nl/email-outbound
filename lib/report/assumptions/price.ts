@@ -64,7 +64,7 @@ function detectCurrency(text: string): string {
   return "USD";
 }
 
-function detectPeriod(text: string): Period {
+export function detectPeriod(text: string): Period {
   if (/(\/|per\s*)\s*(mo\b|month|m\b)|\bmonthly\b|\bp\/m\b/i.test(text)) return "monthly";
   if (/(\/|per\s*)\s*(yr\b|year)|\bannual(ly)?\b/i.test(text)) return "annual";
   return "one_time";

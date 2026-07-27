@@ -216,6 +216,12 @@ export type Lead = {
   funnel_platform: string | null;
   /** Free text as it appeared on the page — see lib/report/assumptions/price.ts. */
   funnel_price: string | null;
+  /**
+   * Every price seen across the funnel scrape, as captured — the report's offer
+   * ladder is built from this (lib/report/ladder.ts). Migration
+   * 20260727010000_funnel_prices.sql; null for leads enriched before it.
+   */
+  funnel_prices: Array<{ raw: string; label: string | null; url: string | null; source: string }> | null;
   funnel_extracted_at: string | null;
   funnel_extraction_error: string | null;
   // Outreach counters, maintained application-side (no DB trigger).
