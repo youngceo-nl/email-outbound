@@ -83,7 +83,6 @@ export const SLOT_TO_SECTION = {
   content: "content",
   funnel: "funnel",
   backend: "backend",
-  decision: "decision",
 } as const;
 
 export type Slot = keyof typeof SLOT_TO_SECTION;
@@ -101,8 +100,6 @@ const SLOT_BRIEF: Record<Slot, string> = {
     "The bottleneck from the analysis, then why this funnel shape answers it. Concrete about what would need building.",
   backend:
     "How the backend offer should be positioned for this audience, and why it must not be the reason the launch works.",
-  decision:
-    "The closing ask. What must be confirmed, what the first test should be judged on, and the single next action. Direct, not salesy. No pressure language.",
 };
 
 const SCHEMA = {

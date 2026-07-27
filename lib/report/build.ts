@@ -535,20 +535,19 @@ export function buildReport(args: BuildArgs): BuiltReport {
       {
         key: "decision",
         title: "The Next Step",
-        subtitle: "One call. Bring answers to the three questions below.",
+        subtitle: null,
         blocks: [
           {
             type: "callout",
             tone: ladderResult.viable ? "good" : "risk",
-            // The ask is a call, plainly. The viability gate still applies to
-            // the deterministic copy: a losing projected case may never carry a
-            // proceed recommendation (v3 §8).
+            // The ask is a call, plainly — no question list, no homework. The
+            // viability gate still applies to the deterministic copy: a losing
+            // projected case may never carry a proceed recommendation (v3 §8).
             title: "Book the build call",
             text: ladderResult.viable
-              ? `One call to confirm the offer and lock the 21-day build. Bring the three answers below and we can start the same week.`
+              ? `One call to confirm the offer and lock the 21-day build. We can start the same week.`
               : `One call — but the first agenda item is the price, because at today's price this launch loses money. Page one shows the same launch at category pricing.`,
           },
-          { type: "question_list", questions: decisionQuestions(resolution, offerName).slice(0, 3) },
         ],
       },
     ],
@@ -651,30 +650,6 @@ function assetReadiness(lead: Lead): string[][] {
   return rows;
 }
 
-/**
- * The questions worth asking, driven by what actually needs confirming.
- *
- * Anything the cascade flagged becomes a question, so the document asks about its
- * own weakest inputs instead of a fixed list that may not apply.
- */
-function decisionQuestions(resolution: ResolveResult, offerName: string): { order: number; question: string }[] {
-  const questions: string[] = [];
-
-  if (resolution.needsConfirmation.includes("front_end_price")) {
-    questions.push(`Is ${offerName} the intended webinar checkout offer, and is the price used here correct?`);
-  }
-  if (resolution.needsConfirmation.includes("backend_offer_price")) {
-    questions.push("What is the private offer's real price, and how many clients can be taken per launch?");
-  }
-  if (resolution.needsConfirmation.includes("organic_visitors")) {
-    questions.push("What audience and list can actually be activated for a launch?");
-  }
-  questions.push("Will the event be live once, recurring live, or recorded-hybrid?");
-  questions.push("Which organic channels will actively promote it?");
-  questions.push("What refund, trial, payment-plan, and financing terms apply to buyers?");
-
-  return questions.map((question, i) => ({ order: i + 1, question }));
-}
 
 /**
  * Builds the offer ladder from everything the funnel scrape captured, routes the

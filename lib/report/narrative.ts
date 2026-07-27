@@ -260,28 +260,9 @@ function applyAnalysisBlocks(content: ReportContent, analysis: Analysis, facts: 
     });
   }
 
-  const decision = content.sections.find((s) => s.key === "decision");
-  if (decision) {
-    if (analysis.risks.length > 0) {
-      decision.blocks.unshift({
-        type: "callout",
-        tone: "risk",
-        title: "What would put this launch at risk",
-        text: analysis.risks.join(" "),
-      });
-    }
-    // "What must be validated" is in the required flow, and stating it is what
-    // separates a diagnosis from a pitch.
-    if (analysis.missing_information.length > 0) {
-      decision.blocks.push({
-        type: "table",
-        variant: "default",
-        emphasizeColumn: null,
-        columns: ["Still to confirm", "Why it matters", "How to resolve it"],
-        rows: analysis.missing_information.map((m) => [m.item, m.why_it_matters, m.recommended_resolution]),
-      });
-    }
-  }
+  // Risks and missing_information stay off the prospect-facing document — the
+  // closing page is the ask, not a caveat list. Both remain in the stored
+  // analysis for the team.
 
   return unknownCitations;
 }
