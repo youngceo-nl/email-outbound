@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Loader2, AlertTriangle, Download, Eye } from "lucide-react";
+import { FileText, Loader2, AlertTriangle, Download, Eye, Presentation } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -185,6 +185,11 @@ export function ReportPanel({
                 <div className="flex shrink-0 gap-2">
                   {report.status === "ready" ? (
                     <>
+                      <Button asChild variant="ghost" size="sm">
+                        <a href={`/api/reports/${report.id}/deck`} target="_blank" rel="noreferrer">
+                          <Presentation className="mr-1 h-3 w-3" /> Deck
+                        </a>
+                      </Button>
                       <Button asChild variant="ghost" size="sm">
                         <a href={`/api/reports/${report.id}/preview`} target="_blank" rel="noreferrer">
                           <Eye className="mr-1 h-3 w-3" /> Preview
