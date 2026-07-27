@@ -119,7 +119,15 @@ const WriteSchema = z.object(
 export type Passages = Record<Slot, string>;
 export type WriteResult = { ok: true; passages: Passages; model: string } | { ok: false; reason: string };
 
-export async function writePassages(args: { dossier: Dossier; analysis: Analysis }): Promise<WriteResult> {
+export async function writePassages(args: {
+  dossier: Dossier;
+  analysis: Analysis;
+  /** Stage 8's argument. Every passage serves it — this is what stops seven
+   *  passages from describing seven sections instead of arguing one case. */
+  thesis?: string | null;
+  /** Critique feedback for a revision round: slot -> what is missing. */
+  revise?: Partial<Record<Slot, string>> | null;
+}): Promise<WriteResult> {
   const brief = Object.entries(SLOT_BRIEF)
     .map(([slot, description]) => `- ${slot}: ${description}`)
     .join("\n");
@@ -129,10 +137,20 @@ export async function writePassages(args: { dossier: Dossier; analysis: Analysis
     schema: SCHEMA as unknown as Record<string, unknown>,
     system: SYSTEM,
     user: [
+      args.thesis ? `THE THESIS. Every passage argues this, from its own section's angle:\n${args.thesis}` : null,
       `Analysis:\n${JSON.stringify(args.analysis, null, 2)}`,
       `Dossier:\n${JSON.stringify(args.dossier, null, 2)}`,
       `Write these passages:\n${brief}`,
-    ].join("\n\n"),
+      args.revise
+        ? `REVISION ROUND. A reviewer flagged these passages as generic — true of any prospect in the category. Rewrite each so it could only describe this prospect, using the specific material named:\n${Object.entries(
+            args.revise,
+          )
+            .map(([slot, fix]) => `- ${slot}: ${fix}`)
+            .join("\n")}\nPassages not listed here: return them unchanged.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
     maxTokens: 3500,
     // Lower than the analysis pass: this one should be consistent and plain, not
     // inventive. The judgements are already made. OpenAI path only — see analyse.ts.
