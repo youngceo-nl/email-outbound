@@ -581,11 +581,13 @@
 .cb-verdictpage__verdict {
   font-family: var(--display);
   font-weight: 800;
-  font-size: 24pt;
-  line-height: 1.08;
+  font-size: 23pt;
+  line-height: 1.14;
   letter-spacing: -0.015em;
   margin: 0 0 10mm;
-  max-width: 30ch;
+  /* Full measure. A max-width here folded the sentence into a narrow left
+     column — a verdict reads as a statement only when it runs the line. */
+  max-width: none;
 }
 .cb-verdictpage__cards {
   display: grid;
@@ -708,4 +710,42 @@
   color: var(--brand-700);
   max-width: 60ch;
   margin: 0;
+}
+
+
+/* ── money semantics ─────────────────────────────────────────────────────── */
+/* Green means gain, red means loss — everywhere a signed money figure shows.
+   Colour carries meaning here, which is why it appears nowhere decorative. */
+.cb-money--good {
+  color: var(--good) !important;
+}
+.cb-money--bad {
+  color: var(--accent) !important;
+}
+.cb-table--figures td.cb-money--good,
+.cb-table--figures td.cb-money--bad {
+  font-weight: 700;
+}
+
+/* ── breathing room (design pass) ────────────────────────────────────────── */
+.cb-section {
+  margin-bottom: 14mm;
+}
+.cb-section__sub {
+  margin-bottom: 6mm;
+}
+.cb-table td,
+.cb-table th {
+  padding: 2.8mm 3.2mm;
+}
+.cb-stat--hero .cb-stat__value {
+  font-size: 24pt;
+}
+.cb-callout {
+  margin: 5mm 0;
+}
+.cb-disclaimer--only {
+  padding: 10mm 18mm 0;
+  font-size: 8pt;
+  color: var(--brand-500);
 }

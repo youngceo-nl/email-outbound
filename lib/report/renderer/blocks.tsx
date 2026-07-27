@@ -33,7 +33,7 @@ function StatGrid({ block }: { block: StatGridBlock }) {
     <div className={`cb-stats cb-stats--${columns}`}>
       {block.stats.map((stat, i) => (
         <div key={i} className="cb-stat">
-          <div className="cb-stat__value">{stat.value}</div>
+          <div className={`cb-stat__value${stat.tone ? ` cb-money--${stat.tone}` : ""}`}>{stat.value}</div>
           <div className="cb-stat__label">{stat.label}</div>
           {stat.sublabel && <div className="cb-stat__sub">{stat.sublabel}</div>}
         </div>
@@ -45,7 +45,15 @@ function StatGrid({ block }: { block: StatGridBlock }) {
 function Table({ block }: { block: TableBlock }) {
   const figures = block.variant === "figures";
   const emphasis = block.emphasizeColumn;
-  const cellClass = (col: number) => (emphasis !== null && col === emphasis ? "cb-col-base" : undefined);
+  // Sign prefixes are semantics the builder wrote, not formatting done here:
+  // "-$" renders as a loss, "+$" as a gain. Pure presentation of an existing sign.
+  const cellClass = (col: number, cell?: string) => {
+    const parts: string[] = [];
+    if (emphasis !== null && col === emphasis) parts.push("cb-col-base");
+    if (figures && cell?.startsWith("-$")) parts.push("cb-money--bad");
+    if (figures && cell?.startsWith("+$")) parts.push("cb-money--good");
+    return parts.length > 0 ? parts.join(" ") : undefined;
+  };
 
   return (
     <table className={`cb-table${figures ? " cb-table--figures" : ""}`}>
@@ -62,7 +70,7 @@ function Table({ block }: { block: TableBlock }) {
         {block.rows.map((row, r) => (
           <tr key={r}>
             {row.map((cell, c) => (
-              <td key={c} className={cellClass(c)}>
+              <td key={c} className={cellClass(c, cell)}>
                 {cell}
               </td>
             ))}

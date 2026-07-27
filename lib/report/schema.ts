@@ -70,6 +70,8 @@ export const StatSchema = z.object({
   label: z.string().min(1),
   value: z.string().min(1),
   sublabel: z.string().nullable(),
+  /** Money semantics: green gain, red loss. Absent = neutral ink. */
+  tone: z.enum(["good", "bad"]).nullable().optional(),
 });
 
 export const ParagraphBlockSchema = z.object({

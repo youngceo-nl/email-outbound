@@ -1,7 +1,7 @@
 import { Block } from "./blocks";
 import { ChartBars } from "./charts";
 import { monogram } from "./prospect-image";
-import { TIER_LABEL, type ReportAssets, type ReportContent } from "../schema";
+import type { ReportAssets, ReportContent } from "../schema";
 
 /*
  * The document. Takes validated ReportContent and renders it deterministically —
@@ -56,7 +56,7 @@ function VerdictPage({ content, assets }: { content: ReportContent; assets: Repo
           {cards.stats.map((stat, i) => (
             <div key={i} className="cb-stat cb-stat--hero">
               <div className="cb-stat__label">{stat.label}</div>
-              <div className="cb-stat__value">{stat.value}</div>
+              <div className={`cb-stat__value${stat.tone ? ` cb-money--${stat.tone}` : ""}`}>{stat.value}</div>
               {stat.sublabel && <div className="cb-stat__sub">{stat.sublabel}</div>}
             </div>
           ))}
@@ -69,93 +69,6 @@ function VerdictPage({ content, assets }: { content: ReportContent; assets: Repo
         Full math in <b>The numbers</b> &nbsp;·&nbsp; Next step in <b>What we need from you</b> &nbsp;·&nbsp; Basis of
         every figure in the appendix &nbsp;·&nbsp; Data as of <b>{metadata.evidenceCutoffAt}</b>
       </footer>
-    </section>
-  );
-}
-
-/**
- * §0 and §10's provenance content is rendered from the resolved assumption set
- * rather than authored, so the document's own account of what it knows can't
- * drift from the numbers it used. This is the structural guarantee that keeps a
- * generated report honest instead of honest-if-the-model-behaves.
- */
-function Provenance({ content }: { content: ReportContent }) {
-  if (content.assumptions.length === 0 && content.sourceNotes.length === 0) return null;
-
-  return (
-    <section className="cb-section">
-      <div className="cb-section__head">
-        <h2 className="cb-section__title">
-          <span className="cb-section__number">·</span> Assumptions &amp; sources
-        </h2>
-      </div>
-      <p className="cb-section__sub">
-        Every figure in this document is one of three things: observed on a public page, a category benchmark, or a
-        stated working assumption. This is which.
-      </p>
-
-      {content.assumptions.length > 0 && (
-        <table className="cb-table">
-          <thead>
-            <tr>
-              <th>Input</th>
-              <th>Value</th>
-              <th>Basis</th>
-              <th>Where it came from</th>
-            </tr>
-          </thead>
-          <tbody>
-            {content.assumptions.map((a) => (
-              <tr key={a.key}>
-                <td>{a.label}</td>
-                <td>{a.display}</td>
-                <td>
-                  <span className={`cb-tier cb-tier--${a.tier}`}>{TIER_LABEL[a.tier]}</span>
-                </td>
-                <td>{a.source}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {content.limitations.length > 0 && (
-        <>
-          <h3>Known limits</h3>
-          <ul className="cb-questions">
-            {content.limitations.map((limit, i) => (
-              <li key={i}>{limit}</li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      {content.sourceNotes.length > 0 && (
-        <>
-          <h3>Source notes</h3>
-          <table className="cb-table">
-            <thead>
-              <tr>
-                <th>Source</th>
-                <th>Used for</th>
-              </tr>
-            </thead>
-            <tbody>
-              {content.sourceNotes.map((note, i) => (
-                <tr key={i}>
-                  <td>{note.source}</td>
-                  <td>{note.usedFor}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-
-      <p className="cb-disclaimer">
-        Prepared by Conversion Brands. This document uses public information and stated planning assumptions. The
-        scenarios are a decision model, not a guarantee of campaign performance.
-      </p>
     </section>
   );
 }
@@ -195,7 +108,10 @@ export function ReportDocument({ content, assets }: { content: ReportContent; as
       )}
       {appendix.map((section) => renderSection(section, null))}
 
-      <Provenance content={content} />
+      <p className="cb-disclaimer cb-disclaimer--only">
+        Prepared by Conversion Brands from public information and stated planning assumptions. The scenarios are a
+        decision model, not a guarantee of campaign performance.
+      </p>
     </div>
   );
 }
