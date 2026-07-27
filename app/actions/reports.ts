@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolveAssumptions } from "@/lib/report/assumptions/resolve";
 import { ASSUMPTION_LABEL, type AssumptionKey, type ReportOverrides } from "@/lib/report/assumptions/defaults";
-import { getLeadForReport, createReport, listReportsForLead } from "@/lib/report/service";
+import { getLeadForReport, createReport, deleteReport, getReport, listReportsForLead } from "@/lib/report/service";
 
 /*
  * Server actions behind the Generate Report button.
@@ -143,4 +143,29 @@ export async function getAssumptionPanel(
     warnings: resolved.warnings,
     reportCount: reports.length,
   };
+}
+
+export type DeleteResult = { ok: true } | { ok: false; error: string };
+
+/** Deletes a generated report and its PDF. Any status — stuck rows included. */
+export async function deleteReportAction(reportId: string): Promise<DeleteResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  try {
+    // Read before delete so the right lead page revalidates afterwards.
+    const report = await getReport(reportId);
+    await deleteReport(reportId);
+    if (report) {
+      const lead = await getLeadForReport(report.lead_id);
+      if (lead) revalidatePath(`/leads/${lead.username}`);
+    }
+    revalidatePath("/reports");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Could not delete the report." };
+  }
 }

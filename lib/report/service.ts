@@ -128,6 +128,27 @@ export async function markFailed(id: string, message: string): Promise<void> {
   await patch(id, { status: "failed", error: message.slice(0, 2000) });
 }
 
+/**
+ * Deletes a report and its stored PDF.
+ *
+ * Storage first, best-effort: an orphaned file in a private bucket costs pennies
+ * and is invisible, whereas a DB row pointing at a deleted file would render a
+ * broken download button. Any status is deletable — a row stuck in "generating"
+ * (a killed function, a timed-out run) has no other way out, and a run that
+ * finishes after its row is gone just updates zero rows.
+ */
+export async function deleteReport(id: string): Promise<void> {
+  const sb = createAdminClient();
+  const report = await getReport(id);
+  if (!report) return;
+
+  if (report.pdf_path) {
+    await sb.storage.from(BUCKET).remove([report.pdf_path]);
+  }
+  const { error } = await sb.from("reports").delete().eq("id", id);
+  if (error) throw new Error(`Failed to delete report ${id}: ${error.message}`);
+}
+
 // ── PDF storage ─────────────────────────────────────────────────────────────
 
 export async function uploadPdf(reportId: string, pdf: Buffer): Promise<string> {
