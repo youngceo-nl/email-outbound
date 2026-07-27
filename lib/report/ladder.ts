@@ -54,6 +54,14 @@ export type CapturedPrice = {
    * here rather than in the price string itself.
    */
   context?: string | null;
+  /**
+   * The rung the source *declared*, which beats the amount thresholds. A human
+   * typing $997 into the low-ticket field means their entry product costs $997
+   * — reclassifying it as a mid ticket contradicts the person who knows the
+   * business, and it once turned a declared $4,000 mid ticket into "high" and a
+   * declared low ticket into the modelled front-end price.
+   */
+  declaredRung?: Rung | null;
 };
 
 /** A captured price that parsed, classified into its rung. */
@@ -156,7 +164,8 @@ export function buildLadder(captured: CapturedPrice[]): Ladder {
     const period: Period =
       parsed.price.period === "one_time" && capture.context ? detectPeriod(capture.context) : parsed.price.period;
     const annualized = period === "monthly" ? parsed.price.amount * 12 : parsed.price.amount;
-    rungs[classifyRung(parsed.price.amount)].push({
+    const rung = capture.declaredRung ?? classifyRung(parsed.price.amount);
+    rungs[rung].push({
       raw: capture.raw,
       label: capture.label,
       amount: parsed.price.amount,
@@ -165,7 +174,7 @@ export function buildLadder(captured: CapturedPrice[]): Ladder {
       currency: parsed.price.currency,
       url: capture.url,
       source: capture.source,
-      rung: classifyRung(parsed.price.amount),
+      rung,
       ambiguous: parsed.price.ambiguous,
     });
   }

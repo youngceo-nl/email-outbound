@@ -1,4 +1,5 @@
 import { ChartBars, ChartFunnel, ChartLine } from "./charts";
+import { BOOKING_URL, TESTIMONIALS } from "../template/testimonials";
 import { monogram } from "./prospect-image";
 import type {
   CalloutBlock,
@@ -11,6 +12,7 @@ import type {
   ReportContent,
   ReportAssets,
   StatGridBlock,
+  StepListBlock,
   TableBlock,
 } from "../schema";
 
@@ -100,6 +102,7 @@ export function ReportDeck({ content, assets }: { content: ReportContent; assets
   const breakEven = calloutOf(pnlSec, "note");
   const proofTable = firstOf<TableBlock>(section(content, "proof"), "table");
   const roadmap = firstOf<TableBlock>(section(content, "roadmap"), "table");
+  const phases = firstOf<StepListBlock>(section(content, "roadmap"), "step_list");
   const decisionSec = section(content, "decision");
   const questions = firstOf<QuestionListBlock>(decisionSec, "question_list");
   const nextAction = decisionSec?.blocks.find((b): b is CalloutBlock => b.type === "callout");
@@ -209,10 +212,27 @@ export function ReportDeck({ content, assets }: { content: ReportContent; assets
     );
   }
 
-  // 8 · Proof.
+  // 8 · The client wall — the homepage's own proof, clickable through to the
+  // actual pages built for each person.
+  slides.push(
+    <Slide key="wall" kicker="It already worked" title="Built for people in your seat">
+      <div className="cbd-wall">
+        {TESTIMONIALS.map((client) => (
+          <a key={client.handle} className="cbd-wall__card" href={client.href} target="_blank" rel="noreferrer">
+            {/* eslint-disable-next-line @next/next/no-img-element -- static deck */}
+            <img src={client.image} alt={client.name} loading="lazy" />
+            <span className="cbd-wall__name">{client.name}</span>
+            <span className="cbd-wall__handle">@{client.handle}</span>
+          </a>
+        ))}
+      </div>
+    </Slide>,
+  );
+
+  // 9 · The numbers behind the wall.
   if (proofTable) {
     slides.push(
-      <Slide key="proof" kicker="It already worked" title="Operating proof, not a forecast">
+      <Slide key="proof" kicker="Proof, at scale" title="Operating proof, not a forecast">
         <table className="cb-table cb-table--figures">
           <thead>
             <tr>
@@ -235,8 +255,23 @@ export function ReportDeck({ content, assets }: { content: ReportContent; assets
     );
   }
 
-  // 9 · The plan, as four beats rather than eight rows.
-  if (roadmap) {
+  // 10 · The plan — four phases, kickoff to live event.
+  if (phases) {
+    slides.push(
+      <Slide key="plan" kicker="Twenty-one days" title="Four phases, kickoff to live event">
+        <div className="cbd-phases">
+          {phases.steps.map((step) => (
+            <div key={step.order} className="cbd-phase">
+              <div className="cbd-phase__num">{step.order}</div>
+              <div className="cbd-phase__title">{step.title}</div>
+              <p className="cbd-phase__desc">{step.description}</p>
+              {step.meta && <div className="cbd-phase__meta">{step.meta}</div>}
+            </div>
+          ))}
+        </div>
+      </Slide>,
+    );
+  } else if (roadmap) {
     slides.push(
       <Slide key="plan" kicker="Twenty-one days" title="Kickoff to live event">
         <div className="cbd-plan">
@@ -251,17 +286,20 @@ export function ReportDeck({ content, assets }: { content: ReportContent; assets
     );
   }
 
-  // 10 · The ask.
+  // 11 · The ask: book the call.
   slides.push(
-    <Slide key="ask" kicker="What we need from you" title={nextAction?.title ?? "The next step"} center>
+    <Slide key="ask" kicker="The next step" title={nextAction?.title ?? "Book the build call"} center>
+      {nextAction && <p className="cbd-note cbd-note--big">{nextAction.text}</p>}
+      <a className="cbd-cta" href={BOOKING_URL} target="_blank" rel="noreferrer">
+        Book your call →
+      </a>
       {questions && (
-        <ol className="cbd-ask">
+        <ol className="cbd-ask cbd-ask--small">
           {questions.questions.map((q) => (
             <li key={q.order}>{q.question}</li>
           ))}
         </ol>
       )}
-      {nextAction && <p className="cbd-note cbd-note--big">{nextAction.text}</p>}
       <div className="cbd-meta">Conversion Brands</div>
     </Slide>,
   );

@@ -494,22 +494,37 @@ export function buildReport(args: BuildArgs): BuiltReport {
       {
         key: "roadmap",
         title: "The 21-Day Build",
-        subtitle: "What gets built. Your time: three sessions.",
+        subtitle: "Four phases, kickoff to live event. Your time: three sessions.",
+        // Four phases, not eight table rows — the same shape the company deck
+        // uses for its gameplan, rendered as a timeline.
         blocks: [
           {
-            type: "table",
-            variant: "default",
-            emphasizeColumn: null,
-            columns: ["Timing", "Build work", "Client involvement"],
-            rows: [
-              ["Days 1-3", "Confirm offer, promise, price, capacity, checkout terms, targets.", "One strategy session."],
-              ["Days 4-7", "Build registration, confirmation, tracking, checkout logic, calendar.", "Approve the event promise."],
-              ["Days 5-10", "Write the outline, guided experience, slides, and offer transition.", "Review claims and outline."],
-              ["Days 8-12", "Build email, SMS, calendar, no-show, replay, deadline, buyer flows.", "None unless needed."],
-              ["Days 10-14", "Prepare organic promotion and a small paid creative test.", "Record short promotional assets."],
-              ["Days 15-19", "Promote, test tracking, rehearse, run technical QA.", "One rehearsal or recording block."],
-              ["Day 20", "Run the live or hybrid event.", "Present live, or approve a recorded format."],
-              ["Day 21+", "Replay, deadline follow-up, onboarding, private application review.", "Review qualified applicants only."],
+            type: "step_list",
+            steps: [
+              {
+                order: 1,
+                title: "Strategy — Days 1–3",
+                description: "Offer, promise, price, capacity and targets confirmed.",
+                meta: "You: one strategy session.",
+              },
+              {
+                order: 2,
+                title: "Build — Days 4–12",
+                description: "Registration, checkout, event content, and every follow-up flow — email, SMS, replay, deadline.",
+                meta: "You: approve the promise and outline.",
+              },
+              {
+                order: 3,
+                title: "Promote — Days 10–19",
+                description: "Organic promotion plus a small paid test. Rehearsal and technical QA.",
+                meta: "You: record short assets, one rehearsal.",
+              },
+              {
+                order: 4,
+                title: "Launch — Days 20–21+",
+                description: "The live event, then replay, deadline follow-up and buyer onboarding.",
+                meta: "You: present live (or approve recorded).",
+              },
             ],
           },
         ],
@@ -517,20 +532,21 @@ export function buildReport(args: BuildArgs): BuiltReport {
 
       {
         key: "decision",
-        title: "What We Need From You",
-        subtitle: "Three confirmations, one decision.",
+        title: "The Next Step",
+        subtitle: "One call. Bring answers to the three questions below.",
         blocks: [
-          { type: "question_list", questions: decisionQuestions(resolution, offerName).slice(0, 3) },
           {
             type: "callout",
             tone: ladderResult.viable ? "good" : "risk",
-            title: ladderResult.viable ? "The one next action" : "The one next action — after the price",
-            // The viability gate applies to the deterministic copy too: a losing
-            // projected case may never carry a proceed recommendation (v3 §8).
+            // The ask is a call, plainly. The viability gate still applies to
+            // the deterministic copy: a losing projected case may never carry a
+            // proceed recommendation (v3 §8).
+            title: "Book the build call",
             text: ladderResult.viable
-              ? `Confirm the three items above, then run an organic-first pilot with a ${usd(inputs.projected.ad_spend)} paid test. Judge it on front-end buyers alone.`
-              : `Do not launch at today's price — it loses money. Set the price first (page one shows the same launch at category pricing), then pilot.`,
+              ? `One call to confirm the offer and lock the 21-day build. Bring the three answers below and we can start the same week.`
+              : `One call — but the first agenda item is the price, because at today's price this launch loses money. Page one shows the same launch at category pricing.`,
           },
+          { type: "question_list", questions: decisionQuestions(resolution, offerName).slice(0, 3) },
         ],
       },
     ],
@@ -694,15 +710,17 @@ function routeFirst(lead: Lead, overrides: ReportOverrides | undefined, research
 
   // Prices the team typed into the generate menu outrank the scrape in the
   // ladder too — same precedence the cascade gives them.
+  // Declared rungs, not thresholds: the generate menu asked "low / mid / high"
+  // and the answer is authoritative. A $4,000 mid ticket stays the mid ticket.
   const humanEntries: CapturedPrice[] = [];
   if (overrides?.front_end_price && overrides.front_end_price > 0) {
-    humanEntries.push({ raw: usd(overrides.front_end_price), label: "Front-end offer (set by the team)", url: null, source: "human" });
+    humanEntries.push({ raw: usd(overrides.front_end_price), label: "Front-end offer (set by the team)", url: null, source: "human", declaredRung: "mid" });
   }
   if (overrides?.backend_offer_price && overrides.backend_offer_price > 0) {
-    humanEntries.push({ raw: usd(overrides.backend_offer_price), label: "Backend offer (set by the team)", url: null, source: "human" });
+    humanEntries.push({ raw: usd(overrides.backend_offer_price), label: "Backend offer (set by the team)", url: null, source: "human", declaredRung: "high" });
   }
   if (overrides?.ladder_low_price && overrides.ladder_low_price > 0) {
-    humanEntries.push({ raw: usd(overrides.ladder_low_price), label: "Entry offer (set by the team)", url: null, source: "human" });
+    humanEntries.push({ raw: usd(overrides.ladder_low_price), label: "Entry offer (set by the team)", url: null, source: "human", declaredRung: "low" });
   }
 
   const ladder = buildLadder([...humanEntries, ...captured]);
@@ -778,7 +796,7 @@ function assembleLadderResult(routed: Routed, resolution: ResolveResult, scenari
   const at = (price: number): ScenarioOutputs =>
     calculateScenario({ ...resolution.inputs.projected, front_end_price: price });
 
-  const pricePoints: PricePoint[] = [
+  const rawPoints: PricePoint[] = [
     ...(observedEntry
       ? [
           {
@@ -797,6 +815,11 @@ function assembleLadderResult(routed: Routed, resolution: ResolveResult, scenari
       outputs: at(band.high),
     },
   ];
+  // Two bars at the same price argue nothing — when today's price sits exactly
+  // on a band point, the band point yields (the observed bar carries the story).
+  const pricePoints = rawPoints.filter(
+    (point, i) => rawPoints.findIndex((other) => other.price === point.price) === i,
+  );
 
   return {
     ladder,

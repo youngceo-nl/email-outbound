@@ -751,3 +751,44 @@
   font-size: 8pt;
   color: var(--brand-500);
 }
+
+/* ── the 21-day build as a timeline (step_list redesign) ─────────────────── */
+.cb-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4mm;
+}
+.cb-step {
+  border: 1px solid var(--brand-200);
+  border-top: 3px solid var(--accent);
+  background: var(--brand-50);
+  padding: 4.5mm 4mm;
+  break-inside: avoid;
+}
+.cb-step__order {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 16pt;
+  color: var(--accent);
+  line-height: 1;
+  margin-bottom: 2.5mm;
+}
+.cb-step__title {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 10.5pt;
+  margin-bottom: 2mm;
+}
+.cb-step__desc {
+  font-size: 8.5pt;
+  line-height: 1.5;
+  color: var(--brand-700);
+}
+.cb-step__desc + .cb-step__desc {
+  margin-top: 2mm;
+  font-family: var(--mono);
+  font-size: 6.8pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+}

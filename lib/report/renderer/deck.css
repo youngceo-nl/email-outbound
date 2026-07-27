@@ -241,3 +241,115 @@ body.cbd-body {
 .cbd .cb-table {
   font-size: 13px;
 }
+
+/* ── client wall ─────────────────────────────────────────────────────────── */
+.cbd-wall {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.cbd-wall__card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--brand-200);
+  background: #fff;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.cbd-wall__card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(15, 14, 12, 0.12);
+}
+.cbd-wall__card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+  border-bottom: 1px solid var(--brand-200);
+}
+.cbd-wall__name {
+  display: block;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 7px 9px 0;
+}
+.cbd-wall__handle {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--brand-600);
+  padding: 1px 9px 8px;
+}
+/* 11 cards: let the last row breathe at 4-up; on short screens go 3-up */
+@media (max-height: 760px) {
+  .cbd-wall {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .cbd-wall__card:nth-child(n + 9) {
+    display: none;
+  }
+}
+
+/* ── four-phase plan ─────────────────────────────────────────────────────── */
+.cbd-phases {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.cbd-phase {
+  border: 1px solid var(--brand-200);
+  border-top: 3px solid var(--accent);
+  background: #fff;
+  padding: 16px 14px;
+}
+.cbd-phase__num {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 26px;
+  color: var(--accent);
+  line-height: 1;
+}
+.cbd-phase__title {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  margin: 10px 0 6px;
+}
+.cbd-phase__desc {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--brand-700);
+  margin: 0;
+}
+.cbd-phase__meta {
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+}
+
+/* ── the call CTA ────────────────────────────────────────────────────────── */
+.cbd-cta {
+  display: inline-block;
+  margin: 22px auto;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 18px;
+  padding: 14px 34px;
+  transition: background 0.15s ease;
+}
+.cbd-cta:hover {
+  background: var(--accent-dark);
+}
+.cbd-ask--small {
+  font-size: 13px;
+  color: var(--brand-700);
+  margin-top: 10px;
+}
