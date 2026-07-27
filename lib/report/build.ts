@@ -199,23 +199,17 @@ export function buildReport(args: BuildArgs): BuiltReport {
               ["Internal webinar cases", "Operating proof — not a forecast for this account."],
             ],
           },
-          {
-            type: "callout",
-            tone: "note",
-            title: "Required reading for the numbers",
-            text: "Observed facts, working assumptions, and calculated outputs are kept separate throughout. Every input is labelled with where it came from in the closing table. The scenarios are a decision model, not a promise of campaign performance.",
-          },
         ],
       },
 
       {
         key: "verdict",
         title: "The Case For and Against",
-        subtitle: "Weighted, sorted, and every row says what it rests on.",
+        subtitle: "Sorted by weight. Every row states its basis.",
         blocks: [
           {
             type: "paragraph",
-            text: `Build one webinar that sells ${offerName} at direct checkout, then invite a small number of qualified buyers into the private tier. The columns below are the honest version of that recommendation — including the strongest argument against it.`,
+            text: `One webinar, selling ${offerName} at direct checkout. The columns below are the honest version of that call.`,
           },
           forAgainstBlock({ lead, ladder: ladderResult, e, resolution, contentAnalysis }),
         ],
@@ -224,7 +218,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
       {
         key: "assets",
         title: "What You Would Sell",
-        subtitle: "Every price found on their properties, its rung, and the gap.",
+        subtitle: "Every price found, its rung, and the gap.",
         blocks: [
           ...ladderBlocks(ladderResult),
           ...(RUNGS.every((rung) => ladderResult.ladder.rungs[rung].length === 0)
@@ -239,7 +233,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
             : []),
           {
             type: "paragraph",
-            text: `Category context: comparable mid-ticket programs are modelled at ${usd(ladderResult.band.mid)}–${usd(ladderResult.band.high)} (${ladderResult.band.source}). The scenarios in The Numbers run on ${usd(inputs.projected.front_end_price)}.`,
+            text: `Comparable mid-ticket programs: ${usd(ladderResult.band.mid)}–${usd(ladderResult.band.high)} (${ladderResult.band.source}). This model runs on ${usd(inputs.projected.front_end_price)}.`,
           },
           // The researched band's evidence, in the body — not the appendix. This
           // is what replaces "assumption" labels with named comparables (v3 §3.4).
@@ -351,7 +345,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
       {
         key: "funnel",
         title: "Where the Funnel Breaks Today",
-        subtitle: "The stages, the drop-offs, and the constraint the build plan exists to fix.",
+        subtitle: "The drop-offs, and the constraint that decides everything.",
         blocks: [funnelChartBlock(lead, resolution, e)],
       },
 
@@ -396,7 +390,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
       {
         key: "pnl",
         title: "The Numbers",
-        subtitle: "The projected P&L, and the purchase rate the launch lives or dies on.",
+        subtitle: "The P&L, and the line the launch lives or dies on.",
         blocks: [
           {
             type: "table",
@@ -410,7 +404,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
               // report shows the same breakdown the team modelled.
               ...e.expense_amounts.map((line) => [line.name, `-${usd(line.amount)}`]),
               ["Total expenses", `-${usd(e.total_expenses)}`],
-              ["Net profit", usd(e.front_end_net_profit)],
+              ["Net profit", `${e.front_end_net_profit >= 0 ? "+" : ""}${usd(e.front_end_net_profit)}`],
               ["Margin", pct(e.front_end_net_margin)],
               ["ROAS (revenue / ad spend)", `${roundForDisplay(e.roas, 2)}x`],
               ["CPA (ad spend / sign-up)", usd(e.cpa)],
@@ -421,7 +415,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
             type: "callout",
             tone: "note",
             title: "Break-even",
-            text: `The front end breaks even at a ${pct(e.break_even_purchase_rate)} purchase rate from live attendees, against a modelled ${pct(inputs.projected.front_end_purchase_rate)}. The event, the offer transition, and checkout follow-up matter more than a small change in traffic cost.`,
+            text: `Break-even is a ${pct(e.break_even_purchase_rate)} purchase rate from live attendees; the model runs at ${pct(inputs.projected.front_end_purchase_rate)}. Everything in the build plan exists to clear that line.`,
           },
         ],
       },
@@ -488,7 +482,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
       {
         key: "roadmap",
         title: "The 21-Day Build",
-        subtitle: "What gets built, and the hours needed from you.",
+        subtitle: "What gets built. Your time: three sessions.",
         blocks: [
           {
             type: "table",
@@ -522,8 +516,8 @@ export function buildReport(args: BuildArgs): BuiltReport {
             // The viability gate applies to the deterministic copy too: a losing
             // projected case may never carry a proceed recommendation (v3 §8).
             text: ladderResult.viable
-              ? `Confirm the three items above, then run an organic-first pilot with a controlled ${usd(inputs.projected.ad_spend)} paid test. Judge it on front-end buyer economics alone — the backend is upside, not the rescue plan.`
-              : `Do not launch at the price observed today: the projected case loses money at it. Set the offer price first — the chart on page one shows the same launch at category pricing — and only then judge a pilot on front-end economics.`,
+              ? `Confirm the three items above, then run an organic-first pilot with a ${usd(inputs.projected.ad_spend)} paid test. Judge it on front-end buyers alone.`
+              : `Do not launch at today's price — it loses money. Set the price first (page one shows the same launch at category pricing), then pilot.`,
           },
         ],
       },
@@ -821,7 +815,12 @@ function heroBlocks(
   const cards: ReportBlock = {
     type: "stat_grid",
     stats: [
-      { label: "Net profit per launch", value: usd(roundForDisplay(e.front_end_net_profit, 0)), sublabel: "projected case" },
+      {
+        label: "Net profit per launch",
+        value: `${e.front_end_net_profit >= 0 ? "+" : ""}${usd(roundForDisplay(e.front_end_net_profit, 0))}`,
+        sublabel: "projected case",
+        tone: e.front_end_net_profit >= 0 ? ("good" as const) : ("bad" as const),
+      },
       { label: "Time to first revenue", value: "21 days", sublabel: "kickoff to live event" },
       {
         label: "What you sell",
