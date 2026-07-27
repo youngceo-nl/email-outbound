@@ -48,7 +48,13 @@ export type BuildArgs = {
    * competitors render in the document as the evidence behind it.
    */
   research?: NicheResearch | null;
+  /** Prices captured off other properties (YouTube descriptions, site pages). */
+  extraPrices?: CapturedPrice[] | null;
+  /** Reachable audience per platform. Charts when two or more are known. */
+  platforms?: PlatformReach[] | null;
 };
+
+export type PlatformReach = { platform: string; audience: number; detail: string | null };
 
 export type NicheResearch = {
   band: { mid: number; high: number };
@@ -106,7 +112,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
    * a loss. Now: missing mid → model the proposed category-priced offer, and
    * today's price appears in the chart as the loss it is.
    */
-  const routed = routeFirst(lead, args.overrides, args.research);
+  const routed = routeFirst(lead, args.overrides, args.research, args.extraPrices ?? []);
 
   const resolution = resolveAssumptions({
     followers: lead.followers,
@@ -263,6 +269,22 @@ export function buildReport(args: BuildArgs): BuiltReport {
               ]
             : []),
           { type: "stat_grid", stats: audienceStats(lead).slice(0, 3) },
+          // Chart 4 (v3 §6): the audience is bigger than one platform's count.
+          // Renders only when at least two platforms are actually known.
+          ...((args.platforms?.length ?? 0) >= 2
+            ? [
+                {
+                  type: "chart_funnel" as const,
+                  caption: `Reachable audience across ${args.platforms!.length} platforms: ${count(args.platforms!.reduce((n, p) => n + p.audience, 0))} total, against ${compact(args.platforms![0].audience)} on ${args.platforms![0].platform} alone.`,
+                  stages: args.platforms!.map((p) => ({
+                    label: p.platform,
+                    value: p.audience,
+                    display: compact(p.audience),
+                    conversion: p.detail,
+                  })),
+                },
+              ]
+            : []),
         ],
       },
 
@@ -677,7 +699,12 @@ type Routed = {
  *                   high-ticket taking the backend slot
  *   discovery     → the band midpoint, plainly labelled
  */
-function routeFirst(lead: Lead, overrides: ReportOverrides | undefined, research: NicheResearch | null | undefined): Routed {
+function routeFirst(
+  lead: Lead,
+  overrides: ReportOverrides | undefined,
+  research: NicheResearch | null | undefined,
+  extraPrices: CapturedPrice[] = [],
+): Routed {
   const captured: CapturedPrice[] =
     lead.funnel_prices && lead.funnel_prices.length > 0
       ? lead.funnel_prices
@@ -700,7 +727,7 @@ function routeFirst(lead: Lead, overrides: ReportOverrides | undefined, research
     humanEntries.push({ raw: usd(overrides.ladder_low_price), label: "Entry offer (set by the team)", url: null, source: "human", declaredRung: "low" });
   }
 
-  const ladder = buildLadder([...humanEntries, ...captured]);
+  const ladder = buildLadder([...humanEntries, ...captured, ...extraPrices]);
   const niche = matchNiche(lead.niche, lead.business_model);
   const band: PriceBand = research
     ? {

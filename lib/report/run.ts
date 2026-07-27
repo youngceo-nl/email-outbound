@@ -4,6 +4,9 @@ import { enrichFunnelForLead } from "@/lib/funnel/enrich";
 import { logError } from "@/lib/pipeline/persist";
 import { buildReport, type NicheResearch } from "./build";
 import { researchNichePricing } from "./research";
+import { runGates } from "./gates";
+import { collectYouTube, extractYouTubeRef, type YouTubeCollection } from "@/lib/youtube/collect";
+import { getSettings } from "@/lib/config/settings";
 import { FORMULA_VERSION } from "./calculations/formulas";
 import { generateNarrativeDetailed } from "./narrative";
 import { buildReportHtml } from "./renderer/html";
@@ -121,11 +124,45 @@ export async function runReport(reportId: string): Promise<RunResult> {
       }
     }
 
+    /*
+     * YouTube, when the prospect links a channel. Descriptions carry the offer
+     * stack (v3 §2.3), subscribers widen the audience picture. Only explicitly
+     * linked channels — a name-search guess can attach the wrong person's
+     * channel to a report that greets them by name.
+     */
+    let youtube: YouTubeCollection | null = null;
+    const settings = await getSettings();
+    const youtubeKey = settings.youtube_api_key || process.env.YOUTUBE_API_KEY || "";
+    const youtubeRef = extractYouTubeRef(enriched.bio) ?? extractYouTubeRef(enriched.external_link);
+    if (youtubeKey && youtubeRef) {
+      try {
+        youtube = await collectYouTube({ apiKey: youtubeKey, ref: youtubeRef });
+        if (youtube) {
+          console.log(
+            `[report] youtube: ${youtube.title} — ${youtube.subscribers ?? "?"} subs, ${youtube.capturedPrices.length} prices in descriptions`,
+          );
+        }
+      } catch (err) {
+        issues.push(`YouTube collection failed (${err instanceof Error ? err.message.slice(0, 120) : String(err)}).`);
+      }
+    } else if (youtubeRef && !youtubeKey) {
+      issues.push("A YouTube channel is linked but no YouTube API key is configured — channel data not collected.");
+    }
+
+    const platforms = [
+      ...(enriched.followers ? [{ platform: "Instagram", audience: enriched.followers, detail: "followers" }] : []),
+      ...(youtube?.subscribers
+        ? [{ platform: "YouTube", audience: youtube.subscribers, detail: `${youtube.uploadsLast30Days} uploads / 30d` }]
+        : []),
+    ];
+
     const built = buildReport({
       lead: enriched,
       overrides: report.overrides_json ?? undefined,
       confirmedBy: report.confirmed_by,
       research,
+      extraPrices: youtube?.capturedPrices ?? null,
+      platforms: platforms.length > 0 ? platforms : null,
     });
 
     /*
@@ -141,6 +178,14 @@ export async function runReport(reportId: string): Promise<RunResult> {
       signals: built.signals,
       scenarios: built.scenarios,
       ladder: built.ladder,
+      youtube: youtube
+        ? {
+            channel: youtube.title,
+            subscribers: youtube.subscribers,
+            uploads_last_30_days: youtube.uploadsLast30Days,
+            recent_video_titles: youtube.videos.slice(0, 8).map((v) => v.title),
+          }
+        : null,
     });
 
     // Saved before the PDF is attempted: the document is the expensive part, and a
@@ -154,6 +199,22 @@ export async function runReport(reportId: string): Promise<RunResult> {
 
     if (!narrative.usedModel) {
       issues.push(`AI analysis did not run (${narrative.rejected[0]?.reason ?? "unknown"}) — template prose only.`);
+    }
+
+    /*
+     * v3 §9: the gates run on every generation, not just in the dev script. A
+     * failure is a loud note rather than a hard abort — a report with a flagged
+     * phrase is reviewable; a generation that dies at the last step after paying
+     * for research and model passes is not.
+     */
+    try {
+      const { buildReportHtml } = await import("./renderer/html");
+      const gateHtml = await buildReportHtml(narrative.content);
+      for (const failure of runGates(gateHtml)) {
+        issues.push(`GATE: ${failure.name} — ${failure.excerpts[0] ?? ""}`);
+      }
+    } catch (err) {
+      console.warn(`[report] gates failed to run: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     const preRenderElapsed = Math.round((Date.now() - startedAt) / 1000);

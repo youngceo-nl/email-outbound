@@ -97,6 +97,13 @@ export async function enrichFunnelForLead(opts: {
       context: p.context,
     }));
 
+    // The landing page is rarely where the checkout tiers live (v3 §2.2). When
+    // it yielded a thin ladder, probe the site's own likely pricing paths with
+    // free fetches — same origin only, bounded, and a 404 costs nothing.
+    if (prices.length < 3) {
+      prices.push(...(await probeSitePricingPages(pageUrl)));
+    }
+
     if (!cheap.good_enough) {
       try {
         const { extraction } = await llmExtractFunnel({
@@ -147,6 +154,43 @@ export async function enrichFunnelForLead(opts: {
     const msg = err instanceof Error ? err.message : String(err);
     return persistError(opts.leadId, msg);
   }
+}
+
+/** Paths where sites actually list their checkout tiers. Order is likelihood. */
+const PRICING_PATHS = ["/pricing", "/programs", "/join", "/offers", "/courses"];
+
+/**
+ * Probes a site's own pricing pages when the landing page yielded few prices.
+ * Free fetches only, same origin, three pages max — this exists to catch the
+ * $997 program two clicks behind a hero page that only says "book a call".
+ */
+async function probeSitePricingPages(pageUrl: string): Promise<CapturedFunnelPrice[]> {
+  let origin: string;
+  try {
+    origin = new URL(pageUrl).origin;
+  } catch {
+    return [];
+  }
+
+  const found: CapturedFunnelPrice[] = [];
+  let fetches = 0;
+  for (const path of PRICING_PATHS) {
+    if (fetches >= 3 || found.length >= 6) break;
+    fetches += 1;
+    try {
+      const page = await freeFetchPage(`${origin}${path}`);
+      if (!page) continue;
+      // Only accept a page that stayed on the same site — a redirect out to a
+      // checkout processor is fine to read, a redirect to a different brand is not.
+      const extracted = extractFunnel({ html: page.html, platform: "site" });
+      for (const price of extracted.prices) {
+        found.push({ raw: price.raw, label: null, url: page.finalUrl, source: "site_page", context: price.context });
+      }
+    } catch {
+      // A dead path is the expected case.
+    }
+  }
+  return found;
 }
 
 // Attempts to enrich using only free HTTP fetches (no ScrapingBee).

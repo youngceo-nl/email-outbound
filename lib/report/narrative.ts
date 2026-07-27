@@ -297,6 +297,13 @@ export async function generateNarrativeDetailed(args: {
   /** From buildReport(). Optional so older callers keep working; without it the
    *  viability gate and ladder context are simply absent, as before. */
   ladder?: LadderResult;
+  /** Linked-channel collection, when one ran. */
+  youtube?: {
+    channel: string;
+    subscribers: number | null;
+    uploads_last_30_days: number;
+    recent_video_titles: string[];
+  } | null;
 }): Promise<NarrativeResult> {
   const dossier = buildDossier({
     lead: args.lead,
@@ -305,6 +312,7 @@ export async function generateNarrativeDetailed(args: {
     assumptions: args.content.assumptions,
     limitations: args.content.limitations,
     offerLadder: args.ladder?.summary ?? null,
+    youtube: args.youtube ?? null,
   });
 
   const rejectedEarly: NarrativeResult["rejected"] = [];

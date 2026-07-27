@@ -91,6 +91,7 @@ export function SettingsForm({
             </div>
 
             <Field label="OpenAI API key" name="openai_api_key" defaultValue={initial.openai_api_key ?? ""} type="password" hint="Falls back to OPENAI_API_KEY env var if blank." />
+            <Field label="YouTube Data API key" name="youtube_api_key" defaultValue={initial.youtube_api_key ?? ""} type="password" hint="Report generation reads linked channels — subs, cadence, and prices in video descriptions." />
             <Field label="OpenAI model" name="openai_model" defaultValue={initial.openai_model} hint="gpt-4o-mini (cheap, fast) or gpt-4o (better)" />
             <Field label="Claude (Anthropic) API key" name="claude_api_key" defaultValue={initial.claude_api_key ?? ""} type="password" hint="Used only when scoring provider is Claude." />
             <Field label="Claude model" name="claude_model" defaultValue={initial.claude_model} hint="e.g. claude-opus-4-7, claude-sonnet-4-6" />
