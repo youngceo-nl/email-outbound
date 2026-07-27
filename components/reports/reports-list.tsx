@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RunButton } from "@/components/reports/run-button";
+import { DeleteReportButton } from "@/components/reports/delete-button";
 
 export type ReportListItem = {
   id: string;
@@ -102,6 +103,7 @@ export function ReportsList({ reports }: { reports: ReportListItem[] }) {
                        so this is the only way a stalled row moves. */
                     <RunButton reportId={report.id} label={report.status === "failed" ? "Retry" : "Run"} />
                   )}
+                  <DeleteReportButton reportId={report.id} />
                 </div>
               </div>
             ))}

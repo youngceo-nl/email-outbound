@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { generateReportForLead, type PanelInput } from "@/app/actions/reports";
 import { RunButton } from "@/components/reports/run-button";
+import { DeleteReportButton } from "@/components/reports/delete-button";
 
 /*
  * The Generate Report surface on a lead.
@@ -200,6 +201,7 @@ export function ReportPanel({
                   ) : (
                     <RunButton reportId={report.id} label={report.status === "failed" ? "Retry" : "Run"} />
                   )}
+                  <DeleteReportButton reportId={report.id} />
                 </div>
               </div>
             ))}
