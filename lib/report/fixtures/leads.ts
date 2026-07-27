@@ -64,6 +64,7 @@ const BLANK: Lead = {
   funnel_url: null,
   funnel_platform: null,
   funnel_price: null,
+  funnel_prices: null,
   funnel_extracted_at: null,
   funnel_extraction_error: null,
   outreach_count: 0,
@@ -112,6 +113,10 @@ export const RICH_LEAD: Lead = {
   funnel_url: "https://danbreathwork.com/certification",
   funnel_platform: "kajabi",
   funnel_price: "$1,497",
+  funnel_prices: [
+    { raw: "$1,497", label: "NSR Practitioner Certification", url: "https://danbreathwork.com/certification", source: "offer_page" },
+    { raw: "$37/mo", label: "Breath Club membership", url: "https://danbreathwork.com/club", source: "offer_page" },
+  ],
   funnel_extracted_at: "2026-07-23T00:00:00Z",
   updated_at: "2026-07-24T00:00:00Z",
   /*
@@ -148,6 +153,7 @@ export const SPARSE_LEAD: Lead = {
   funnel_url: null,
   funnel_platform: null,
   funnel_price: null,
+  funnel_prices: null,
   funnel_extracted_at: null,
   updated_at: "2026-07-20T00:00:00Z",
 };

@@ -151,8 +151,17 @@ export type NicheProfile = {
   overrides: Partial<Record<Exclude<AssumptionKey, "paid_cost_per_registration" | "worst_case_cpl">, number>>;
   /** Applied to both projected and worst-case CPL. 1 = no adjustment. */
   cplMultiplier?: number;
+  /**
+   * What mid-ticket sells for in this category: the band's midpoint and its top
+   * end within direct-checkout range. Starting points, tier "assumed" — niche
+   * price research (v3 §3.4) replaces these per prospect with cited competitors.
+   */
+  priceBand?: { mid: number; high: number };
   warning?: string;
 };
+
+/** Band when no niche matches. Mirrors the fallback ladder's $2k front end. */
+export const DEFAULT_PRICE_BAND = { mid: 2000, high: 2500 };
 
 /*
  * Order is precedence — the first match wins, so specific verticals must come
@@ -166,6 +175,7 @@ export const NICHE_PROFILES: NicheProfile[] = [
     label: "Health / fitness / wellness",
     match: /health|fitness|nutrition|wellness|breath|yoga|somatic|personal train|nervous system/i,
     overrides: { front_end_price: 997, backend_offer_price: 5000 },
+    priceBand: { mid: 997, high: 1997 },
     // The reference notes wellness traffic runs materially above the education
     // average, so both CPLs move up together.
     cplMultiplier: 1.6,
@@ -175,6 +185,7 @@ export const NICHE_PROFILES: NicheProfile[] = [
     label: "Real estate / finance",
     match: /real\s*estate|realtor|mortgage|insurance|financ|invest|trading|crypto/i,
     overrides: { front_end_price: 2000, backend_offer_price: 10000 },
+    priceBand: { mid: 2000, high: 2500 },
     cplMultiplier: 1.4,
   },
   {
@@ -182,6 +193,7 @@ export const NICHE_PROFILES: NicheProfile[] = [
     label: "E-commerce / physical product",
     match: /e.?comm|shopify|dropship|retail|apparel|supplement/i,
     overrides: { front_end_price: 500 },
+    priceBand: { mid: 500, high: 997 },
     warning:
       "Physical-product businesses rarely convert on a webinar-to-checkout model. Confirm there is an information or coaching offer before proposing this.",
   },
@@ -190,12 +202,14 @@ export const NICHE_PROFILES: NicheProfile[] = [
     label: "Agency / done-for-you service",
     match: /agenc|done.for.you|dfy|freelanc|smma/i,
     overrides: { front_end_price: 1500, backend_offer_price: 10000, backend_ascension_rate: 0.05 },
+    priceBand: { mid: 1500, high: 2500 },
   },
   {
     id: "course_community",
     label: "Course / paid community",
     match: /course|community|membership|skool|cohort|academy/i,
     overrides: { front_end_price: 997, backend_offer_price: 5000, front_end_purchase_rate: 0.12 },
+    priceBand: { mid: 997, high: 1997 },
   },
   {
     // Catch-all, deliberately last: /coach/ matches most of the verticals above.
@@ -203,6 +217,7 @@ export const NICHE_PROFILES: NicheProfile[] = [
     label: "Coaching / consulting",
     match: /coach|consult|mentor|advisor|business\s*strat/i,
     overrides: { front_end_price: 2000, backend_offer_price: 10000 },
+    priceBand: { mid: 2000, high: 2500 },
   },
 ];
 
@@ -214,3 +229,11 @@ export function matchNiche(niche: string | null, businessModel: string | null): 
 
 /** Shared shape both scenarios are built from; only CPL differs between them. */
 export type ResolvedInputs = Omit<ScenarioInputs, "paid_cost_per_registration">;
+
+/**
+ * Everything a human can set before generating. The assumption keys flow through
+ * the cascade at `human` tier; `ladder_low_price` exists only for the ladder —
+ * an entry product has no scenario input, but it changes the routing (a low rung
+ * that exists is evidence).
+ */
+export type ReportOverrides = Partial<Record<AssumptionKey, number>> & { ladder_low_price?: number };

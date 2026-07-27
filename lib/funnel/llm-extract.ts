@@ -28,11 +28,24 @@ Output STRICT JSON. Be decisive.`;
 const SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["program_name", "offer_summary", "price", "confidence"],
+  required: ["program_name", "offer_summary", "price", "prices", "confidence"],
   properties: {
     program_name:  { type: ["string", "null"] },
     offer_summary: { type: ["string", "null"] },
     price:         { type: ["string", "null"] },
+    prices: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["label", "price", "period"],
+        properties: {
+          label:  { type: ["string", "null"] },
+          price:  { type: "string" },
+          period: { type: "string", enum: ["one_time", "monthly", "annual", "unknown"] },
+        },
+      },
+    },
     confidence:    { type: "string", enum: ["high", "medium", "low", "none"] },
   },
 } as const;
@@ -41,6 +54,17 @@ const Parsed = z.object({
   program_name: z.string().nullable(),
   offer_summary: z.string().nullable(),
   price: z.string().nullable(),
+  // Defaulted so the prompt-based Claude path can omit it without failing the
+  // whole extraction — an empty list degrades to the single-price behaviour.
+  prices: z
+    .array(
+      z.object({
+        label: z.string().nullable(),
+        price: z.string(),
+        period: z.enum(["one_time", "monthly", "annual", "unknown"]),
+      }),
+    )
+    .default([]),
   confidence: z.enum(["high", "medium", "low", "none"]),
 });
 
@@ -110,7 +134,8 @@ ${opts.pageText}
 Return JSON with:
 - program_name: the SHORT name (1–3 words) of the specific named program/course/mastermind/workshop (e.g. "7-Figure Blueprint", "Elite Mastermind", "FBA Academy"). Strip generic filler ("The", year suffixes, tagline phrases). Return null for e-commerce stores, Discord servers, aggregator pages, personal brand pages, and anything without a distinct named offer.
 - offer_summary: one sentence describing what's being offered and to whom. Null if unclear.
-- price: a price string like "$497", "$997 + $97/mo", "free", or null if no price is visible.
+- price: the MAIN offer's price string like "$497", "$997 + $97/mo", "free", or null if no price is visible.
+- prices: EVERY distinct price on the page, one entry per offer or tier. label = the tier/program name next to it if any ("VIP", "App membership"), price = the price string exactly as written ("$97/mo", "$497"), period = one_time|monthly|annual|unknown. Include cheap subscriptions AND expensive programs — the point is the full ladder, not one number. Exclude testimonial figures ("made $10k"), discounts crossed out, and shipping costs. Empty array if none.
 - confidence: high|medium|low|none — your confidence that program_name is a real named offer (not just a brand/store name).`;
 }
 
@@ -155,6 +180,7 @@ async function runClaude(opts: { apiKey: string; model: string; userPrompt: stri
   "program_name": string|null,
   "offer_summary": string|null,
   "price": string|null,
+  "prices": [{"label": string|null, "price": string, "period": "one_time"|"monthly"|"annual"|"unknown"}],
   "confidence": "high"|"medium"|"low"|"none"
 }`;
   const fullUser = `${opts.userPrompt}\n\nReturn ONLY a JSON object matching:\n${SCHEMA_HINT}`;

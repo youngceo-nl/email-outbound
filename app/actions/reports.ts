@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolveAssumptions } from "@/lib/report/assumptions/resolve";
-import { ASSUMPTION_LABEL, type AssumptionKey } from "@/lib/report/assumptions/defaults";
-import { getLeadForReport, createReport, listReportsForLead } from "@/lib/report/service";
+import { ASSUMPTION_LABEL, type AssumptionKey, type ReportOverrides } from "@/lib/report/assumptions/defaults";
+import { getLeadForReport, createReport, deleteReport, getReport, listReportsForLead } from "@/lib/report/service";
 
 /*
  * Server actions behind the Generate Report button.
@@ -48,7 +48,7 @@ export async function generateReportForLead(leadId: string, formData: FormData):
   const lead = await getLeadForReport(leadId);
   if (!lead) return { ok: false, error: "Lead not found." };
 
-  const overrides: Partial<Record<AssumptionKey, number>> = {};
+  const overrides: ReportOverrides = {};
   for (const key of EDITABLE) {
     const raw = formData.get(key);
     if (typeof raw !== "string" || raw.trim() === "") continue;
@@ -60,6 +60,14 @@ export async function generateReportForLead(leadId: string, formData: FormData):
     if (!Number.isFinite(parsed) || parsed < 0) continue;
 
     overrides[key] = RATE_KEYS.has(key) ? parsed / 100 : parsed;
+  }
+
+  // The low ticket is not a scenario input — it exists for the offer ladder,
+  // where an entry product that exists is evidence and changes the routing.
+  const lowRaw = formData.get("ladder_low_price");
+  if (typeof lowRaw === "string" && lowRaw.trim() !== "") {
+    const low = Number(lowRaw.replace(/[$,%\s]/g, ""));
+    if (Number.isFinite(low) && low > 0) overrides.ladder_low_price = low;
   }
 
   try {
@@ -135,4 +143,29 @@ export async function getAssumptionPanel(
     warnings: resolved.warnings,
     reportCount: reports.length,
   };
+}
+
+export type DeleteResult = { ok: true } | { ok: false; error: string };
+
+/** Deletes a generated report and its PDF. Any status — stuck rows included. */
+export async function deleteReportAction(reportId: string): Promise<DeleteResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  try {
+    // Read before delete so the right lead page revalidates afterwards.
+    const report = await getReport(reportId);
+    await deleteReport(reportId);
+    if (report) {
+      const lead = await getLeadForReport(report.lead_id);
+      if (lead) revalidatePath(`/leads/${lead.username}`);
+    }
+    revalidatePath("/reports");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Could not delete the report." };
+  }
 }

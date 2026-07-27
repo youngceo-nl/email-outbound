@@ -2,7 +2,11 @@ import "server-only";
 import { connectBrowser } from "@/lib/browser/connect";
 import { enrichFunnelForLead } from "@/lib/funnel/enrich";
 import { logError } from "@/lib/pipeline/persist";
-import { buildReport } from "./build";
+import { buildReport, type NicheResearch } from "./build";
+import { researchNichePricing } from "./research";
+import { runGates } from "./gates";
+import { collectYouTube, extractYouTubeRef, type YouTubeCollection } from "@/lib/youtube/collect";
+import { getSettings } from "@/lib/config/settings";
 import { FORMULA_VERSION } from "./calculations/formulas";
 import { generateNarrativeDetailed } from "./narrative";
 import { buildReportHtml } from "./renderer/html";
@@ -48,6 +52,7 @@ export type RunResult = {
 };
 
 export async function runReport(reportId: string): Promise<RunResult> {
+  const startedAt = Date.now();
   const report = await getReport(reportId);
   if (!report) throw new Error(`report ${reportId} not found`);
 
@@ -81,10 +86,83 @@ export async function runReport(reportId: string): Promise<RunResult> {
     // Re-read: enrichment writes the price back onto the lead row.
     const enriched = (await getLeadForReport(report.lead_id)) ?? lead;
 
+    /*
+     * Live niche price research: real competitors at real prices, found by web
+     * search at generation time. This is the difference between a researched
+     * document and a filled-in template, and it is why generation takes minutes
+     * rather than seconds.
+     *
+     * Skipped when the team typed a price into the generate menu — a human
+     * number outranks research, same as everywhere else in the cascade. Failure
+     * is non-fatal: the band falls back to the defaults table, labelled assumed.
+     */
+    let research: NicheResearch | null = null;
+    // Skipped or failed stages are recorded ON THE ROW, not just in logs — a
+    // 20-second template report with no explanation is worse than a visible one.
+    const issues: string[] = [];
+    if (!report.overrides_json?.front_end_price) {
+      try {
+        const outcome = await researchNichePricing({
+          niche: enriched.niche,
+          businessModel: enriched.business_model,
+          bio: enriched.bio,
+          offerSummary: enriched.funnel_offer_summary,
+          leadId: enriched.id,
+        });
+        if (outcome.ok) {
+          research = outcome.research;
+          console.log(
+            `[report] niche research (${outcome.provider}): ${outcome.research.competitors.length} comparables in ${Math.round(outcome.elapsedMs / 1000)}s`,
+          );
+        } else {
+          issues.push(`Price research did not run (${outcome.reason}) — category band is a default.`);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        issues.push(`Price research failed (${msg.slice(0, 140)}) — category band is a default.`);
+        await logError({ context: "runReport/niche-research", error_message: `lead ${enriched.id}: ${msg}` });
+      }
+    }
+
+    /*
+     * YouTube, when the prospect links a channel. Descriptions carry the offer
+     * stack (v3 §2.3), subscribers widen the audience picture. Only explicitly
+     * linked channels — a name-search guess can attach the wrong person's
+     * channel to a report that greets them by name.
+     */
+    let youtube: YouTubeCollection | null = null;
+    const settings = await getSettings();
+    const youtubeKey = settings.youtube_api_key || process.env.YOUTUBE_API_KEY || "";
+    const youtubeRef = extractYouTubeRef(enriched.bio) ?? extractYouTubeRef(enriched.external_link);
+    if (youtubeKey && youtubeRef) {
+      try {
+        youtube = await collectYouTube({ apiKey: youtubeKey, ref: youtubeRef });
+        if (youtube) {
+          console.log(
+            `[report] youtube: ${youtube.title} — ${youtube.subscribers ?? "?"} subs, ${youtube.capturedPrices.length} prices in descriptions`,
+          );
+        }
+      } catch (err) {
+        issues.push(`YouTube collection failed (${err instanceof Error ? err.message.slice(0, 120) : String(err)}).`);
+      }
+    } else if (youtubeRef && !youtubeKey) {
+      issues.push("A YouTube channel is linked but no YouTube API key is configured — channel data not collected.");
+    }
+
+    const platforms = [
+      ...(enriched.followers ? [{ platform: "Instagram", audience: enriched.followers, detail: "followers" }] : []),
+      ...(youtube?.subscribers
+        ? [{ platform: "YouTube", audience: youtube.subscribers, detail: `${youtube.uploadsLast30Days} uploads / 30d` }]
+        : []),
+    ];
+
     const built = buildReport({
       lead: enriched,
       overrides: report.overrides_json ?? undefined,
       confirmedBy: report.confirmed_by,
+      research,
+      extraPrices: youtube?.capturedPrices ?? null,
+      platforms: platforms.length > 0 ? platforms : null,
     });
 
     /*
@@ -99,6 +177,15 @@ export async function runReport(reportId: string): Promise<RunResult> {
       facts: built.facts,
       signals: built.signals,
       scenarios: built.scenarios,
+      ladder: built.ladder,
+      youtube: youtube
+        ? {
+            channel: youtube.title,
+            subscribers: youtube.subscribers,
+            uploads_last_30_days: youtube.uploadsLast30Days,
+            recent_video_titles: youtube.videos.slice(0, 8).map((v) => v.title),
+          }
+        : null,
     });
 
     // Saved before the PDF is attempted: the document is the expensive part, and a
@@ -110,7 +197,49 @@ export async function runReport(reportId: string): Promise<RunResult> {
       formulaVersion: FORMULA_VERSION,
     });
 
-    const pdf = await renderPdf(reportId, narrative.content, enriched.profile_pic_url);
+    if (!narrative.usedModel) {
+      issues.push(`AI analysis did not run (${narrative.rejected[0]?.reason ?? "unknown"}) — template prose only.`);
+    }
+
+    /*
+     * v3 §9: the gates run on every generation, not just in the dev script. A
+     * failure is a loud note rather than a hard abort — a report with a flagged
+     * phrase is reviewable; a generation that dies at the last step after paying
+     * for research and model passes is not.
+     */
+    try {
+      const { buildReportHtml } = await import("./renderer/html");
+      const gateHtml = await buildReportHtml(narrative.content);
+      for (const failure of runGates(gateHtml)) {
+        issues.push(`GATE: ${failure.name} — ${failure.excerpts[0] ?? ""}`);
+      }
+    } catch (err) {
+      console.warn(`[report] gates failed to run: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    const preRenderElapsed = Math.round((Date.now() - startedAt) / 1000);
+    if (preRenderElapsed < 90 && issues.length === 0) {
+      issues.push(`Generated in ${preRenderElapsed}s — under the 90s research floor; check which stage no-opped.`);
+    }
+
+    const pdf = await renderPdf(reportId, narrative.content, enriched.profile_pic_url, issues);
+
+    /*
+     * The 15-seconds tell (v3 §1/§9): a report that generated that fast
+     * researched nothing, verified nothing, and considered nothing — one of the
+     * stages silently no-opped. Logged loudly rather than failed, because a
+     * human-priced report legitimately skips research and runs faster.
+     */
+    const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
+    if (elapsedSec < 90) {
+      console.warn(
+        `[report] ${reportId} completed in ${elapsedSec}s — under the 90s floor. ` +
+          `Research ${research ? "ran" : "did not run"}; model passes ${narrative.usedModel ? "ran" : "did not run"}. ` +
+          `If neither was deliberately skipped, a stage silently no-opped.`,
+      );
+    } else {
+      console.log(`[report] ${reportId} completed in ${elapsedSec}s`);
+    }
 
     return {
       reportId,
@@ -140,6 +269,7 @@ async function renderPdf(
   reportId: string,
   content: Awaited<ReturnType<typeof buildReport>>["content"],
   profilePicUrl: string | null,
+  issues: string[] = [],
 ): Promise<{ ok: true } | { ok: false; note: string }> {
   const NOTE =
     "Ready to read. Automatic PDF rendering is unavailable — open the preview and print to PDF, or set BROWSER_WS_ENDPOINT to enable it.";
@@ -166,13 +296,13 @@ async function renderPdf(
         footerTemplate: FOOTER,
       });
 
-      await markReady(reportId, await uploadPdf(reportId, Buffer.from(pdf)));
+      await markReady(reportId, await uploadPdf(reportId, Buffer.from(pdf)), issues.length ? issues.join(" ") : undefined);
       return { ok: true };
     } finally {
       await browser.close();
     }
   } catch (err) {
-    await markReady(reportId, null, NOTE);
+    await markReady(reportId, null, [NOTE, ...issues].join(" "));
     await logError({
       context: "runReport/render-pdf",
       error_message: `report ${reportId}: ${err instanceof Error ? err.message : String(err)}`,

@@ -3,11 +3,12 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Download, Eye, Loader2 } from "lucide-react";
+import { Download, Eye, Loader2, Presentation } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RunButton } from "@/components/reports/run-button";
+import { DeleteReportButton } from "@/components/reports/delete-button";
 
 export type ReportListItem = {
   id: string;
@@ -82,6 +83,11 @@ export function ReportsList({ reports }: { reports: ReportListItem[] }) {
                   {report.status === "ready" ? (
                     <>
                       <Button asChild variant="ghost" size="sm">
+                        <a href={`/api/reports/${report.id}/deck`} target="_blank" rel="noreferrer">
+                          <Presentation className="mr-1 h-3 w-3" /> Deck
+                        </a>
+                      </Button>
+                      <Button asChild variant="ghost" size="sm">
                         <a href={`/api/reports/${report.id}/preview`} target="_blank" rel="noreferrer">
                           <Eye className="mr-1 h-3 w-3" /> Preview
                         </a>
@@ -102,6 +108,7 @@ export function ReportsList({ reports }: { reports: ReportListItem[] }) {
                        so this is the only way a stalled row moves. */
                     <RunButton reportId={report.id} label={report.status === "failed" ? "Retry" : "Run"} />
                   )}
+                  <DeleteReportButton reportId={report.id} />
                 </div>
               </div>
             ))}

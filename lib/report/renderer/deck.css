@@ -1,0 +1,362 @@
+/*
+ * Deck layout. Brand tokens come from document.css (the deck root carries
+ * .cb-report so the variables and the chart/table/stat styles resolve); this
+ * file only turns pages into full-screen slides. Mirrors the company deck at
+ * theconversionbrands.com/pitch-deck: one idea per screen, dot + arrow
+ * navigation, a thin progress bar.
+ */
+
+html.cbd-html,
+body.cbd-body {
+  margin: 0;
+  height: 100%;
+  background: var(--paper, #f5f3ef);
+}
+
+.cbd {
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+.cbd-slides {
+  height: 100vh;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+
+.cbd-slide {
+  height: 100vh;
+  scroll-snap-align: start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7vw;
+  box-sizing: border-box;
+  background: #faf9f7;
+}
+.cbd-slide:nth-child(even) {
+  background: #f5f3ef;
+}
+
+.cbd-inner {
+  width: 100%;
+  max-width: 880px;
+  max-height: 86vh;
+  overflow: hidden;
+}
+.cbd-inner--center {
+  text-align: center;
+}
+
+.cbd-kicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+
+.cbd-title {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(22px, 3.2vw, 34px);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0 0 22px;
+}
+
+.cbd-hook {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(26px, 4.2vw, 46px);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  margin: 0 auto 26px;
+  max-width: 24ch;
+}
+
+.cbd-hook-stat__value {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(30px, 5vw, 54px);
+  display: block;
+}
+.cbd-hook-stat__label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brand-600);
+}
+
+.cbd-meta {
+  margin-top: 30px;
+  font-size: 12px;
+  color: var(--brand-500);
+}
+
+.cbd-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.cbd-cards .cb-stat__value {
+  font-size: clamp(22px, 3vw, 34px);
+}
+
+.cbd-note {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--brand-700);
+  border-left: 2px solid var(--accent);
+  padding-left: 12px;
+  max-width: 62ch;
+}
+.cbd-note--big {
+  font-size: 16px;
+  margin: 18px auto 0;
+  text-align: left;
+}
+
+.cbd-ask {
+  text-align: left;
+  max-width: 56ch;
+  margin: 0 auto;
+  font-size: 16px;
+  line-height: 1.55;
+  padding-left: 22px;
+}
+.cbd-ask li {
+  margin-bottom: 10px;
+}
+
+.cbd-plan {
+  display: grid;
+  gap: 8px;
+}
+.cbd-plan__row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 14px;
+  align-items: baseline;
+  border-bottom: 1px solid var(--brand-200);
+  padding-bottom: 8px;
+}
+.cbd-plan__when {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+}
+.cbd-plan__what {
+  font-size: 13.5px;
+}
+
+/* chrome */
+.cbd-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 0;
+  background: var(--accent);
+  z-index: 30;
+  transition: width 0.25s ease;
+}
+.cbd-strip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 22px;
+  z-index: 20;
+  pointer-events: none;
+}
+.cbd-strip__brand {
+  width: 26px;
+}
+.cbd-strip__brand svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.cbd-strip__who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--brand-700);
+}
+.cbd-strip__who img,
+.cbd-strip__mono {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--brand-200);
+}
+.cbd-strip__mono {
+  background: var(--brand-900);
+  color: #fff;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cbd-dots {
+  position: fixed;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 20;
+}
+.cbd-dots button {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--brand-400);
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+.cbd-dots button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* deck tables slightly larger for screen distance */
+.cbd .cb-table {
+  font-size: 13px;
+}
+
+/* ── client wall ─────────────────────────────────────────────────────────── */
+.cbd-wall {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.cbd-wall__card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--brand-200);
+  background: #fff;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.cbd-wall__card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(15, 14, 12, 0.12);
+}
+.cbd-wall__card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+  border-bottom: 1px solid var(--brand-200);
+}
+.cbd-wall__name {
+  display: block;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 7px 9px 0;
+}
+.cbd-wall__handle {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--brand-600);
+  padding: 1px 9px 8px;
+}
+/* 11 cards: let the last row breathe at 4-up; on short screens go 3-up */
+@media (max-height: 760px) {
+  .cbd-wall {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .cbd-wall__card:nth-child(n + 9) {
+    display: none;
+  }
+}
+
+/* ── four-phase plan ─────────────────────────────────────────────────────── */
+.cbd-phases {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.cbd-phase {
+  border: 1px solid var(--brand-200);
+  border-top: 3px solid var(--accent);
+  background: #fff;
+  padding: 16px 14px;
+}
+.cbd-phase__num {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 26px;
+  color: var(--accent);
+  line-height: 1;
+}
+.cbd-phase__title {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  margin: 10px 0 6px;
+}
+.cbd-phase__desc {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--brand-700);
+  margin: 0;
+}
+.cbd-phase__meta {
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+}
+
+/* ── the call CTA ────────────────────────────────────────────────────────── */
+.cbd-cta {
+  display: inline-block;
+  margin: 22px auto;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 18px;
+  padding: 14px 34px;
+  transition: background 0.15s ease;
+}
+.cbd-cta:hover {
+  background: var(--accent-dark);
+}
+.cbd-ask--small {
+  font-size: 13px;
+  color: var(--brand-700);
+  margin-top: 10px;
+}
+
+.cbd-wall__work {
+  display: block;
+  font-size: 10.5px;
+  color: var(--brand-700);
+  padding: 1px 9px 0;
+}

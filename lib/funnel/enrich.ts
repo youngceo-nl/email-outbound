@@ -16,13 +16,24 @@ export type FunnelEnrichmentResult = {
   funnel_program_name: string | null;
   funnel_offer_summary: string | null;
   funnel_price: string | null;
+  funnel_prices: CapturedFunnelPrice[];
   error: string | null;
+};
+
+/** Matches leads.funnel_prices entries and lib/report/ladder.ts CapturedPrice. */
+export type CapturedFunnelPrice = {
+  raw: string;
+  label: string | null;
+  url: string | null;
+  source: string;
+  context?: string | null;
 };
 
 type FunnelData = {
   funnel_url: string;
   funnel_platform: string;
   program: { program_name: string | null; offer_summary: string | null; price: string | null };
+  prices: CapturedFunnelPrice[];
   error: string | null;
 };
 
@@ -64,6 +75,7 @@ export async function enrichFunnelForLead(opts: {
           funnel_url: entry.finalUrl,
           funnel_platform: entryClass.platform,
           program: { program_name: domainName, offer_summary: null, price: null },
+          prices: [],
           error: "no_drill_candidate",
         });
       }
@@ -77,6 +89,20 @@ export async function enrichFunnelForLead(opts: {
     let program_name = cheap.program_name ?? domainName;
     let offer_summary = cheap.offer_summary;
     let price = cheap.price;
+    const prices: CapturedFunnelPrice[] = cheap.prices.map((p) => ({
+      raw: p.raw,
+      label: null,
+      url: pageUrl,
+      source: "offer_page",
+      context: p.context,
+    }));
+
+    // The landing page is rarely where the checkout tiers live (v3 §2.2). When
+    // it yielded a thin ladder, probe the site's own likely pricing paths with
+    // free fetches — same origin only, bounded, and a 404 costs nothing.
+    if (prices.length < 3) {
+      prices.push(...(await probeSitePricingPages(pageUrl)));
+    }
 
     if (!cheap.good_enough) {
       try {
@@ -93,6 +119,16 @@ export async function enrichFunnelForLead(opts: {
           offer_summary = extraction.offer_summary ?? offer_summary;
           price = extraction.price ?? price;
         }
+        // LLM-read prices carry labels and cleaned periods the regex pass
+        // cannot see; both sets go in and the ladder dedupes on the raw string.
+        for (const p of extraction.prices) {
+          prices.push({
+            raw: p.period === "monthly" && !/[/]|per\s/i.test(p.price) ? `${p.price}/mo` : p.price,
+            label: p.label,
+            url: pageUrl,
+            source: "llm_extract",
+          });
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return persistResult({
@@ -100,6 +136,7 @@ export async function enrichFunnelForLead(opts: {
           funnel_url: pageUrl,
           funnel_platform: platform,
           program: { program_name, offer_summary, price },
+          prices,
           error: `llm_failed: ${msg.slice(0, 200)}`,
         });
       }
@@ -110,12 +147,50 @@ export async function enrichFunnelForLead(opts: {
       funnel_url: pageUrl,
       funnel_platform: platform,
       program: { program_name, offer_summary, price },
+      prices,
       error: null,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return persistError(opts.leadId, msg);
   }
+}
+
+/** Paths where sites actually list their checkout tiers. Order is likelihood. */
+const PRICING_PATHS = ["/pricing", "/programs", "/join", "/offers", "/courses"];
+
+/**
+ * Probes a site's own pricing pages when the landing page yielded few prices.
+ * Free fetches only, same origin, three pages max — this exists to catch the
+ * $997 program two clicks behind a hero page that only says "book a call".
+ */
+async function probeSitePricingPages(pageUrl: string): Promise<CapturedFunnelPrice[]> {
+  let origin: string;
+  try {
+    origin = new URL(pageUrl).origin;
+  } catch {
+    return [];
+  }
+
+  const found: CapturedFunnelPrice[] = [];
+  let fetches = 0;
+  for (const path of PRICING_PATHS) {
+    if (fetches >= 3 || found.length >= 6) break;
+    fetches += 1;
+    try {
+      const page = await freeFetchPage(`${origin}${path}`);
+      if (!page) continue;
+      // Only accept a page that stayed on the same site — a redirect out to a
+      // checkout processor is fine to read, a redirect to a different brand is not.
+      const extracted = extractFunnel({ html: page.html, platform: "site" });
+      for (const price of extracted.prices) {
+        found.push({ raw: price.raw, label: null, url: page.finalUrl, source: "site_page", context: price.context });
+      }
+    } catch {
+      // A dead path is the expected case.
+    }
+  }
+  return found;
 }
 
 // Attempts to enrich using only free HTTP fetches (no ScrapingBee).
@@ -192,6 +267,13 @@ function extractFromPage(
     funnel_url: url,
     funnel_platform: platform,
     program: { program_name, offer_summary: cheap.offer_summary, price: cheap.price },
+    prices: cheap.prices.map((p) => ({
+      raw: p.raw,
+      label: null,
+      url,
+      source: "offer_page",
+      context: p.context,
+    })),
     error: null,
   };
 }
@@ -218,6 +300,7 @@ async function persistResult(args: {
   funnel_url: string;
   funnel_platform: string;
   program: { program_name: string | null; offer_summary: string | null; price: string | null };
+  prices: CapturedFunnelPrice[];
   error: string | null;
 }): Promise<FunnelEnrichmentResult> {
   const program_name = sanitizeProgramName(args.program.program_name);
@@ -230,6 +313,7 @@ async function persistResult(args: {
       funnel_program_name: program_name,
       funnel_offer_summary: args.program.offer_summary,
       funnel_price: args.program.price,
+      funnel_prices: args.prices.length > 0 ? args.prices : null,
       funnel_extracted_at: new Date().toISOString(),
       funnel_extraction_error: args.error,
     })
@@ -241,6 +325,7 @@ async function persistResult(args: {
     funnel_program_name: program_name,
     funnel_offer_summary: args.program.offer_summary,
     funnel_price: args.program.price,
+    funnel_prices: args.prices,
     error: args.error,
   };
 }
@@ -261,6 +346,7 @@ async function persistError(leadId: string, error: string): Promise<FunnelEnrich
     funnel_program_name: null,
     funnel_offer_summary: null,
     funnel_price: null,
+    funnel_prices: [],
     error,
   };
 }

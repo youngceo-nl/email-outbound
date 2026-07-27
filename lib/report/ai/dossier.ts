@@ -73,6 +73,19 @@ export type Dossier = {
       posted: string | null;
     }>;
   };
+  /**
+   * The offer ladder and the routing decision it produced. The route is not a
+   * suggestion: the analysis argues THIS report shape, not whichever one the
+   * model finds most familiar.
+   */
+  offer_ladder: Record<string, unknown> | null;
+  /** Linked-channel collection, when one exists: reach and cadence off-Instagram. */
+  youtube: {
+    channel: string;
+    subscribers: number | null;
+    uploads_last_30_days: number;
+    recent_video_titles: string[];
+  } | null;
   /** Already-computed economics. The model may quote these and must not alter them. */
   economics: {
     projected: Record<string, string>;
@@ -100,6 +113,14 @@ export function buildDossier(args: {
   scenarios: ScenarioSet;
   assumptions: Array<{ label: string; display: string; tier: string; source: string }>;
   limitations: string[];
+  /** From buildReport().ladder.summary — see lib/report/ladder.ts. */
+  offerLadder?: Record<string, unknown> | null;
+  youtube?: {
+    channel: string;
+    subscribers: number | null;
+    uploads_last_30_days: number;
+    recent_video_titles: string[];
+  } | null;
 }): Dossier {
   const { lead, scenarios } = args;
   const content = analyseContent(lead);
@@ -175,6 +196,8 @@ export function buildDossier(args: {
           posted: post.taken_at ? reportDate(post.taken_at) : null,
         })),
     },
+    offer_ladder: args.offerLadder ?? null,
+    youtube: args.youtube ?? null,
     economics: {
       projected: money(scenarios.projected),
       worst_case: money(scenarios.worst),

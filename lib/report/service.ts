@@ -5,7 +5,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Lead } from "@/lib/types";
-import type { AssumptionKey } from "./assumptions/defaults";
+import type { ReportOverrides } from "./assumptions/defaults";
 import type { ReportContent, ScenarioSet } from "./schema";
 
 /*
@@ -29,7 +29,7 @@ export type ReportRow = {
   inputs_json: unknown | null;
   scenarios_json: unknown | null;
   formula_version: string | null;
-  overrides_json: Partial<Record<AssumptionKey, number>> | null;
+  overrides_json: ReportOverrides | null;
   confirmed_by: string | null;
   pdf_path: string | null;
   error: string | null;
@@ -40,7 +40,7 @@ export type ReportRow = {
 
 export async function createReport(args: {
   leadId: string;
-  overrides?: Partial<Record<AssumptionKey, number>>;
+  overrides?: ReportOverrides;
   confirmedBy?: string | null;
   createdBy?: string | null;
 }): Promise<ReportRow> {
@@ -126,6 +126,27 @@ export async function markFailed(id: string, message: string): Promise<void> {
   // Truncated: a Playwright or Supabase stack trace can be enormous, and the
   // column exists to tell an operator what broke, not to archive the trace.
   await patch(id, { status: "failed", error: message.slice(0, 2000) });
+}
+
+/**
+ * Deletes a report and its stored PDF.
+ *
+ * Storage first, best-effort: an orphaned file in a private bucket costs pennies
+ * and is invisible, whereas a DB row pointing at a deleted file would render a
+ * broken download button. Any status is deletable — a row stuck in "generating"
+ * (a killed function, a timed-out run) has no other way out, and a run that
+ * finishes after its row is gone just updates zero rows.
+ */
+export async function deleteReport(id: string): Promise<void> {
+  const sb = createAdminClient();
+  const report = await getReport(id);
+  if (!report) return;
+
+  if (report.pdf_path) {
+    await sb.storage.from(BUCKET).remove([report.pdf_path]);
+  }
+  const { error } = await sb.from("reports").delete().eq("id", id);
+  if (error) throw new Error(`Failed to delete report ${id}: ${error.message}`);
 }
 
 // ── PDF storage ─────────────────────────────────────────────────────────────

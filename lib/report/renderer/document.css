@@ -522,3 +522,317 @@
   font-size: 8.5pt;
   color: var(--brand-600);
 }
+
+/* ── page one: the verdict block ─────────────────────────────────────────── */
+/* Six elements, nothing else: strip, verdict, four cards, hero chart, footer.
+   The reader's four questions — how much, how fast, selling what, at what
+   cost — answered before a single paragraph of prose. */
+.cb-verdictpage {
+  justify-content: flex-start;
+}
+.cb-verdictpage__strip {
+  display: flex;
+  align-items: center;
+  gap: 5mm;
+  padding-bottom: 4mm;
+  border-bottom: 2px solid var(--accent);
+  margin-bottom: 10mm;
+  font-size: 9pt;
+  color: var(--brand-700);
+}
+.cb-verdictpage__mark {
+  width: 30px;
+  flex: 0 0 auto;
+}
+.cb-verdictpage__mark svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.cb-verdictpage__who {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  min-width: 0;
+}
+.cb-verdictpage__who b {
+  color: var(--brand-900);
+}
+.cb-verdictpage__photo {
+  width: 9mm;
+  height: 9mm;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--brand-200);
+}
+.cb-verdictpage__monogram {
+  width: 9mm;
+  height: 9mm;
+  border-radius: 50%;
+  background: var(--brand-900);
+  color: #fff;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 8.5pt;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Doubled selector on purpose: the element is an h1 inside .cb-cover, and the
+   old cover rule (.cb-cover h1, max-width 16ch) outranks a single class — which
+   is exactly what kept folding the verdict into a three-word column. */
+.cb-verdictpage__verdict,
+.cb-cover h1.cb-verdictpage__verdict {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 23pt;
+  line-height: 1.14;
+  letter-spacing: -0.015em;
+  margin: 0 0 10mm;
+  max-width: none;
+}
+.cb-verdictpage__cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4mm;
+  margin-bottom: 10mm;
+}
+.cb-stat--hero {
+  background: var(--brand-50);
+  border: 1px solid var(--brand-200);
+  border-top: 3px solid var(--accent);
+  text-align: left;
+  padding: 4.5mm 4mm;
+}
+.cb-stat--hero .cb-stat__value {
+  font-size: 21pt;
+  margin-top: 1.5mm;
+}
+.cb-stat--hero .cb-stat__sub {
+  color: var(--brand-600);
+}
+.cb-verdictpage__foot {
+  margin-top: auto;
+  padding-top: 4mm;
+  border-top: 1px solid var(--brand-200);
+  font-size: 8.5pt;
+  color: var(--brand-600);
+}
+.cb-verdictpage__foot b {
+  color: var(--brand-900);
+}
+
+/* ── charts ──────────────────────────────────────────────────────────────── */
+.cb-chart {
+  margin: 6mm 0;
+  break-inside: avoid;
+}
+.cb-chart svg {
+  max-width: 100%;
+}
+.cb-chart__caption {
+  font-size: 9pt;
+  color: var(--brand-700);
+  border-left: 2px solid var(--accent);
+  padding-left: 3mm;
+  margin: 2.5mm 0 0;
+}
+
+/* ── the case for / the case against ─────────────────────────────────────── */
+.cb-fa {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--brand-300);
+  break-inside: avoid;
+  margin: 5mm 0;
+}
+.cb-fa__col {
+  padding: 5mm;
+}
+.cb-fa__col--against {
+  border-left: 1px solid var(--brand-300);
+  background: var(--brand-50);
+}
+.cb-fa__head {
+  font-family: var(--mono);
+  font-size: 8pt;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brand-900);
+  border-bottom: 1px solid var(--brand-300);
+  padding-bottom: 2.5mm;
+  margin-bottom: 4mm;
+}
+.cb-fa__col--against .cb-fa__head {
+  color: var(--accent-dark);
+}
+.cb-fa__row {
+  display: flex;
+  gap: 3mm;
+  margin-bottom: 4.5mm;
+  align-items: baseline;
+}
+.cb-fa__dots {
+  font-size: 7pt;
+  letter-spacing: 0.15em;
+  color: var(--brand-900);
+  flex: 0 0 auto;
+}
+.cb-fa__text {
+  margin: 0;
+  font-size: 9.5pt;
+  line-height: 1.45;
+}
+.cb-fa__basis {
+  font-family: var(--mono);
+  font-size: 7pt;
+  color: var(--brand-600);
+  margin-top: 1mm;
+}
+
+/* ── appendix divider ────────────────────────────────────────────────────── */
+.cb-appendix-divider {
+  break-before: page;
+  padding: 24mm 18mm 8mm;
+}
+.cb-appendix-divider__rule {
+  height: 2px;
+  background: var(--brand-900);
+  margin-bottom: 8mm;
+}
+.cb-appendix-divider h2 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 26pt;
+  margin: 0 0 3mm;
+}
+.cb-appendix-divider p {
+  font-size: 10pt;
+  color: var(--brand-700);
+  max-width: 60ch;
+  margin: 0;
+}
+
+
+/* ── money semantics ─────────────────────────────────────────────────────── */
+/* Green means gain, red means loss — everywhere a signed money figure shows.
+   Colour carries meaning here, which is why it appears nowhere decorative. */
+.cb-money--good {
+  color: var(--good) !important;
+}
+.cb-money--bad {
+  color: var(--accent) !important;
+}
+.cb-table--figures td.cb-money--good,
+.cb-table--figures td.cb-money--bad {
+  font-weight: 700;
+}
+
+/* ── breathing room (design pass) ────────────────────────────────────────── */
+.cb-section {
+  margin-bottom: 14mm;
+}
+.cb-section__sub {
+  margin-bottom: 6mm;
+}
+.cb-table td,
+.cb-table th {
+  padding: 2.8mm 3.2mm;
+}
+.cb-stat--hero .cb-stat__value {
+  font-size: 24pt;
+}
+.cb-callout {
+  margin: 5mm 0;
+}
+.cb-disclaimer--only {
+  padding: 10mm 18mm 0;
+  font-size: 8pt;
+  color: var(--brand-500);
+}
+
+/* ── the 21-day build as a timeline (step_list redesign) ─────────────────── */
+.cb-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4mm;
+}
+.cb-step {
+  border: 1px solid var(--brand-200);
+  border-top: 3px solid var(--accent);
+  background: var(--brand-50);
+  padding: 4.5mm 4mm;
+  break-inside: avoid;
+}
+.cb-step__order {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 16pt;
+  color: var(--accent);
+  line-height: 1;
+  margin-bottom: 2.5mm;
+}
+.cb-step__title {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 10.5pt;
+  margin-bottom: 2mm;
+}
+.cb-step__desc {
+  font-size: 8.5pt;
+  line-height: 1.5;
+  color: var(--brand-700);
+}
+.cb-step__desc + .cb-step__desc {
+  margin-top: 2mm;
+  font-family: var(--mono);
+  font-size: 6.8pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+}
+
+/* ── client wall (document) ──────────────────────────────────────────────── */
+.cb-wall {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4mm;
+  margin: 5mm 0;
+}
+.cb-wall__card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--brand-200);
+  background: #fff;
+  overflow: hidden;
+  break-inside: avoid;
+}
+.cb-wall__card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+  border-bottom: 1px solid var(--brand-200);
+}
+.cb-wall__name {
+  display: block;
+  font-weight: 700;
+  font-size: 8.5pt;
+  padding: 2.5mm 3mm 0;
+}
+.cb-wall__work {
+  display: block;
+  font-size: 7.5pt;
+  color: var(--brand-700);
+  padding: 0.5mm 3mm 0;
+}
+.cb-wall__handle {
+  display: block;
+  font-family: var(--mono);
+  font-size: 6.5pt;
+  color: var(--brand-600);
+  padding: 0.5mm 3mm 2.5mm;
+}

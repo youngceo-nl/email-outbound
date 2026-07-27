@@ -1,11 +1,29 @@
 import type { Lead } from "@/lib/types";
-import { calculateScenario, roundForDisplay } from "./calculations/formulas";
-import type { AssumptionKey } from "./assumptions/defaults";
+import { calculateScenario, roundForDisplay, type ScenarioOutputs } from "./calculations/formulas";
+import {
+  DEFAULT_PRICE_BAND,
+  ORGANIC_REACH_RATE,
+  matchNiche,
+  type AssumptionKey,
+  type ReportOverrides,
+} from "./assumptions/defaults";
 import { limitationsFrom, resolveAssumptions, type ResolveResult } from "./assumptions/resolve";
+import {
+  RUNG_LABEL,
+  RUNGS,
+  buildLadder,
+  ladderSummary,
+  routeLadder,
+  type CapturedPrice,
+  type Ladder,
+  type PriceBand,
+  type RouteDecision,
+} from "./ladder";
 import { accessLimitations, internalSignals, leadFacts, sourceNotesFrom, type Fact, type InternalSignals } from "./facts";
 import { analyseContent, contentObservations } from "./content";
 import { compact, count, peopleRange, pct, reportDate, usd } from "./format";
-import type { ReportContent, ScenarioSet, Stat } from "./schema";
+import { TESTIMONIALS } from "./template/testimonials";
+import type { ForAgainstRow, ReportBlock, ReportContent, ScenarioSet, Stat } from "./schema";
 
 /*
  * Assembles a full report from a lead row.
@@ -21,10 +39,29 @@ import type { ReportContent, ScenarioSet, Stat } from "./schema";
 
 export type BuildArgs = {
   lead: Lead;
-  overrides?: Partial<Record<AssumptionKey, number>>;
+  overrides?: ReportOverrides;
   confirmedBy?: string | null;
   /** Injectable so tests and re-renders are deterministic. */
   preparedAt?: Date;
+  /**
+   * Live competitor-price research for this prospect's niche, when it ran.
+   * Replaces the defaults table's assumed band with a researched one, and the
+   * competitors render in the document as the evidence behind it.
+   */
+  research?: NicheResearch | null;
+  /** Prices captured off other properties (YouTube descriptions, site pages). */
+  extraPrices?: CapturedPrice[] | null;
+  /** Reachable audience per platform. Charts when two or more are known. */
+  platforms?: PlatformReach[] | null;
+};
+
+export type PlatformReach = { platform: string; audience: number; detail: string | null };
+
+export type NicheResearch = {
+  band: { mid: number; high: number };
+  competitors: Array<{ name: string; price: string; url: string }>;
+  /** One line describing the niche as researched — printed with the band. */
+  nicheLabel: string;
 };
 
 export type BuiltReport = {
@@ -34,11 +71,49 @@ export type BuiltReport = {
   facts: Fact[];
   /** Never rendered — see facts.ts. */
   signals: InternalSignals;
+  /** The offer ladder, the routing decision it produced, and the band used. */
+  ladder: LadderResult;
+};
+
+export type PricePoint = {
+  key: "entry" | "observed" | "band_mid" | "band_high";
+  label: string;
+  /** Short label for the chart bar: "Your price", "Category mid", … */
+  chartLabel: string;
+  price: number;
+  outputs: ScenarioOutputs;
+};
+
+export type LadderResult = {
+  ladder: Ladder;
+  decision: RouteDecision;
+  band: PriceBand;
+  /** The §3.3 payload — what the dossier and (later) charts consume. */
+  summary: ReturnType<typeof ladderSummary>;
+  /**
+   * The projected scenario re-run at up to three front-end prices: what was
+   * observed, the category band's midpoint, and its top end. Same assumptions
+   * throughout — only the price moves, which is what makes the comparison an
+   * argument rather than three unrelated guesses.
+   */
+  pricePoints: PricePoint[];
+  /** False when the projected case loses money at the modelled price. */
+  viable: boolean;
 };
 
 export function buildReport(args: BuildArgs): BuiltReport {
   const { lead } = args;
   const preparedAt = args.preparedAt ?? new Date();
+
+  /*
+   * The ladder routes BEFORE the assumptions resolve, because the route decides
+   * what deal value this report models. The old order fed whatever price the
+   * scrape found straight into the scenario as "observed" — which is how a $100
+   * capture product became the front-end of a launch P&L and page one opened on
+   * a loss. Now: missing mid → model the proposed category-priced offer, and
+   * today's price appears in the chart as the loss it is.
+   */
+  const routed = routeFirst(lead, args.overrides, args.research, args.extraPrices ?? []);
 
   const resolution = resolveAssumptions({
     followers: lead.followers,
@@ -49,12 +124,16 @@ export function buildReport(args: BuildArgs): BuiltReport {
     funnelPlatform: lead.funnel_platform,
     overrides: args.overrides,
     confirmedBy: args.confirmedBy,
+    frontEndCandidate: routed.frontEndCandidate,
+    backendCandidate: routed.backendCandidate,
   });
 
   const scenarios: ScenarioSet = {
     projected: calculateScenario(resolution.inputs.projected),
     worst: calculateScenario(resolution.inputs.worst),
   };
+
+  const ladderResult = assembleLadderResult(routed, resolution, scenarios);
 
   const facts = leadFacts(lead);
   const contentAnalysis = analyseContent(lead);
@@ -78,7 +157,20 @@ export function buildReport(args: BuildArgs): BuiltReport {
       followersDisplay: lead.followers ? compact(lead.followers) : null,
       verified: lead.is_verified,
       reportTitle: "Webinar Strategy",
-      thesis: `A direct-checkout webinar selling ${offerName}, a selective private backend, and a practical 21-day launch plan.`,
+      // The route decides the argument. One fixed sentence for every prospect was
+      // the templated-output smell in its purest form; this is still a template
+      // sentence per shape, but the shape is chosen by their evidence — and the
+      // model's pass 1 sharpens it against the dossier.
+      //
+      // Discovery deliberately keeps the standard sentence for now: its route
+      // thesis says "this is a diagnostic, not a projection", which would sit
+      // over a document that still contains projection sections until the
+      // per-route skeletons land (v3 §3.5). A thesis must not contradict the
+      // pages under it.
+      thesis:
+        ladderResult.decision.route === "standard" || ladderResult.decision.route === "discovery"
+          ? `A direct-checkout webinar selling ${offerName}, a selective private backend, and a practical 21-day launch plan.`
+          : ladderResult.summary.thesis,
       purpose:
         "Show the simplest webinar model that fits the current offer stack, the economics required for it to work, and the pieces that would need to be built.",
       preparedAt: reportDate(preparedAt),
@@ -88,13 +180,29 @@ export function buildReport(args: BuildArgs): BuiltReport {
     },
 
     sections: [
-      { key: "hero", title: "Webinar Strategy", subtitle: null, blocks: [] },
+      {
+        key: "hero",
+        title: "Webinar Strategy",
+        subtitle: null,
+        // Page one, the whole sale: the four questions a prospect actually has
+        // (how much, how fast, selling what, at what cost) and the chart that
+        // carries the price argument. The renderer lays these out as the cover.
+        blocks: heroBlocks(ladderResult, e, inputs.projected.front_end_price, offerName, resolution),
+      },
 
       {
         key: "overview",
-        title: "Context and Planning Note",
-        subtitle: "What this document is built from, and what it cannot see.",
+        title: "What This Was Built From",
+        subtitle: "Inputs, their roles, and what we could not see.",
+        appendix: true,
         blocks: [
+          {
+            type: "table",
+            variant: "default",
+            emphasizeColumn: null,
+            columns: ["Asset group", "Observed position", "Status"],
+            rows: assetReadiness(lead),
+          },
           {
             type: "table",
             variant: "default",
@@ -112,72 +220,80 @@ export function buildReport(args: BuildArgs): BuiltReport {
               ["Internal webinar cases", "Operating proof — not a forecast for this account."],
             ],
           },
-          {
-            type: "callout",
-            tone: "note",
-            title: "Required reading for the numbers",
-            text: "Observed facts, working assumptions, and calculated outputs are kept separate throughout. Every input is labelled with where it came from in the closing table. The scenarios are a decision model, not a promise of campaign performance.",
-          },
         ],
       },
 
       {
         key: "verdict",
-        title: "Executive Verdict",
-        subtitle: "The conclusion should be clear in under one minute.",
+        title: "The Case For and Against",
+        subtitle: "Sorted by weight. Every row states its basis.",
         blocks: [
           {
-            type: "stat_grid",
-            stats: [
-              { label: "Recommended model", value: "Direct checkout", sublabel: "live or hybrid" },
-              {
-                label: "Front-end offer",
-                value: usd(inputs.projected.front_end_price),
-                sublabel: resolution.resolved.find((r) => r.key === "front_end_price")?.tier === "observed" ? "observed price" : "working assumption",
-              },
-              { label: "Private backend", value: usd(backendPrice), sublabel: "working assumption" },
-              { label: "Primary traffic", value: "Organic first", sublabel: "paid accelerator" },
-              { label: "Audience", value: lead.followers ? compact(lead.followers) : "Unknown", sublabel: "followers, not traffic" },
-              {
-                label: "Main constraint",
-                value: lead.engagement_rate ? pct(lead.engagement_rate, 2) : "Unknown reach",
-                sublabel: lead.engagement_rate ? "engagement rate" : "and launch history",
-              },
-            ],
-          },
-          {
             type: "paragraph",
-            text: `Build one focused live or hybrid webinar that sells ${offerName} directly at checkout, rather than a front end built around booking a large volume of calls. After purchase, invite a small number of qualified buyers into the private offer — that keeps the scalable offer separate from ${displayName}'s time.`,
+            text: `One webinar, selling ${offerName} at direct checkout. The columns below are the honest version of that call.`,
           },
-          {
-            type: "callout",
-            tone: "good",
-            title: "Recommended first test",
-            text: `Organic-first launch, plus a controlled ${usd(inputs.projected.ad_spend)} paid test. The front-end target is simple: sell ${offerName} profitably. The backend is additional upside, not the assumption required to rescue the launch.`,
-          },
+          forAgainstBlock({ lead, ladder: ladderResult, e, resolution, contentAnalysis }),
         ],
       },
 
       {
         key: "assets",
-        title: "Existing Assets and Offer Ladder",
-        subtitle: "What is already in place, and what the campaign would need to add.",
+        title: "What You Would Sell",
+        subtitle: "Every price found, its rung, and the gap.",
         blocks: [
-          { type: "stat_grid", stats: audienceStats(lead) },
+          ...ladderBlocks(ladderResult),
+          ...(RUNGS.every((rung) => ladderResult.ladder.rungs[rung].length === 0)
+            ? [
+                {
+                  type: "callout" as const,
+                  tone: "note" as const,
+                  title: "No public price could be read",
+                  text: "Nothing on the linked pages carried a readable price. The deal value modelled in this document is a category starting point, and confirming the real offer is the first item in What We Need From You.",
+                },
+              ]
+            : []),
           {
-            type: "table",
-            variant: "default",
-            emphasizeColumn: null,
-            columns: ["Asset group", "Observed position", "Status"],
-            rows: assetReadiness(lead),
+            type: "paragraph",
+            text: `Comparable mid-ticket programs: ${usd(ladderResult.band.mid)}–${usd(ladderResult.band.high)} (${ladderResult.band.source}). This model runs on ${usd(inputs.projected.front_end_price)}.`,
           },
+          // The researched band's evidence, in the body — not the appendix. This
+          // is what replaces "assumption" labels with named comparables (v3 §3.4).
+          ...(args.research && args.research.competitors.length > 0
+            ? [
+                {
+                  type: "table" as const,
+                  variant: "default" as const,
+                  emphasizeColumn: null,
+                  columns: ["Comparable program", "Price", "Source"],
+                  rows: args.research.competitors.map((c) => [c.name, c.price, c.url.replace(/^https?:\/\//, "")]),
+                },
+              ]
+            : []),
+          { type: "stat_grid", stats: audienceStats(lead).slice(0, 3) },
+          // Chart 4 (v3 §6): the audience is bigger than one platform's count.
+          // Renders only when at least two platforms are actually known.
+          ...((args.platforms?.length ?? 0) >= 2
+            ? [
+                {
+                  type: "chart_funnel" as const,
+                  caption: `Reachable audience across ${args.platforms!.length} platforms: ${count(args.platforms!.reduce((n, p) => n + p.audience, 0))} total, against ${compact(args.platforms![0].audience)} on ${args.platforms![0].platform} alone.`,
+                  stages: args.platforms!.map((p) => ({
+                    label: p.platform,
+                    value: p.audience,
+                    display: compact(p.audience),
+                    conversion: p.detail,
+                  })),
+                },
+              ]
+            : []),
         ],
       },
 
       {
         key: "positioning",
-        title: "Market and Event Positioning",
+        title: "Event Positioning",
         subtitle: "Keep the promise narrow. A broad event converts worse than a specific one.",
+        appendix: true,
         blocks: [
           {
             type: "table",
@@ -201,6 +317,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
         ? [
             {
               key: "content" as const,
+              appendix: true,
               title: "Content and Engagement",
               subtitle: `Measured from the ${contentAnalysis.postsAnalysed} most recent non-pinned posts.`,
               blocks: [
@@ -264,35 +381,16 @@ export function buildReport(args: BuildArgs): BuiltReport {
 
       {
         key: "funnel",
-        title: "Funnel Architecture",
-        subtitle: "One event. One checkout. One selective private path.",
-        blocks: [
-          {
-            type: "step_list",
-            steps: [
-              { order: 1, title: "Traffic", description: "Organic posting, stories, email, paid ads", meta: null },
-              { order: 2, title: "Registration", description: "Focused promise and a fixed date", meta: null },
-              { order: 3, title: "Confirmation", description: "Calendar, email, SMS, expectations", meta: null },
-              { order: 4, title: "Live / hybrid event", description: "Teach, demonstrate, transition", meta: null },
-              { order: 5, title: "Checkout", description: "Direct purchase, no sales call", meta: null },
-              { order: 6, title: "Buyer onboarding", description: "Immediate access and a first win", meta: null },
-              { order: 7, title: "Private application", description: "Invite qualified buyers only", meta: null },
-              { order: 8, title: "Private delivery", description: "Limited, high-touch capacity", meta: null },
-            ],
-          },
-          {
-            type: "callout",
-            tone: "note",
-            title: "Energy protection rule",
-            text: `${displayName} should not enter the process before a prospect has bought, consumed, or clearly demonstrated fit. The webinar and the front-end product do the filtering first.`,
-          },
-        ],
+        title: "Where the Funnel Breaks Today",
+        subtitle: "The drop-offs, and the constraint that decides everything.",
+        blocks: [funnelChartBlock(lead, resolution, e)],
       },
 
       {
         key: "opportunity",
-        title: "Projected Opportunity",
-        subtitle: "The calculator appears early because this is a business decision, not a creative exercise.",
+        title: "Full Scenario Model",
+        subtitle: "Both cases, every line. The argument pages use the projected column.",
+        appendix: true,
         blocks: [
           {
             type: "paragraph",
@@ -328,20 +426,9 @@ export function buildReport(args: BuildArgs): BuiltReport {
 
       {
         key: "pnl",
-        title: "Expected Scenario P&L",
-        subtitle: "The front end should work before any private client is counted.",
+        title: "The Numbers",
+        subtitle: "The P&L, and the line the launch lives or dies on.",
         blocks: [
-          {
-            type: "stat_grid",
-            stats: [
-              { label: "Paid registrations", value: count(e.paid_registrations), sublabel: "spend / CPL" },
-              { label: "Organic registrations", value: count(e.organic_registrations), sublabel: "visitors x opt-in" },
-              { label: "Total registrations", value: count(e.total_registrations), sublabel: "combined" },
-              { label: "Live attendees", value: count(e.live_attendees), sublabel: `${pct(inputs.projected.show_up_rate)} show-up` },
-              { label: "Front-end buyers", value: count(e.front_end_buyers), sublabel: `${pct(inputs.projected.front_end_purchase_rate)} purchase` },
-              { label: "Front-end revenue", value: usd(e.gross_front_end_revenue), sublabel: "unrounded math" },
-            ],
-          },
           {
             type: "table",
             variant: "figures",
@@ -354,26 +441,27 @@ export function buildReport(args: BuildArgs): BuiltReport {
               // report shows the same breakdown the team modelled.
               ...e.expense_amounts.map((line) => [line.name, `-${usd(line.amount)}`]),
               ["Total expenses", `-${usd(e.total_expenses)}`],
-              ["Net profit", usd(e.front_end_net_profit)],
+              ["Net profit", `${e.front_end_net_profit >= 0 ? "+" : ""}${usd(e.front_end_net_profit)}`],
               ["Margin", pct(e.front_end_net_margin)],
-              ["Return on total spend", pct(e.return_on_total_spend)],
               ["ROAS (revenue / ad spend)", `${roundForDisplay(e.roas, 2)}x`],
               ["CPA (ad spend / sign-up)", usd(e.cpa)],
             ],
           },
+          sensitivityChartBlock(resolution, e),
           {
             type: "callout",
             tone: "note",
-            title: "Most sensitive assumption",
-            text: `The ${pct(inputs.projected.front_end_purchase_rate)} live-attendee purchase rate is the main driver. Under this cost structure the front end breaks even at roughly a ${pct(e.break_even_purchase_rate)} purchase rate from live attendees — so the event, the offer transition, and the checkout follow-up matter more than a small change in traffic cost.`,
+            title: "Break-even",
+            text: `Break-even is a ${pct(e.break_even_purchase_rate)} purchase rate from live attendees; the model runs at ${pct(inputs.projected.front_end_purchase_rate)}. Everything in the build plan exists to clear that line.`,
           },
         ],
       },
 
       {
         key: "backend",
-        title: "Selective Backend Opportunity",
-        subtitle: "The private offer raises lifetime value without creating a high-volume call calendar.",
+        title: "Backend Ascension Detail",
+        subtitle: "The private offer raises lifetime value. It is upside, never the rescue plan.",
+        appendix: true,
         blocks: [
           {
             type: "stat_grid",
@@ -405,9 +493,20 @@ export function buildReport(args: BuildArgs): BuiltReport {
 
       {
         key: "proof",
-        title: "Relevant Conversion Brands Proof",
-        subtitle: "These cases support the operating model. They do not supply this forecast.",
+        title: "Operating Proof",
+        subtitle: "Built for people in your seat — each card links to the live page.",
+        appendix: true,
         blocks: [
+          {
+            type: "client_wall",
+            clients: TESTIMONIALS.map((t) => ({
+              name: t.name,
+              handle: t.handle,
+              href: t.href,
+              image: t.image,
+              work: t.work,
+            })),
+          },
           {
             type: "table",
             variant: "figures",
@@ -429,23 +528,38 @@ export function buildReport(args: BuildArgs): BuiltReport {
 
       {
         key: "roadmap",
-        title: "21-Day Launch Roadmap",
-        subtitle: "A lean build with limited demands on the client's time.",
+        title: "The 21-Day Build",
+        subtitle: "Four phases, kickoff to live event. Your time: three sessions.",
+        // Four phases, not eight table rows — the same shape the company deck
+        // uses for its gameplan, rendered as a timeline.
         blocks: [
           {
-            type: "table",
-            variant: "default",
-            emphasizeColumn: null,
-            columns: ["Timing", "Build work", "Client involvement"],
-            rows: [
-              ["Days 1-3", "Confirm offer, promise, price, capacity, checkout terms, targets.", "One strategy session."],
-              ["Days 4-7", "Build registration, confirmation, tracking, checkout logic, calendar.", "Approve the event promise."],
-              ["Days 5-10", "Write the outline, guided experience, slides, and offer transition.", "Review claims and outline."],
-              ["Days 8-12", "Build email, SMS, calendar, no-show, replay, deadline, buyer flows.", "None unless needed."],
-              ["Days 10-14", "Prepare organic promotion and a small paid creative test.", "Record short promotional assets."],
-              ["Days 15-19", "Promote, test tracking, rehearse, run technical QA.", "One rehearsal or recording block."],
-              ["Day 20", "Run the live or hybrid event.", "Present live, or approve a recorded format."],
-              ["Day 21+", "Replay, deadline follow-up, onboarding, private application review.", "Review qualified applicants only."],
+            type: "step_list",
+            steps: [
+              {
+                order: 1,
+                title: "Strategy — Days 1–3",
+                description: "Offer, promise, price, capacity and targets confirmed.",
+                meta: "You: one strategy session.",
+              },
+              {
+                order: 2,
+                title: "Build — Days 4–12",
+                description: "Registration, checkout, event content, and every follow-up flow — email, SMS, replay, deadline.",
+                meta: "You: approve the promise and outline.",
+              },
+              {
+                order: 3,
+                title: "Promote — Days 10–19",
+                description: "Organic promotion plus a small paid test. Rehearsal and technical QA.",
+                meta: "You: record short assets, one rehearsal.",
+              },
+              {
+                order: 4,
+                title: "Launch — Days 20–21+",
+                description: "The live event, then replay, deadline follow-up and buyer onboarding.",
+                meta: "You: present live (or approve recorded).",
+              },
             ],
           },
         ],
@@ -453,15 +567,19 @@ export function buildReport(args: BuildArgs): BuiltReport {
 
       {
         key: "decision",
-        title: "Decision and Next Step",
-        subtitle: "Confirm the assumptions, then decide whether to build the first test.",
+        title: "The Next Step",
+        subtitle: null,
         blocks: [
-          { type: "question_list", questions: decisionQuestions(resolution, offerName) },
           {
             type: "callout",
-            tone: "good",
-            title: "Final recommendation",
-            text: `Proceed with an organic-first pilot and a controlled ${usd(inputs.projected.ad_spend)} paid test. Judge the first launch on front-end buyer economics, not on whether it produces a private client. If the conversion holds, repeat the event and improve the backend qualification path. If it does not, fix the event and checkout before adding spend.`,
+            tone: ladderResult.viable ? "good" : "risk",
+            // The ask is a call, plainly — no question list, no homework. The
+            // viability gate still applies to the deterministic copy: a losing
+            // projected case may never carry a proceed recommendation (v3 §8).
+            title: "Book the build call",
+            text: ladderResult.viable
+              ? `One call to confirm the offer and lock the 21-day build. We can start the same week.`
+              : `One call — but the first agenda item is the price, because at today's price this launch loses money. Page one shows the same launch at category pricing.`,
           },
         ],
       },
@@ -473,12 +591,20 @@ export function buildReport(args: BuildArgs): BuiltReport {
     limitations: [...accessLimitations(lead), ...limitationsFrom(resolution)],
     sourceNotes: [
       ...sourceNotesFrom(facts),
+      ...(args.research
+        ? [
+            {
+              source: `Live competitor research: ${args.research.competitors.map((c) => c.name).join(", ")}`,
+              usedFor: `The ${usd(args.research.band.mid)}–${usd(args.research.band.high)} category price band.`,
+            },
+          ]
+        : []),
       { source: "Third-party advertising benchmarks", usedFor: "Directional paid cost per registration. Not this account's ad data." },
       { source: "Conversion Brands internal cases", usedFor: "Operating proof and implementation scope." },
     ],
   };
 
-  return { content, scenarios, resolution, facts, signals: internalSignals(lead) };
+  return { content, scenarios, resolution, facts, signals: internalSignals(lead), ladder: ladderResult };
 
   /** Builds one scenario row of the projections table. */
   function row(label: string, render: (key: keyof ScenarioSet) => string): string[] {
@@ -489,7 +615,11 @@ export function buildReport(args: BuildArgs): BuiltReport {
 function audienceStats(lead: Lead): Stat[] {
   const stats: Stat[] = [];
   if (lead.followers) stats.push({ label: "Followers", value: compact(lead.followers), sublabel: "public profile" });
-  if (lead.engagement_rate) {
+  // Follower-based engagement is meaningless for reel-driven accounts — the old
+  // generator printed a 175.75% "engagement rate" and called it the main
+  // constraint. Above 50% the ratio is measuring reach, not engagement, so it
+  // is suppressed rather than printed as if it meant something.
+  if (lead.engagement_rate && lead.engagement_rate <= 0.5) {
     stats.push({ label: "Engagement rate", value: pct(lead.engagement_rate, 2), sublabel: "recent posts" });
   }
   if (lead.posts_last_30_days !== null) {
@@ -553,27 +683,544 @@ function assetReadiness(lead: Lead): string[][] {
   return rows;
 }
 
+
 /**
- * The questions worth asking, driven by what actually needs confirming.
+ * Builds the offer ladder from everything the funnel scrape captured, routes the
+ * report from it, and re-runs the projected economics at the category band.
  *
- * Anything the cascade flagged becomes a question, so the document asks about its
- * own weakest inputs instead of a fixed list that may not apply.
+ * The band is a labelled starting point until niche price research (v3 §3.4)
+ * replaces it with cited competitors — its tier says so and the report prints it.
  */
-function decisionQuestions(resolution: ResolveResult, offerName: string): { order: number; question: string }[] {
-  const questions: string[] = [];
+type Routed = {
+  ladder: Ladder;
+  band: PriceBand;
+  decision: RouteDecision;
+  frontEndCandidate: { value: number; tier: "observed" | "researched" | "assumed"; source: string; needsConfirmation: boolean } | null;
+  backendCandidate: { value: number; source: string } | null;
+};
 
-  if (resolution.needsConfirmation.includes("front_end_price")) {
-    questions.push(`Is ${offerName} the intended webinar checkout offer, and is the price used here correct?`);
-  }
-  if (resolution.needsConfirmation.includes("backend_offer_price")) {
-    questions.push("What is the private offer's real price, and how many clients can be taken per launch?");
-  }
-  if (resolution.needsConfirmation.includes("organic_visitors")) {
-    questions.push("What audience and list can actually be activated for a launch?");
-  }
-  questions.push("Will the event be live once, recurring live, or recorded-hybrid?");
-  questions.push("Which organic channels will actively promote it?");
-  questions.push("What refund, trial, payment-plan, and financing terms apply to buyers?");
+/**
+ * Everything the route decides, computed before the cascade runs.
+ *
+ * The front-end candidate is the deal value the report proposes:
+ *   standard      → the observed mid-ticket, as scraped
+ *   missing_mid   → the category band's midpoint — a proposed offer, to be built
+ *   repricing     → the band midpoint — the same offer, repriced
+ *   application   → the band midpoint as the entry offer, with the observed
+ *                   high-ticket taking the backend slot
+ *   discovery     → the band midpoint, plainly labelled
+ */
+function routeFirst(
+  lead: Lead,
+  overrides: ReportOverrides | undefined,
+  research: NicheResearch | null | undefined,
+  extraPrices: CapturedPrice[] = [],
+): Routed {
+  const captured: CapturedPrice[] =
+    lead.funnel_prices && lead.funnel_prices.length > 0
+      ? lead.funnel_prices
+      : lead.funnel_price
+        ? [{ raw: lead.funnel_price, label: lead.funnel_program_name, url: lead.funnel_url, source: "offer_page" }]
+        : [];
 
-  return questions.map((question, i) => ({ order: i + 1, question }));
+  // Prices the team typed into the generate menu outrank the scrape in the
+  // ladder too — same precedence the cascade gives them.
+  // Declared rungs, not thresholds: the generate menu asked "low / mid / high"
+  // and the answer is authoritative. A $4,000 mid ticket stays the mid ticket.
+  const humanEntries: CapturedPrice[] = [];
+  if (overrides?.front_end_price && overrides.front_end_price > 0) {
+    humanEntries.push({ raw: usd(overrides.front_end_price), label: "Front-end offer (set by the team)", url: null, source: "human", declaredRung: "mid" });
+  }
+  if (overrides?.backend_offer_price && overrides.backend_offer_price > 0) {
+    humanEntries.push({ raw: usd(overrides.backend_offer_price), label: "Backend offer (set by the team)", url: null, source: "human", declaredRung: "high" });
+  }
+  if (overrides?.ladder_low_price && overrides.ladder_low_price > 0) {
+    humanEntries.push({ raw: usd(overrides.ladder_low_price), label: "Entry offer (set by the team)", url: null, source: "human", declaredRung: "low" });
+  }
+
+  const ladder = buildLadder([...humanEntries, ...captured, ...extraPrices]);
+  const niche = matchNiche(lead.niche, lead.business_model);
+  const band: PriceBand = research
+    ? {
+        mid: research.band.mid,
+        high: research.band.high,
+        source: `researched: ${research.competitors.length} comparable programs in ${research.nicheLabel}`,
+        tier: "researched",
+      }
+    : niche?.priceBand
+      ? {
+          ...niche.priceBand,
+          source: `starting point for ${niche.label.toLowerCase()} — not yet researched`,
+          tier: "assumed",
+        }
+      : { ...DEFAULT_PRICE_BAND, source: "category starting point (no niche match)", tier: "assumed" };
+  const decision = routeLadder(ladder, band);
+
+  const when = lead.funnel_extracted_at ? `, ${reportDate(lead.funnel_extracted_at)}` : "";
+  const where = lead.funnel_platform ? `their ${lead.funnel_platform} page` : "their offer page";
+
+  let frontEndCandidate: Routed["frontEndCandidate"] = null;
+  switch (decision.route) {
+    case "standard":
+      frontEndCandidate = decision.modeledEntry
+        ? {
+            value: decision.modeledEntry.amount,
+            tier: "observed",
+            source: `${decision.modeledEntry.raw} on ${where}${when}`,
+            needsConfirmation: decision.modeledEntry.ambiguous,
+          }
+        : null;
+      break;
+    case "repricing":
+      frontEndCandidate = {
+        value: band.mid,
+        tier: band.tier,
+        source: `${band.source} — proposed repricing of ${decision.modeledEntry?.raw ?? "the current offer"}`,
+        needsConfirmation: true,
+      };
+      break;
+    case "missing_mid":
+    case "application_funnel":
+    case "discovery":
+      frontEndCandidate = {
+        value: band.mid,
+        tier: band.tier,
+        source: `${band.source} — proposed offer, to be built`,
+        needsConfirmation: true,
+      };
+      break;
+  }
+
+  // An observed high-ticket is the backend, not the webinar checkout.
+  const observedHigh = ladder.rungs.high.find((entry) => entry.source !== "human") ?? null;
+  const backendCandidate = observedHigh
+    ? { value: observedHigh.amount, source: `${observedHigh.raw} on ${where}${when}` }
+    : null;
+
+  return { ladder, band, decision, frontEndCandidate, backendCandidate };
+}
+
+function assembleLadderResult(routed: Routed, resolution: ResolveResult, scenarios: ScenarioSet): LadderResult {
+  const { ladder, band, decision } = routed;
+
+  // The observed point is what they charge today — the routed mid, or the top
+  // capture product, which is exactly the case where the chart argues the price
+  // is the constraint.
+  const observedEntry = decision.modeledEntry ?? ladder.rungs.low[0] ?? ladder.rungs.high[0] ?? null;
+  const humanPriced = observedEntry?.source === "human";
+  const lowEntry = ladder.rungs.low[0] ?? null;
+
+  const at = (price: number): ScenarioOutputs =>
+    calculateScenario({ ...resolution.inputs.projected, front_end_price: price });
+
+  /*
+   * Every bar must have a basis: a price someone actually set, a price actually
+   * observed, or a band actually researched. The defaults-table band exists so
+   * the *model* has a starting point — it is not evidence, and drawing it as
+   * "Category mid $997" next to a real price presented invented-looking numbers
+   * as if they meant something. Assumed bands never chart. The one exception:
+   * nothing else exists at all, in which case the band is the model's only
+   * input and the caption already names it a stated starting point.
+   */
+  const showBand = band.tier === "researched" || !observedEntry;
+
+  const rawPoints: PricePoint[] = [
+    ...(lowEntry && observedEntry && lowEntry !== observedEntry
+      ? [
+          {
+            key: "entry" as const,
+            label: `Entry offer (${lowEntry.raw})`,
+            chartLabel: lowEntry.source === "human" ? "Your entry offer" : "Their entry offer",
+            price: lowEntry.amount,
+            outputs: at(lowEntry.amount),
+          },
+        ]
+      : []),
+    ...(observedEntry
+      ? [
+          {
+            key: "observed" as const,
+            label: `Observed (${observedEntry.raw})`,
+            chartLabel: humanPriced ? "Your price" : "Today's price",
+            price: observedEntry.amount,
+            outputs: at(observedEntry.amount),
+          },
+        ]
+      : []),
+    ...(showBand
+      ? [
+          {
+            key: "band_mid" as const,
+            label: `Category band mid (${usd(band.mid)})`,
+            chartLabel: "Category mid",
+            price: band.mid,
+            outputs: at(band.mid),
+          },
+          {
+            key: "band_high" as const,
+            label: `Category band high (${usd(band.high)})`,
+            chartLabel: "Category high",
+            price: band.high,
+            outputs: at(band.high),
+          },
+        ]
+      : []),
+  ];
+  // Two bars at the same price argue nothing — first basis wins.
+  const pricePoints = rawPoints.filter(
+    (point, i) => rawPoints.findIndex((other) => other.price === point.price) === i,
+  );
+
+  return {
+    ladder,
+    decision,
+    band,
+    summary: ladderSummary(ladder, decision, band),
+    pricePoints,
+    viable: scenarios.projected.front_end_net_profit > 0,
+  };
+}
+
+/**
+ * The ladder rendered as evidence: every price found, its rung, and which rungs
+ * are empty. The missing rung is frequently the whole argument — a document that
+ * shows the gap is making a case, one that hides it is filling a form.
+ */
+function ladderBlocks(result: LadderResult): ReportContent["sections"][number]["blocks"] {
+  const anyEntry = RUNGS.some((rung) => result.ladder.rungs[rung].length > 0);
+  if (!anyEntry) return [];
+
+  const rows: string[][] = [];
+  for (const rung of RUNGS) {
+    const entries = result.ladder.rungs[rung];
+    if (entries.length === 0) {
+      rows.push([RUNG_LABEL[rung], "—", "Nothing found at this rung"]);
+      continue;
+    }
+    for (const entry of entries) {
+      const period = entry.period === "monthly" ? " per month" : entry.period === "annual" ? " per year" : "";
+      rows.push([
+        RUNG_LABEL[rung],
+        entry.label ?? "Unnamed offer",
+        `${entry.raw}${period && !/mo|month|yr|year/i.test(entry.raw) ? period : ""}`,
+      ]);
+    }
+  }
+
+  return [
+    {
+      type: "table",
+      variant: "default",
+      emphasizeColumn: null,
+      columns: ["Rung", "Offer", "As found"],
+      rows,
+    },
+    ...(result.ladder.missing.includes("mid")
+      ? [
+          {
+            type: "callout" as const,
+            tone: "note" as const,
+            title: "The missing rung",
+            text: `No mid-ticket offer is publicly visible — and that is the rung a direct-checkout webinar sells. ${result.decision.reasoning}`,
+          },
+        ]
+      : []),
+  ];
+}
+
+/** "$12k" / "-$5k" — y-axis ticks only; tables always carry full figures. */
+function compactMoney(value: number): string {
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  return abs >= 1000 ? `${sign}$${Math.round(abs / 1000)}k` : `${sign}$${Math.round(abs)}`;
+}
+
+/**
+ * Page one's cards and hero chart. The four cards answer the reader's four
+ * questions in the order they ask them: how much, how fast, selling what, at
+ * what cost. When the economics are negative the layout does not change — the
+ * loss renders in red and the verdict names the cause, because leading with a
+ * bad number honestly beats burying it on the P&L page.
+ */
+function heroBlocks(
+  ladder: LadderResult,
+  e: ScenarioSet["projected"],
+  frontEndPrice: number,
+  offerName: string,
+  resolution: ResolveResult,
+): ReportBlock[] {
+  const priceTier = resolution.resolved.find((r) => r.key === "front_end_price")?.tier;
+  const offerShort = offerName.length > 30 ? `${offerName.slice(0, 28)}…` : offerName;
+
+  const cards: ReportBlock = {
+    type: "stat_grid",
+    stats: [
+      {
+        label: "Net profit per launch",
+        value: `${e.front_end_net_profit >= 0 ? "+" : ""}${usd(roundForDisplay(e.front_end_net_profit, 0))}`,
+        sublabel: "projected case",
+        tone: e.front_end_net_profit >= 0 ? ("good" as const) : ("bad" as const),
+      },
+      { label: "Time to first revenue", value: "21 days", sublabel: "kickoff to live event" },
+      {
+        label: "What you sell",
+        value: usd(frontEndPrice),
+        sublabel:
+          priceTier === "human"
+            ? offerShort
+            : ladder.decision.route === "standard"
+              ? offerShort
+              : ladder.decision.route === "repricing"
+                ? `${offerShort} — repriced`
+                : "proposed offer — to be built",
+      },
+      { label: "Projected CPA", value: usd(roundForDisplay(e.cpa, 0)), sublabel: "ad spend per buyer" },
+    ],
+  };
+
+  const points = ladder.pricePoints;
+  if (points.length < 2) return [cards];
+
+  const observed = points.find((p) => p.key === "observed");
+  const bandMid = points.find((p) => p.key === "band_mid");
+  const humanPriced = observed?.chartLabel === "Your price";
+  const caption = humanPriced
+    ? `Modelled at the prices you set — each bar is the same launch and the same conversion assumptions, selling a different rung at checkout.`
+    : observed && observed.outputs.front_end_net_profit < 0 && bandMid && bandMid.outputs.front_end_net_profit > 0
+      ? `At ${usd(observed.price)} the launch loses ${usd(Math.abs(roundForDisplay(observed.outputs.front_end_net_profit, 0)))}. At ${usd(bandMid.price)}, the same audience and the same conversion assumptions net ${usd(roundForDisplay(bandMid.outputs.front_end_net_profit, 0))} — the price is the constraint, not the funnel.`
+      : bandMid
+        ? `Same audience, same conversion assumptions — only the price moves. The category band is ${ladder.band.tier === "researched" ? "researched from live competitors" : "a stated starting point"}.`
+        : `Same audience, same conversion assumptions — only the price moves.`;
+
+  const chart: ReportBlock = {
+    type: "chart_bars",
+    caption,
+    bars: points.map((point) => ({
+      label: point.chartLabel,
+      sublabel: usd(point.price),
+      value: point.outputs.front_end_net_profit,
+      display: usd(roundForDisplay(point.outputs.front_end_net_profit, 0)),
+    })),
+  };
+
+  return [cards, chart];
+}
+
+/**
+ * The case for / the case against, generated from the payload — a row cannot
+ * exist without a basis, and the against column always carries at least one
+ * high-weight row (break-even sensitivity is calculated on every report). A
+ * document with no serious objection reads as a pitch.
+ */
+function forAgainstBlock(args: {
+  lead: Lead;
+  ladder: LadderResult;
+  e: ScenarioSet["projected"];
+  resolution: ResolveResult;
+  contentAnalysis: ReturnType<typeof analyseContent>;
+}): ReportBlock {
+  const { lead, ladder, e, resolution, contentAnalysis } = args;
+  const forRows: ForAgainstRow[] = [];
+  const againstRows: ForAgainstRow[] = [];
+  const sample = contentAnalysis?.postsAnalysed ?? 0;
+
+  // ── for ──
+  const avgViews = contentAnalysis?.reels.averageViews ?? null;
+  if (avgViews !== null && avgViews > 0 && lead.followers) {
+    const ratio = avgViews / lead.followers;
+    if (ratio >= 1) {
+      forRows.push({
+        text: `Reels average ${compact(avgViews)} views against ${compact(lead.followers)} followers — reach is ${ratio.toFixed(1)}x the follower base and already proven.`,
+        weight: 3,
+        basis: `observed, ${sample} posts`,
+      });
+    } else if (ratio >= 0.2) {
+      forRows.push({
+        text: `Reels average ${compact(avgViews)} views, ${pct(ratio)} of the follower base — a launch announcement borrows real reach, not just a follower count.`,
+        weight: 2,
+        basis: `observed, ${sample} posts`,
+      });
+    }
+  }
+  const bestMid = ladder.decision.modeledEntry;
+  if (bestMid) {
+    forRows.push({
+      text: `A mid-ticket offer already exists at ${bestMid.raw} — the webinar sells something already built.`,
+      weight: 3,
+      basis: "observed, offer page",
+    });
+  } else if (ladder.ladder.rungs.low.length > 0) {
+    forRows.push({
+      text: `A capture product at ${ladder.ladder.rungs.low[0].raw} already exists — this audience is used to paying something.`,
+      weight: 2,
+      basis: "observed, offer page",
+    });
+  }
+  const bandMidPoint = ladder.pricePoints.find((p) => p.key === "band_mid");
+  if (bandMidPoint && bandMidPoint.outputs.front_end_net_profit > 0) {
+    forRows.push({
+      text: `At ${usd(bandMidPoint.price)} the modelled launch nets ${usd(roundForDisplay(bandMidPoint.outputs.front_end_net_profit, 0))} — the audience does not need to grow for the math to work.`,
+      weight: 2,
+      basis: "calculated",
+    });
+  }
+  if (lead.followers && forRows.length < 4) {
+    forRows.push({
+      text: `${compact(lead.followers)} followers on Instagram — enough audience to fill a first event before any paid spend.`,
+      weight: lead.followers >= 50000 ? 2 : 1,
+      basis: "observed, profile",
+    });
+  }
+  if ((lead.posts_last_30_days ?? 0) >= 12 && forRows.length < 4) {
+    forRows.push({
+      text: `${lead.posts_last_30_days} posts in the last 30 days — the distribution habit a dated event needs already exists.`,
+      weight: 1,
+      basis: "observed, profile",
+    });
+  }
+  if (forRows.length === 0) {
+    forRows.push({
+      text: "The model itself: a dated event with direct checkout is the shortest path from an engaged audience to revenue that exists.",
+      weight: 1,
+      basis: "assumed",
+    });
+  }
+
+  // ── against ──
+  againstRows.push({
+    text: `The purchase rate is the whole model. Break-even sits at ${pct(e.break_even_purchase_rate)} of live attendees; below that the launch loses money.`,
+    weight: 3,
+    basis: "calculated",
+  });
+  const observedPoint = ladder.pricePoints.find((p) => p.key === "observed");
+  if (ladder.decision.route === "missing_mid") {
+    againstRows.push({
+      text: `No offer above ${ladder.ladder.rungs.low[0]?.raw ?? "the capture product"} exists today. The product a webinar sells has to be built before the event can run.`,
+      weight: 3,
+      basis: "observed, all linked pages",
+    });
+  }
+  if (ladder.decision.route === "repricing" && bestMid) {
+    againstRows.push({
+      text: `${bestMid.raw} sits far below the category band of ${usd(ladder.band.mid)}–${usd(ladder.band.high)}. The case rests on repricing, not on the funnel.`,
+      weight: 3,
+      basis: "calculated vs category band",
+    });
+  }
+  if (observedPoint && observedPoint.outputs.front_end_net_profit < 0 && ladder.decision.route !== "missing_mid") {
+    againstRows.push({
+      text: `At today's price the projected case loses ${usd(Math.abs(roundForDisplay(observedPoint.outputs.front_end_net_profit, 0)))} per launch.`,
+      weight: 3,
+      basis: "calculated",
+    });
+  }
+  const priceTier = resolution.resolved.find((r) => r.key === "front_end_price")?.tier;
+  if (priceTier === "assumed" && againstRows.length < 4) {
+    againstRows.push({
+      text: "The deal value is an assumption, not an observed price. Every revenue figure in this document moves with it.",
+      weight: 2,
+      basis: "assumed",
+    });
+  }
+  if (!contentAnalysis && againstRows.length < 4) {
+    againstRows.push({
+      text: "No recent post data could be read, so demand is unmeasured — the audience number carries more weight here than it should.",
+      weight: 2,
+      basis: "observed, scrape",
+    });
+  }
+  if (againstRows.length < 3) {
+    againstRows.push({
+      text: "Cost per lead is a benchmark, not this account's advertising data. The first paid test resets this model.",
+      weight: 1,
+      basis: "researched benchmark",
+    });
+  }
+
+  const byWeight = (a: ForAgainstRow, b: ForAgainstRow) => b.weight - a.weight;
+  return {
+    type: "for_against",
+    forRows: forRows.sort(byWeight).slice(0, 4),
+    againstRows: againstRows.sort(byWeight).slice(0, 4),
+  };
+}
+
+/**
+ * Chart 3: net profit against live-attendee purchase rate, break-even marked.
+ * For a negative-economics case this is the proof of the whole argument — the
+ * line never reaches zero at the current price, and the reader can see it.
+ */
+function sensitivityChartBlock(resolution: ResolveResult, e: ScenarioSet["projected"]): ReportBlock {
+  const points: Array<{ x: number; y: number }> = [];
+  for (let rate = 5; rate <= 30; rate += 2.5) {
+    const outputs = calculateScenario({ ...resolution.inputs.projected, front_end_purchase_rate: rate / 100 });
+    points.push({ x: rate, y: outputs.front_end_net_profit });
+  }
+  const ys = points.map((p) => p.y);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const breakEvenPct = e.break_even_purchase_rate * 100;
+  const crossesInRange = breakEvenPct >= 5 && breakEvenPct <= 30 && maxY > 0;
+
+  const caption =
+    minY > 0
+      ? `Profitable across the entire modelled range of purchase rates at ${usd(resolution.inputs.projected.front_end_price)}.`
+      : maxY <= 0
+        ? `At ${usd(resolution.inputs.projected.front_end_price)} the line never crosses zero — no purchase rate in range makes this launch profitable. The price is the constraint.`
+        : `The launch is profitable above a ${pct(e.break_even_purchase_rate)} purchase rate. Everything in the build plan exists to clear that line.`;
+
+  return {
+    type: "chart_line",
+    caption,
+    xLabel: "Live-attendee purchase rate",
+    yLabel: "Net profit per launch",
+    points,
+    xTicks: [5, 10, 15, 20, 25, 30].map((x) => ({ x, label: `${x}%` })),
+    yTicks: [
+      ...(minY < 0 ? [{ y: minY, label: compactMoney(minY) }] : []),
+      { y: 0, label: "$0" },
+      ...(maxY > 0 ? [{ y: maxY, label: compactMoney(maxY) }] : []),
+    ],
+    breakEven: crossesInRange ? { x: breakEvenPct, label: `break-even ${pct(e.break_even_purchase_rate)}` } : null,
+  };
+}
+
+/** Chart 2: the funnel as descending bars, conversions labelled between stages. */
+function funnelChartBlock(lead: Lead, resolution: ResolveResult, e: ScenarioSet["projected"]): ReportBlock {
+  const inputs = resolution.inputs.projected;
+  const stages = [
+    ...(lead.followers
+      ? [{ label: "Reachable audience", value: lead.followers, display: compact(lead.followers), conversion: null }]
+      : []),
+    {
+      label: "Registration-page visitors",
+      value: inputs.organic_visitors,
+      display: count(inputs.organic_visitors),
+      conversion: lead.followers ? `${pct(ORGANIC_REACH_RATE)} promotion reach` : null,
+    },
+    {
+      label: "Registrations",
+      value: e.total_registrations,
+      display: count(e.total_registrations),
+      conversion: `${pct(inputs.organic_optin_rate)} opt-in + paid leads`,
+    },
+    {
+      label: "Live attendees",
+      value: e.live_attendees,
+      display: count(e.live_attendees),
+      conversion: `${pct(inputs.show_up_rate)} show-up`,
+    },
+    {
+      label: "Buyers",
+      value: e.front_end_buyers,
+      display: count(e.front_end_buyers),
+      conversion: `${pct(inputs.front_end_purchase_rate)} purchase`,
+    },
+  ];
+
+  return {
+    type: "chart_funnel",
+    caption: `Paid leads enter at the registration stage (${count(e.paid_registrations)} of ${count(e.total_registrations)} modelled). The binding constraint is the final conversion: ${pct(inputs.front_end_purchase_rate)} modelled against a ${pct(e.break_even_purchase_rate)} break-even.`,
+    stages,
+  };
 }
