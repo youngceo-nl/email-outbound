@@ -260,8 +260,10 @@ export async function analyseProspect(dossier: Dossier): Promise<AnalyseResult> 
     // has to be structural, not a matter of phrasing.
     user: `Analyse this prospect.\n\n<dossier>\n${JSON.stringify(dossier, null, 2)}\n</dossier>`,
     maxTokens: 4000,
-    // A little latitude: this pass is asked to notice things, and a near-zero
-    // temperature on an open-ended read produces the blandest possible answer.
+    // A little latitude on the OpenAI path: this pass is asked to notice things, and
+    // a near-zero temperature on an open-ended read produces the blandest possible
+    // answer. Ignored on Claude, which rejects non-default sampling parameters and
+    // varies its depth through thinking instead.
     temperature: 0.5,
   });
 

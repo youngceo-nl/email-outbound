@@ -100,7 +100,7 @@ export type AppSettings = {
   scoring_provider: "openai" | "claude" | "gemini" | "groq";
   openai_api_key: string | null;
   openai_model: string;
-  /** Report generation only — see migration 20260726000000_report_model.sql. */
+  /** Report generation only — see migration 20260727000000_report_model.sql. */
   report_model: string;
   /** House strategy brief appended to the report analysis prompt. Editable in Settings. */
   report_strategy_notes: string | null;
