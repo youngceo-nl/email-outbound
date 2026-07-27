@@ -1,6 +1,8 @@
 import type {
   CalloutBlock,
   CaseStudyBlock,
+  ForAgainstBlock,
+  ForAgainstRow,
   LadderBlock,
   ParagraphBlock,
   QuestionListBlock,
@@ -9,6 +11,7 @@ import type {
   StepListBlock,
   TableBlock,
 } from "../schema";
+import { ChartBars, ChartFunnel, ChartLine } from "./charts";
 
 /*
  * Block components. Presentation only — every string arrives pre-formatted, so
@@ -137,6 +140,40 @@ function CaseStudy({ block }: { block: CaseStudyBlock }) {
   );
 }
 
+/** ●●○ — weight as filled dots, the spec's own notation. */
+function WeightDots({ weight }: { weight: 1 | 2 | 3 }) {
+  return <span className="cb-fa__dots">{"●".repeat(weight) + "○".repeat(3 - weight)}</span>;
+}
+
+function ForAgainstColumn({ title, rows, against }: { title: string; rows: ForAgainstRow[]; against?: boolean }) {
+  return (
+    <div className={`cb-fa__col${against ? " cb-fa__col--against" : ""}`}>
+      <div className="cb-fa__head">{title}</div>
+      {rows.map((row, i) => (
+        <div key={i} className="cb-fa__row">
+          <WeightDots weight={row.weight} />
+          <div>
+            <p className="cb-fa__text">{row.text}</p>
+            <div className="cb-fa__basis">→ {row.basis}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ForAgainst({ block }: { block: ForAgainstBlock }) {
+  // Sorted by weight descending — the builder supplies them ordered, but the
+  // renderer enforces it so a hand-edited payload can't bury the lead.
+  const sorted = (rows: ForAgainstRow[]) => [...rows].sort((a, b) => b.weight - a.weight);
+  return (
+    <div className="cb-fa">
+      <ForAgainstColumn title="The case for" rows={sorted(block.forRows)} />
+      <ForAgainstColumn title="The case against" rows={sorted(block.againstRows)} against />
+    </div>
+  );
+}
+
 export function Block({ block }: { block: ReportBlock }) {
   switch (block.type) {
     case "paragraph":
@@ -155,5 +192,13 @@ export function Block({ block }: { block: ReportBlock }) {
       return <QuestionList block={block} />;
     case "case_study":
       return <CaseStudy block={block} />;
+    case "chart_bars":
+      return <ChartBars block={block} />;
+    case "chart_line":
+      return <ChartLine block={block} />;
+    case "chart_funnel":
+      return <ChartFunnel block={block} />;
+    case "for_against":
+      return <ForAgainst block={block} />;
   }
 }

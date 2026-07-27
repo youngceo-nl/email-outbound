@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolveAssumptions } from "@/lib/report/assumptions/resolve";
-import { ASSUMPTION_LABEL, type AssumptionKey } from "@/lib/report/assumptions/defaults";
+import { ASSUMPTION_LABEL, type AssumptionKey, type ReportOverrides } from "@/lib/report/assumptions/defaults";
 import { getLeadForReport, createReport, listReportsForLead } from "@/lib/report/service";
 
 /*
@@ -48,7 +48,7 @@ export async function generateReportForLead(leadId: string, formData: FormData):
   const lead = await getLeadForReport(leadId);
   if (!lead) return { ok: false, error: "Lead not found." };
 
-  const overrides: Partial<Record<AssumptionKey, number>> = {};
+  const overrides: ReportOverrides = {};
   for (const key of EDITABLE) {
     const raw = formData.get(key);
     if (typeof raw !== "string" || raw.trim() === "") continue;
@@ -60,6 +60,14 @@ export async function generateReportForLead(leadId: string, formData: FormData):
     if (!Number.isFinite(parsed) || parsed < 0) continue;
 
     overrides[key] = RATE_KEYS.has(key) ? parsed / 100 : parsed;
+  }
+
+  // The low ticket is not a scenario input — it exists for the offer ladder,
+  // where an entry product that exists is evidence and changes the routing.
+  const lowRaw = formData.get("ladder_low_price");
+  if (typeof lowRaw === "string" && lowRaw.trim() !== "") {
+    const low = Number(lowRaw.replace(/[$,%\s]/g, ""));
+    if (Number.isFinite(low) && low > 0) overrides.ladder_low_price = low;
   }
 
   try {

@@ -133,6 +133,85 @@ export const CaseStudyBlockSchema = z.object({
   metrics: z.array(StatSchema).min(1),
 });
 
+/*
+ * Charts. Rendered as inline SVG by the renderer — the PDF pipeline is already
+ * HTML through Chromium, so vector charts cost no native dependency and print
+ * crisp at any scale. Numeric values drive geometry; display strings drive
+ * labels. The renderer does no arithmetic and no formatting, same as everywhere
+ * else, which is what keeps a chart from ever disagreeing with the prose: both
+ * read the same computed payload.
+ *
+ * Every chart carries a caption stating what it proves. A chart without a
+ * caption is decoration.
+ */
+
+export const ChartBarsBlockSchema = z.object({
+  type: z.literal("chart_bars"),
+  caption: z.string().min(1),
+  /** Vertical bars. Negative values render in accent red below a dashed zero line. */
+  bars: z
+    .array(
+      z.object({
+        label: z.string().min(1),
+        sublabel: z.string().nullable(),
+        value: z.number(),
+        display: z.string().min(1),
+      }),
+    )
+    .min(2),
+});
+
+export const ChartLineBlockSchema = z.object({
+  type: z.literal("chart_line"),
+  caption: z.string().min(1),
+  xLabel: z.string().min(1),
+  yLabel: z.string().min(1),
+  points: z.array(z.object({ x: z.number(), y: z.number() })).min(3),
+  /** Pre-formatted axis ticks — the renderer never formats numbers. */
+  xTicks: z.array(z.object({ x: z.number(), label: z.string().min(1) })).min(2),
+  yTicks: z.array(z.object({ y: z.number(), label: z.string().min(1) })).min(2),
+  /** Where the line crosses zero, marked with a dot and this label. */
+  breakEven: z.object({ x: z.number(), label: z.string().min(1) }).nullable(),
+});
+
+export const ChartFunnelBlockSchema = z.object({
+  type: z.literal("chart_funnel"),
+  caption: z.string().min(1),
+  /** Horizontal bars, widths proportional to value. */
+  stages: z
+    .array(
+      z.object({
+        label: z.string().min(1),
+        value: z.number().nonnegative(),
+        display: z.string().min(1),
+        /** Conversion from the previous stage, pre-formatted ("25%"). Null on the first. */
+        conversion: z.string().nullable(),
+      }),
+    )
+    .min(3),
+});
+
+/*
+ * The case for / the case against. Two columns, weighted rows, each carrying its
+ * basis inline. The against column must hold at least one high-weight row —
+ * enforced by the builder, because a document with no serious objection reads as
+ * a pitch, and the willingness to name the strongest counter-argument is what
+ * makes the rest credible.
+ */
+export const ForAgainstRowSchema = z.object({
+  text: z.string().min(1),
+  /** 3 = load-bearing, 2 = material, 1 = supporting. Rendered as filled dots. */
+  weight: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  /** "observed, 12 posts" / "calculated" / "researched, 3 sources" / "assumed". */
+  basis: z.string().min(1),
+});
+
+export const ForAgainstBlockSchema = z.object({
+  type: z.literal("for_against"),
+  forRows: z.array(ForAgainstRowSchema).min(1),
+  againstRows: z.array(ForAgainstRowSchema).min(1),
+});
+
 export const ReportBlockSchema = z.discriminatedUnion("type", [
   ParagraphBlockSchema,
   StatGridBlockSchema,
@@ -142,6 +221,10 @@ export const ReportBlockSchema = z.discriminatedUnion("type", [
   StepListBlockSchema,
   QuestionListBlockSchema,
   CaseStudyBlockSchema,
+  ChartBarsBlockSchema,
+  ChartLineBlockSchema,
+  ChartFunnelBlockSchema,
+  ForAgainstBlockSchema,
 ]);
 
 export type Stat = z.infer<typeof StatSchema>;
@@ -154,6 +237,11 @@ export type LadderBlock = z.infer<typeof LadderBlockSchema>;
 export type StepListBlock = z.infer<typeof StepListBlockSchema>;
 export type QuestionListBlock = z.infer<typeof QuestionListBlockSchema>;
 export type CaseStudyBlock = z.infer<typeof CaseStudyBlockSchema>;
+export type ChartBarsBlock = z.infer<typeof ChartBarsBlockSchema>;
+export type ChartLineBlock = z.infer<typeof ChartLineBlockSchema>;
+export type ChartFunnelBlock = z.infer<typeof ChartFunnelBlockSchema>;
+export type ForAgainstBlock = z.infer<typeof ForAgainstBlockSchema>;
+export type ForAgainstRow = z.infer<typeof ForAgainstRowSchema>;
 
 // ── document ────────────────────────────────────────────────────────────────
 
@@ -179,6 +267,12 @@ export const ReportSectionSchema = z.object({
   title: z.string().min(1),
   subtitle: z.string().nullable(),
   blocks: z.array(ReportBlockSchema),
+  /**
+   * Appendix sections render behind a divider, unnumbered. The argument is six
+   * pages; everything a skimming reader doesn't need to decide sits back here,
+   * findable but not in the way.
+   */
+  appendix: z.boolean().optional(),
 });
 
 export const ReportContentSchema = z.object({

@@ -522,3 +522,190 @@
   font-size: 8.5pt;
   color: var(--brand-600);
 }
+
+/* ── page one: the verdict block ─────────────────────────────────────────── */
+/* Six elements, nothing else: strip, verdict, four cards, hero chart, footer.
+   The reader's four questions — how much, how fast, selling what, at what
+   cost — answered before a single paragraph of prose. */
+.cb-verdictpage {
+  justify-content: flex-start;
+}
+.cb-verdictpage__strip {
+  display: flex;
+  align-items: center;
+  gap: 5mm;
+  padding-bottom: 4mm;
+  border-bottom: 2px solid var(--accent);
+  margin-bottom: 10mm;
+  font-size: 9pt;
+  color: var(--brand-700);
+}
+.cb-verdictpage__mark {
+  width: 30px;
+  flex: 0 0 auto;
+}
+.cb-verdictpage__mark svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.cb-verdictpage__who {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  min-width: 0;
+}
+.cb-verdictpage__who b {
+  color: var(--brand-900);
+}
+.cb-verdictpage__photo {
+  width: 9mm;
+  height: 9mm;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--brand-200);
+}
+.cb-verdictpage__monogram {
+  width: 9mm;
+  height: 9mm;
+  border-radius: 50%;
+  background: var(--brand-900);
+  color: #fff;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 8.5pt;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cb-verdictpage__verdict {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 24pt;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  margin: 0 0 10mm;
+  max-width: 30ch;
+}
+.cb-verdictpage__cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4mm;
+  margin-bottom: 10mm;
+}
+.cb-stat--hero {
+  background: var(--brand-50);
+  border: 1px solid var(--brand-200);
+  border-top: 3px solid var(--accent);
+  text-align: left;
+  padding: 4.5mm 4mm;
+}
+.cb-stat--hero .cb-stat__value {
+  font-size: 21pt;
+  margin-top: 1.5mm;
+}
+.cb-stat--hero .cb-stat__sub {
+  color: var(--brand-600);
+}
+.cb-verdictpage__foot {
+  margin-top: auto;
+  padding-top: 4mm;
+  border-top: 1px solid var(--brand-200);
+  font-size: 8.5pt;
+  color: var(--brand-600);
+}
+.cb-verdictpage__foot b {
+  color: var(--brand-900);
+}
+
+/* ── charts ──────────────────────────────────────────────────────────────── */
+.cb-chart {
+  margin: 6mm 0;
+  break-inside: avoid;
+}
+.cb-chart svg {
+  max-width: 100%;
+}
+.cb-chart__caption {
+  font-size: 9pt;
+  color: var(--brand-700);
+  border-left: 2px solid var(--accent);
+  padding-left: 3mm;
+  margin: 2.5mm 0 0;
+}
+
+/* ── the case for / the case against ─────────────────────────────────────── */
+.cb-fa {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--brand-300);
+  break-inside: avoid;
+  margin: 5mm 0;
+}
+.cb-fa__col {
+  padding: 5mm;
+}
+.cb-fa__col--against {
+  border-left: 1px solid var(--brand-300);
+  background: var(--brand-50);
+}
+.cb-fa__head {
+  font-family: var(--mono);
+  font-size: 8pt;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brand-900);
+  border-bottom: 1px solid var(--brand-300);
+  padding-bottom: 2.5mm;
+  margin-bottom: 4mm;
+}
+.cb-fa__col--against .cb-fa__head {
+  color: var(--accent-dark);
+}
+.cb-fa__row {
+  display: flex;
+  gap: 3mm;
+  margin-bottom: 4.5mm;
+  align-items: baseline;
+}
+.cb-fa__dots {
+  font-size: 7pt;
+  letter-spacing: 0.15em;
+  color: var(--brand-900);
+  flex: 0 0 auto;
+}
+.cb-fa__text {
+  margin: 0;
+  font-size: 9.5pt;
+  line-height: 1.45;
+}
+.cb-fa__basis {
+  font-family: var(--mono);
+  font-size: 7pt;
+  color: var(--brand-600);
+  margin-top: 1mm;
+}
+
+/* ── appendix divider ────────────────────────────────────────────────────── */
+.cb-appendix-divider {
+  break-before: page;
+  padding: 24mm 18mm 8mm;
+}
+.cb-appendix-divider__rule {
+  height: 2px;
+  background: var(--brand-900);
+  margin-bottom: 8mm;
+}
+.cb-appendix-divider h2 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 26pt;
+  margin: 0 0 3mm;
+}
+.cb-appendix-divider p {
+  font-size: 10pt;
+  color: var(--brand-700);
+  max-width: 60ch;
+  margin: 0;
+}
