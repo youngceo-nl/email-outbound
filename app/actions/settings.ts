@@ -51,6 +51,7 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
       return (["claude", "gemini", "groq"] as const).includes(v as never) ? (v as "claude" | "gemini" | "groq") : "openai";
     })(),
     openai_api_key: String(formData.get("openai_api_key") ?? "") || null,
+    youtube_api_key: String(formData.get("youtube_api_key") ?? "") || null,
     openai_model: String(formData.get("openai_model") ?? prev.openai_model),
     gemini_api_key: String(formData.get("gemini_api_key") ?? "") || null,
     gemini_model: String(formData.get("gemini_model") ?? prev.gemini_model),

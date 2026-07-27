@@ -8,7 +8,6 @@ import type {
   ChartLineBlock,
   ForAgainstBlock,
   ForAgainstRow,
-  QuestionListBlock,
   ReportContent,
   ReportAssets,
   StatGridBlock,
@@ -104,7 +103,6 @@ export function ReportDeck({ content, assets }: { content: ReportContent; assets
   const roadmap = firstOf<TableBlock>(section(content, "roadmap"), "table");
   const phases = firstOf<StepListBlock>(section(content, "roadmap"), "step_list");
   const decisionSec = section(content, "decision");
-  const questions = firstOf<QuestionListBlock>(decisionSec, "question_list");
   const nextAction = decisionSec?.blocks.find((b): b is CalloutBlock => b.type === "callout");
 
   const profitCard = heroCards?.stats.find((s) => s.label.toLowerCase().includes("net profit"));
@@ -293,13 +291,6 @@ export function ReportDeck({ content, assets }: { content: ReportContent; assets
       <a className="cbd-cta" href={BOOKING_URL} target="_blank" rel="noreferrer">
         Book your call →
       </a>
-      {questions && (
-        <ol className="cbd-ask cbd-ask--small">
-          {questions.questions.map((q) => (
-            <li key={q.order}>{q.question}</li>
-          ))}
-        </ol>
-      )}
       <div className="cbd-meta">Conversion Brands</div>
     </Slide>,
   );

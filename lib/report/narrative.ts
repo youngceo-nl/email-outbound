@@ -1,5 +1,7 @@
 import "server-only";
 import { analyseProspect, type Analysis } from "./ai/analyse";
+import { critiquePassages } from "./ai/critique";
+import { writeThesis } from "./ai/thesis";
 import { buildDossier } from "./ai/dossier";
 import { SLOT_TO_SECTION, writePassages, type Slot } from "./ai/write";
 import type { LadderResult } from "./build";
@@ -260,28 +262,9 @@ function applyAnalysisBlocks(content: ReportContent, analysis: Analysis, facts: 
     });
   }
 
-  const decision = content.sections.find((s) => s.key === "decision");
-  if (decision) {
-    if (analysis.risks.length > 0) {
-      decision.blocks.unshift({
-        type: "callout",
-        tone: "risk",
-        title: "What would put this launch at risk",
-        text: analysis.risks.join(" "),
-      });
-    }
-    // "What must be validated" is in the required flow, and stating it is what
-    // separates a diagnosis from a pitch.
-    if (analysis.missing_information.length > 0) {
-      decision.blocks.push({
-        type: "table",
-        variant: "default",
-        emphasizeColumn: null,
-        columns: ["Still to confirm", "Why it matters", "How to resolve it"],
-        rows: analysis.missing_information.map((m) => [m.item, m.why_it_matters, m.recommended_resolution]),
-      });
-    }
-  }
+  // Risks and missing_information stay off the prospect-facing document — the
+  // closing page is the ask, not a caveat list. Both remain in the stored
+  // analysis for the team.
 
   return unknownCitations;
 }
@@ -314,6 +297,13 @@ export async function generateNarrativeDetailed(args: {
   /** From buildReport(). Optional so older callers keep working; without it the
    *  viability gate and ladder context are simply absent, as before. */
   ladder?: LadderResult;
+  /** Linked-channel collection, when one ran. */
+  youtube?: {
+    channel: string;
+    subscribers: number | null;
+    uploads_last_30_days: number;
+    recent_video_titles: string[];
+  } | null;
 }): Promise<NarrativeResult> {
   const dossier = buildDossier({
     lead: args.lead,
@@ -322,7 +312,10 @@ export async function generateNarrativeDetailed(args: {
     assumptions: args.content.assumptions,
     limitations: args.content.limitations,
     offerLadder: args.ladder?.summary ?? null,
+    youtube: args.youtube ?? null,
   });
+
+  const rejectedEarly: NarrativeResult["rejected"] = [];
 
   const analysed = await analyseProspect(dossier);
   if (analysed.ok && args.ladder) enforceViability(analysed.analysis, args.ladder);
@@ -338,7 +331,28 @@ export async function generateNarrativeDetailed(args: {
     };
   }
 
-  const written = await writePassages({ dossier, analysis: analysed.analysis });
+  /*
+   * Stage 8: the thesis. Committed before any prose exists, and subject to the
+   * same numeric gate as everything else — a verdict sentence with an invented
+   * figure keeps the deterministic route thesis instead.
+   */
+  const allowedForThesis = allowedNumbers(args.facts, args.scenarios, args.content);
+  const thesised = await writeThesis({ dossier, analysis: analysed.analysis });
+  let thesisText: string | null = null;
+  if (thesised.ok) {
+    const inventedVerdict = inventedNumbers(thesised.thesis.verdict_sentence, allowedForThesis);
+    const inventedThesis = inventedNumbers(thesised.thesis.thesis, allowedForThesis);
+    if (inventedVerdict.length === 0 && inventedThesis.length === 0) {
+      args.content.metadata.thesis = thesised.thesis.verdict_sentence;
+      thesisText = thesised.thesis.thesis;
+    } else {
+      rejectedEarly.push({ slot: "thesis", reason: `invented figures: ${[...inventedVerdict, ...inventedThesis].join(", ")}` });
+    }
+  } else {
+    rejectedEarly.push({ slot: "thesis", reason: thesised.reason });
+  }
+
+  let written = await writePassages({ dossier, analysis: analysed.analysis, thesis: thesisText });
   if (!written.ok) {
     // The analysis is still worth having even if the prose pass failed — its
     // verdict, risks and recommended event carry no figures and stand alone.
@@ -354,8 +368,32 @@ export async function generateNarrativeDetailed(args: {
     };
   }
 
+  /*
+   * Stage 10/11: critique, then one revision round. The critic applies the
+   * find-and-replace test; flagged passages go back to the writer with the
+   * critique attached. One round only — a passage that cannot become specific
+   * in two attempts ships as template, and the numeric gate below still runs
+   * on whatever comes back.
+   */
+  try {
+    const critique = await critiquePassages({
+      passages: written.passages,
+      prospect: { displayName: args.content.metadata.displayName, niche: args.lead.niche },
+      thesis: thesisText,
+    });
+    if (critique.ok && critique.flagged.length > 0) {
+      const revise = Object.fromEntries(critique.flagged.map((f) => [f.slot, f.fix]));
+      const revised = await writePassages({ dossier, analysis: analysed.analysis, thesis: thesisText, revise });
+      if (revised.ok) written = revised;
+      console.log(`[narrative] critique flagged ${critique.flagged.length} passage(s); revised`);
+    }
+  } catch (err) {
+    // The critique is a quality pass, never a gate on shipping.
+    console.warn(`[narrative] critique failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   const allowed = allowedNumbers(args.facts, args.scenarios, args.content);
-  const rejected: NarrativeResult["rejected"] = [];
+  const rejected: NarrativeResult["rejected"] = [...rejectedEarly];
 
   for (const [slot, sectionKey] of Object.entries(SLOT_TO_SECTION) as Array<[Slot, SectionKey]>) {
     const passage = written.passages[slot];

@@ -48,7 +48,13 @@ export type BuildArgs = {
    * competitors render in the document as the evidence behind it.
    */
   research?: NicheResearch | null;
+  /** Prices captured off other properties (YouTube descriptions, site pages). */
+  extraPrices?: CapturedPrice[] | null;
+  /** Reachable audience per platform. Charts when two or more are known. */
+  platforms?: PlatformReach[] | null;
 };
+
+export type PlatformReach = { platform: string; audience: number; detail: string | null };
 
 export type NicheResearch = {
   band: { mid: number; high: number };
@@ -106,7 +112,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
    * a loss. Now: missing mid → model the proposed category-priced offer, and
    * today's price appears in the chart as the loss it is.
    */
-  const routed = routeFirst(lead, args.overrides, args.research);
+  const routed = routeFirst(lead, args.overrides, args.research, args.extraPrices ?? []);
 
   const resolution = resolveAssumptions({
     followers: lead.followers,
@@ -263,6 +269,22 @@ export function buildReport(args: BuildArgs): BuiltReport {
               ]
             : []),
           { type: "stat_grid", stats: audienceStats(lead).slice(0, 3) },
+          // Chart 4 (v3 §6): the audience is bigger than one platform's count.
+          // Renders only when at least two platforms are actually known.
+          ...((args.platforms?.length ?? 0) >= 2
+            ? [
+                {
+                  type: "chart_funnel" as const,
+                  caption: `Reachable audience across ${args.platforms!.length} platforms: ${count(args.platforms!.reduce((n, p) => n + p.audience, 0))} total, against ${compact(args.platforms![0].audience)} on ${args.platforms![0].platform} alone.`,
+                  stages: args.platforms!.map((p) => ({
+                    label: p.platform,
+                    value: p.audience,
+                    display: compact(p.audience),
+                    conversion: p.detail,
+                  })),
+                },
+              ]
+            : []),
         ],
       },
 
@@ -535,20 +557,19 @@ export function buildReport(args: BuildArgs): BuiltReport {
       {
         key: "decision",
         title: "The Next Step",
-        subtitle: "One call. Bring answers to the three questions below.",
+        subtitle: null,
         blocks: [
           {
             type: "callout",
             tone: ladderResult.viable ? "good" : "risk",
-            // The ask is a call, plainly. The viability gate still applies to
-            // the deterministic copy: a losing projected case may never carry a
-            // proceed recommendation (v3 §8).
+            // The ask is a call, plainly — no question list, no homework. The
+            // viability gate still applies to the deterministic copy: a losing
+            // projected case may never carry a proceed recommendation (v3 §8).
             title: "Book the build call",
             text: ladderResult.viable
-              ? `One call to confirm the offer and lock the 21-day build. Bring the three answers below and we can start the same week.`
+              ? `One call to confirm the offer and lock the 21-day build. We can start the same week.`
               : `One call — but the first agenda item is the price, because at today's price this launch loses money. Page one shows the same launch at category pricing.`,
           },
-          { type: "question_list", questions: decisionQuestions(resolution, offerName).slice(0, 3) },
         ],
       },
     ],
@@ -651,30 +672,6 @@ function assetReadiness(lead: Lead): string[][] {
   return rows;
 }
 
-/**
- * The questions worth asking, driven by what actually needs confirming.
- *
- * Anything the cascade flagged becomes a question, so the document asks about its
- * own weakest inputs instead of a fixed list that may not apply.
- */
-function decisionQuestions(resolution: ResolveResult, offerName: string): { order: number; question: string }[] {
-  const questions: string[] = [];
-
-  if (resolution.needsConfirmation.includes("front_end_price")) {
-    questions.push(`Is ${offerName} the intended webinar checkout offer, and is the price used here correct?`);
-  }
-  if (resolution.needsConfirmation.includes("backend_offer_price")) {
-    questions.push("What is the private offer's real price, and how many clients can be taken per launch?");
-  }
-  if (resolution.needsConfirmation.includes("organic_visitors")) {
-    questions.push("What audience and list can actually be activated for a launch?");
-  }
-  questions.push("Will the event be live once, recurring live, or recorded-hybrid?");
-  questions.push("Which organic channels will actively promote it?");
-  questions.push("What refund, trial, payment-plan, and financing terms apply to buyers?");
-
-  return questions.map((question, i) => ({ order: i + 1, question }));
-}
 
 /**
  * Builds the offer ladder from everything the funnel scrape captured, routes the
@@ -702,7 +699,12 @@ type Routed = {
  *                   high-ticket taking the backend slot
  *   discovery     → the band midpoint, plainly labelled
  */
-function routeFirst(lead: Lead, overrides: ReportOverrides | undefined, research: NicheResearch | null | undefined): Routed {
+function routeFirst(
+  lead: Lead,
+  overrides: ReportOverrides | undefined,
+  research: NicheResearch | null | undefined,
+  extraPrices: CapturedPrice[] = [],
+): Routed {
   const captured: CapturedPrice[] =
     lead.funnel_prices && lead.funnel_prices.length > 0
       ? lead.funnel_prices
@@ -725,7 +727,7 @@ function routeFirst(lead: Lead, overrides: ReportOverrides | undefined, research
     humanEntries.push({ raw: usd(overrides.ladder_low_price), label: "Entry offer (set by the team)", url: null, source: "human", declaredRung: "low" });
   }
 
-  const ladder = buildLadder([...humanEntries, ...captured]);
+  const ladder = buildLadder([...humanEntries, ...captured, ...extraPrices]);
   const niche = matchNiche(lead.niche, lead.business_model);
   const band: PriceBand = research
     ? {
