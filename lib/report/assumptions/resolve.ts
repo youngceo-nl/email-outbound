@@ -58,6 +58,16 @@ export type ResolveArgs = {
   /** Replaces the standard P&L lines entirely when provided. */
   expenses?: ExpenseLine[];
   confirmedBy?: string | null;
+  /**
+   * The deal value the report's route proposes — supplied by the ladder, which
+   * knows what rung the scraped price sits on. Without this, a $100 capture
+   * product scraped off a page becomes the "observed" front-end price and the
+   * whole launch models a product no webinar would sell. Beats the raw
+   * funnel-price parse; loses to a human override.
+   */
+  frontEndCandidate?: { value: number; tier: Tier; source: string; needsConfirmation: boolean } | null;
+  /** An observed high-ticket offer, used as the backend when nothing beats it. */
+  backendCandidate?: { value: number; source: string } | null;
 };
 
 export type ResolvedInput = {
@@ -169,7 +179,30 @@ function resolveOne(key: AssumptionKey, ctx: ResolveOneCtx): ResolvedInput {
     };
   }
 
-  // ── 2. observed ───────────────────────────────────────────────────────────
+  // ── 2. observed / route-proposed ──────────────────────────────────────────
+  // The ladder outranks the raw parse: it has already decided which rung the
+  // scraped price occupies and what deal value this report should model.
+  if (key === "front_end_price" && args.frontEndCandidate) {
+    const candidate = args.frontEndCandidate;
+    return {
+      key,
+      label,
+      value: candidate.value,
+      tier: candidate.tier,
+      source: candidate.source,
+      needsConfirmation: candidate.needsConfirmation,
+    };
+  }
+  if (key === "backend_offer_price" && args.backendCandidate) {
+    return {
+      key,
+      label,
+      value: args.backendCandidate.value,
+      tier: "observed",
+      source: args.backendCandidate.source,
+      needsConfirmation: true,
+    };
+  }
   if (key === "front_end_price" && parsed.ok) {
     const front = frontEndPriceFrom(parsed.price);
     const where = args.funnelPlatform ? `their ${args.funnelPlatform} page` : "their offer page";
