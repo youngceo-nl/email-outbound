@@ -69,8 +69,10 @@ export type BuiltReport = {
 };
 
 export type PricePoint = {
-  key: "observed" | "band_mid" | "band_high";
+  key: "entry" | "observed" | "band_mid" | "band_high";
   label: string;
+  /** Short label for the chart bar: "Your price", "Category mid", … */
+  chartLabel: string;
   price: number;
   outputs: ScenarioOutputs;
 };
@@ -792,31 +794,66 @@ function assembleLadderResult(routed: Routed, resolution: ResolveResult, scenari
   // capture product, which is exactly the case where the chart argues the price
   // is the constraint.
   const observedEntry = decision.modeledEntry ?? ladder.rungs.low[0] ?? ladder.rungs.high[0] ?? null;
+  const humanPriced = observedEntry?.source === "human";
+  const lowEntry = ladder.rungs.low[0] ?? null;
 
   const at = (price: number): ScenarioOutputs =>
     calculateScenario({ ...resolution.inputs.projected, front_end_price: price });
 
+  /*
+   * Every bar must have a basis: a price someone actually set, a price actually
+   * observed, or a band actually researched. The defaults-table band exists so
+   * the *model* has a starting point — it is not evidence, and drawing it as
+   * "Category mid $997" next to a real price presented invented-looking numbers
+   * as if they meant something. Assumed bands never chart. The one exception:
+   * nothing else exists at all, in which case the band is the model's only
+   * input and the caption already names it a stated starting point.
+   */
+  const showBand = band.tier === "researched" || !observedEntry;
+
   const rawPoints: PricePoint[] = [
+    ...(lowEntry && observedEntry && lowEntry !== observedEntry
+      ? [
+          {
+            key: "entry" as const,
+            label: `Entry offer (${lowEntry.raw})`,
+            chartLabel: lowEntry.source === "human" ? "Your entry offer" : "Their entry offer",
+            price: lowEntry.amount,
+            outputs: at(lowEntry.amount),
+          },
+        ]
+      : []),
     ...(observedEntry
       ? [
           {
             key: "observed" as const,
             label: `Observed (${observedEntry.raw})`,
+            chartLabel: humanPriced ? "Your price" : "Today's price",
             price: observedEntry.amount,
             outputs: at(observedEntry.amount),
           },
         ]
       : []),
-    { key: "band_mid" as const, label: `Category band mid (${usd(band.mid)})`, price: band.mid, outputs: at(band.mid) },
-    {
-      key: "band_high" as const,
-      label: `Category band high (${usd(band.high)})`,
-      price: band.high,
-      outputs: at(band.high),
-    },
+    ...(showBand
+      ? [
+          {
+            key: "band_mid" as const,
+            label: `Category band mid (${usd(band.mid)})`,
+            chartLabel: "Category mid",
+            price: band.mid,
+            outputs: at(band.mid),
+          },
+          {
+            key: "band_high" as const,
+            label: `Category band high (${usd(band.high)})`,
+            chartLabel: "Category high",
+            price: band.high,
+            outputs: at(band.high),
+          },
+        ]
+      : []),
   ];
-  // Two bars at the same price argue nothing — when today's price sits exactly
-  // on a band point, the band point yields (the observed bar carries the story).
+  // Two bars at the same price argue nothing — first basis wins.
   const pricePoints = rawPoints.filter(
     (point, i) => rawPoints.findIndex((other) => other.price === point.price) === i,
   );
@@ -933,16 +970,20 @@ function heroBlocks(
 
   const observed = points.find((p) => p.key === "observed");
   const bandMid = points.find((p) => p.key === "band_mid");
-  const caption =
-    observed && observed.outputs.front_end_net_profit < 0 && bandMid && bandMid.outputs.front_end_net_profit > 0
+  const humanPriced = observed?.chartLabel === "Your price";
+  const caption = humanPriced
+    ? `Modelled at the prices you set — each bar is the same launch and the same conversion assumptions, selling a different rung at checkout.`
+    : observed && observed.outputs.front_end_net_profit < 0 && bandMid && bandMid.outputs.front_end_net_profit > 0
       ? `At ${usd(observed.price)} the launch loses ${usd(Math.abs(roundForDisplay(observed.outputs.front_end_net_profit, 0)))}. At ${usd(bandMid.price)}, the same audience and the same conversion assumptions net ${usd(roundForDisplay(bandMid.outputs.front_end_net_profit, 0))} — the price is the constraint, not the funnel.`
-      : `Same audience, same conversion assumptions — only the price moves. The category band is ${ladder.band.tier === "researched" ? "researched" : "a stated starting point"}, and every figure traces to the closing table.`;
+      : bandMid
+        ? `Same audience, same conversion assumptions — only the price moves. The category band is ${ladder.band.tier === "researched" ? "researched from live competitors" : "a stated starting point"}.`
+        : `Same audience, same conversion assumptions — only the price moves.`;
 
   const chart: ReportBlock = {
     type: "chart_bars",
     caption,
     bars: points.map((point) => ({
-      label: point.key === "observed" ? "Today's price" : point.key === "band_mid" ? "Category mid" : "Category high",
+      label: point.chartLabel,
       sublabel: usd(point.price),
       value: point.outputs.front_end_net_profit,
       display: usd(roundForDisplay(point.outputs.front_end_net_profit, 0)),
