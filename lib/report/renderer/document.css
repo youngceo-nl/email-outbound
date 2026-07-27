@@ -578,15 +578,17 @@
   align-items: center;
   justify-content: center;
 }
-.cb-verdictpage__verdict {
+/* Doubled selector on purpose: the element is an h1 inside .cb-cover, and the
+   old cover rule (.cb-cover h1, max-width 16ch) outranks a single class — which
+   is exactly what kept folding the verdict into a three-word column. */
+.cb-verdictpage__verdict,
+.cb-cover h1.cb-verdictpage__verdict {
   font-family: var(--display);
   font-weight: 800;
   font-size: 23pt;
   line-height: 1.14;
   letter-spacing: -0.015em;
   margin: 0 0 10mm;
-  /* Full measure. A max-width here folded the sentence into a narrow left
-     column — a verdict reads as a statement only when it runs the line. */
   max-width: none;
 }
 .cb-verdictpage__cards {

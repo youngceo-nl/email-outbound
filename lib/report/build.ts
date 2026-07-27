@@ -96,6 +96,16 @@ export function buildReport(args: BuildArgs): BuiltReport {
   const { lead } = args;
   const preparedAt = args.preparedAt ?? new Date();
 
+  /*
+   * The ladder routes BEFORE the assumptions resolve, because the route decides
+   * what deal value this report models. The old order fed whatever price the
+   * scrape found straight into the scenario as "observed" — which is how a $100
+   * capture product became the front-end of a launch P&L and page one opened on
+   * a loss. Now: missing mid → model the proposed category-priced offer, and
+   * today's price appears in the chart as the loss it is.
+   */
+  const routed = routeFirst(lead, args.overrides, args.research);
+
   const resolution = resolveAssumptions({
     followers: lead.followers,
     niche: lead.niche,
@@ -105,6 +115,8 @@ export function buildReport(args: BuildArgs): BuiltReport {
     funnelPlatform: lead.funnel_platform,
     overrides: args.overrides,
     confirmedBy: args.confirmedBy,
+    frontEndCandidate: routed.frontEndCandidate,
+    backendCandidate: routed.backendCandidate,
   });
 
   const scenarios: ScenarioSet = {
@@ -112,7 +124,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
     worst: calculateScenario(resolution.inputs.worst),
   };
 
-  const ladderResult = deriveLadder(lead, resolution, scenarios, args.overrides, args.research);
+  const ladderResult = assembleLadderResult(routed, resolution, scenarios);
 
   const facts = leadFacts(lead);
   const contentAnalysis = analyseContent(lead);
@@ -653,13 +665,26 @@ function decisionQuestions(resolution: ResolveResult, offerName: string): { orde
  * The band is a labelled starting point until niche price research (v3 §3.4)
  * replaces it with cited competitors — its tier says so and the report prints it.
  */
-function deriveLadder(
-  lead: Lead,
-  resolution: ResolveResult,
-  scenarios: ScenarioSet,
-  overrides?: ReportOverrides,
-  research?: NicheResearch | null,
-): LadderResult {
+type Routed = {
+  ladder: Ladder;
+  band: PriceBand;
+  decision: RouteDecision;
+  frontEndCandidate: { value: number; tier: "observed" | "researched" | "assumed"; source: string; needsConfirmation: boolean } | null;
+  backendCandidate: { value: number; source: string } | null;
+};
+
+/**
+ * Everything the route decides, computed before the cascade runs.
+ *
+ * The front-end candidate is the deal value the report proposes:
+ *   standard      → the observed mid-ticket, as scraped
+ *   missing_mid   → the category band's midpoint — a proposed offer, to be built
+ *   repricing     → the band midpoint — the same offer, repriced
+ *   application   → the band midpoint as the entry offer, with the observed
+ *                   high-ticket taking the backend slot
+ *   discovery     → the band midpoint, plainly labelled
+ */
+function routeFirst(lead: Lead, overrides: ReportOverrides | undefined, research: NicheResearch | null | undefined): Routed {
   const captured: CapturedPrice[] =
     lead.funnel_prices && lead.funnel_prices.length > 0
       ? lead.funnel_prices
@@ -668,17 +693,13 @@ function deriveLadder(
         : [];
 
   // Prices the team typed into the generate menu outrank the scrape in the
-  // ladder too — same precedence the cascade gives them. The low ticket exists
-  // only here: it has no scenario input, but a low rung that exists is
-  // evidence, and it changes the route.
+  // ladder too — same precedence the cascade gives them.
   const humanEntries: CapturedPrice[] = [];
-  const humanFrontEnd = resolution.resolved.find((r) => r.key === "front_end_price");
-  if (humanFrontEnd?.tier === "human") {
-    humanEntries.push({ raw: usd(humanFrontEnd.value), label: "Front-end offer (set by the team)", url: null, source: "human" });
+  if (overrides?.front_end_price && overrides.front_end_price > 0) {
+    humanEntries.push({ raw: usd(overrides.front_end_price), label: "Front-end offer (set by the team)", url: null, source: "human" });
   }
-  const humanBackend = resolution.resolved.find((r) => r.key === "backend_offer_price");
-  if (humanBackend?.tier === "human") {
-    humanEntries.push({ raw: usd(humanBackend.value), label: "Backend offer (set by the team)", url: null, source: "human" });
+  if (overrides?.backend_offer_price && overrides.backend_offer_price > 0) {
+    humanEntries.push({ raw: usd(overrides.backend_offer_price), label: "Backend offer (set by the team)", url: null, source: "human" });
   }
   if (overrides?.ladder_low_price && overrides.ladder_low_price > 0) {
     humanEntries.push({ raw: usd(overrides.ladder_low_price), label: "Entry offer (set by the team)", url: null, source: "human" });
@@ -702,11 +723,57 @@ function deriveLadder(
       : { ...DEFAULT_PRICE_BAND, source: "category starting point (no niche match)", tier: "assumed" };
   const decision = routeLadder(ladder, band);
 
-  // The observed point is the price a webinar would actually sell: the routed
-  // mid entry when one exists, otherwise the top capture product — which is
-  // exactly the case where this chart argues the price is the constraint.
-  const observedEntry =
-    decision.modeledEntry ?? ladder.rungs.low[0] ?? ladder.rungs.high[0] ?? null;
+  const when = lead.funnel_extracted_at ? `, ${reportDate(lead.funnel_extracted_at)}` : "";
+  const where = lead.funnel_platform ? `their ${lead.funnel_platform} page` : "their offer page";
+
+  let frontEndCandidate: Routed["frontEndCandidate"] = null;
+  switch (decision.route) {
+    case "standard":
+      frontEndCandidate = decision.modeledEntry
+        ? {
+            value: decision.modeledEntry.amount,
+            tier: "observed",
+            source: `${decision.modeledEntry.raw} on ${where}${when}`,
+            needsConfirmation: decision.modeledEntry.ambiguous,
+          }
+        : null;
+      break;
+    case "repricing":
+      frontEndCandidate = {
+        value: band.mid,
+        tier: band.tier,
+        source: `${band.source} — proposed repricing of ${decision.modeledEntry?.raw ?? "the current offer"}`,
+        needsConfirmation: true,
+      };
+      break;
+    case "missing_mid":
+    case "application_funnel":
+    case "discovery":
+      frontEndCandidate = {
+        value: band.mid,
+        tier: band.tier,
+        source: `${band.source} — proposed offer, to be built`,
+        needsConfirmation: true,
+      };
+      break;
+  }
+
+  // An observed high-ticket is the backend, not the webinar checkout.
+  const observedHigh = ladder.rungs.high.find((entry) => entry.source !== "human") ?? null;
+  const backendCandidate = observedHigh
+    ? { value: observedHigh.amount, source: `${observedHigh.raw} on ${where}${when}` }
+    : null;
+
+  return { ladder, band, decision, frontEndCandidate, backendCandidate };
+}
+
+function assembleLadderResult(routed: Routed, resolution: ResolveResult, scenarios: ScenarioSet): LadderResult {
+  const { ladder, band, decision } = routed;
+
+  // The observed point is what they charge today — the routed mid, or the top
+  // capture product, which is exactly the case where the chart argues the price
+  // is the constraint.
+  const observedEntry = decision.modeledEntry ?? ladder.rungs.low[0] ?? ladder.rungs.high[0] ?? null;
 
   const at = (price: number): ScenarioOutputs =>
     calculateScenario({ ...resolution.inputs.projected, front_end_price: price });
@@ -825,7 +892,14 @@ function heroBlocks(
       {
         label: "What you sell",
         value: usd(frontEndPrice),
-        sublabel: priceTier === "observed" || priceTier === "human" ? offerShort : `${offerShort} — price assumed`,
+        sublabel:
+          priceTier === "human"
+            ? offerShort
+            : ladder.decision.route === "standard"
+              ? offerShort
+              : ladder.decision.route === "repricing"
+                ? `${offerShort} — repriced`
+                : "proposed offer — to be built",
       },
       { label: "Projected CPA", value: usd(roundForDisplay(e.cpa, 0)), sublabel: "ad spend per buyer" },
     ],

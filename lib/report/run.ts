@@ -94,6 +94,9 @@ export async function runReport(reportId: string): Promise<RunResult> {
      * is non-fatal: the band falls back to the defaults table, labelled assumed.
      */
     let research: NicheResearch | null = null;
+    // Skipped or failed stages are recorded ON THE ROW, not just in logs — a
+    // 20-second template report with no explanation is worse than a visible one.
+    const issues: string[] = [];
     if (!report.overrides_json?.front_end_price) {
       try {
         const outcome = await researchNichePricing({
@@ -106,16 +109,15 @@ export async function runReport(reportId: string): Promise<RunResult> {
         if (outcome.ok) {
           research = outcome.research;
           console.log(
-            `[report] niche research: ${outcome.research.competitors.length} comparables in ${Math.round(outcome.elapsedMs / 1000)}s (${outcome.searches} searches)`,
+            `[report] niche research (${outcome.provider}): ${outcome.research.competitors.length} comparables in ${Math.round(outcome.elapsedMs / 1000)}s`,
           );
         } else {
-          console.warn(`[report] niche research skipped: ${outcome.reason}`);
+          issues.push(`Price research did not run (${outcome.reason}) — category band is a default.`);
         }
       } catch (err) {
-        await logError({
-          context: "runReport/niche-research",
-          error_message: `lead ${enriched.id}: ${err instanceof Error ? err.message : String(err)}`,
-        });
+        const msg = err instanceof Error ? err.message : String(err);
+        issues.push(`Price research failed (${msg.slice(0, 140)}) — category band is a default.`);
+        await logError({ context: "runReport/niche-research", error_message: `lead ${enriched.id}: ${msg}` });
       }
     }
 
@@ -150,7 +152,16 @@ export async function runReport(reportId: string): Promise<RunResult> {
       formulaVersion: FORMULA_VERSION,
     });
 
-    const pdf = await renderPdf(reportId, narrative.content, enriched.profile_pic_url);
+    if (!narrative.usedModel) {
+      issues.push(`AI analysis did not run (${narrative.rejected[0]?.reason ?? "unknown"}) — template prose only.`);
+    }
+
+    const preRenderElapsed = Math.round((Date.now() - startedAt) / 1000);
+    if (preRenderElapsed < 90 && issues.length === 0) {
+      issues.push(`Generated in ${preRenderElapsed}s — under the 90s research floor; check which stage no-opped.`);
+    }
+
+    const pdf = await renderPdf(reportId, narrative.content, enriched.profile_pic_url, issues);
 
     /*
      * The 15-seconds tell (v3 §1/§9): a report that generated that fast
@@ -197,6 +208,7 @@ async function renderPdf(
   reportId: string,
   content: Awaited<ReturnType<typeof buildReport>>["content"],
   profilePicUrl: string | null,
+  issues: string[] = [],
 ): Promise<{ ok: true } | { ok: false; note: string }> {
   const NOTE =
     "Ready to read. Automatic PDF rendering is unavailable — open the preview and print to PDF, or set BROWSER_WS_ENDPOINT to enable it.";
@@ -223,13 +235,13 @@ async function renderPdf(
         footerTemplate: FOOTER,
       });
 
-      await markReady(reportId, await uploadPdf(reportId, Buffer.from(pdf)));
+      await markReady(reportId, await uploadPdf(reportId, Buffer.from(pdf)), issues.length ? issues.join(" ") : undefined);
       return { ok: true };
     } finally {
       await browser.close();
     }
   } catch (err) {
-    await markReady(reportId, null, NOTE);
+    await markReady(reportId, null, [NOTE, ...issues].join(" "));
     await logError({
       context: "runReport/render-pdf",
       error_message: `report ${reportId}: ${err instanceof Error ? err.message : String(err)}`,
