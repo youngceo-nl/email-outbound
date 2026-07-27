@@ -218,8 +218,9 @@ export function ReportDeck({ content, assets }: { content: ReportContent; assets
         {TESTIMONIALS.map((client) => (
           <a key={client.handle} className="cbd-wall__card" href={client.href} target="_blank" rel="noreferrer">
             {/* eslint-disable-next-line @next/next/no-img-element -- static deck */}
-            <img src={client.image} alt={client.name} loading="lazy" />
+            <img src={client.image} alt={`${client.name} — ${client.work}`} loading="lazy" />
             <span className="cbd-wall__name">{client.name}</span>
+            <span className="cbd-wall__work">{client.work}</span>
             <span className="cbd-wall__handle">@{client.handle}</span>
           </a>
         ))}

@@ -1,6 +1,7 @@
 import type {
   CalloutBlock,
   CaseStudyBlock,
+  ClientWallBlock,
   ForAgainstBlock,
   ForAgainstRow,
   LadderBlock,
@@ -182,6 +183,22 @@ function ForAgainst({ block }: { block: ForAgainstBlock }) {
   );
 }
 
+function ClientWall({ block }: { block: ClientWallBlock }) {
+  return (
+    <div className="cb-wall">
+      {block.clients.map((client) => (
+        <a key={client.handle} className="cb-wall__card" href={client.href} target="_blank" rel="noreferrer">
+          {/* eslint-disable-next-line @next/next/no-img-element -- print document */}
+          <img src={client.image} alt={`${client.name} — ${client.work}`} loading="lazy" />
+          <span className="cb-wall__name">{client.name}</span>
+          <span className="cb-wall__work">{client.work}</span>
+          <span className="cb-wall__handle">@{client.handle}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export function Block({ block }: { block: ReportBlock }) {
   switch (block.type) {
     case "paragraph":
@@ -208,5 +225,7 @@ export function Block({ block }: { block: ReportBlock }) {
       return <ChartFunnel block={block} />;
     case "for_against":
       return <ForAgainst block={block} />;
+    case "client_wall":
+      return <ClientWall block={block} />;
   }
 }

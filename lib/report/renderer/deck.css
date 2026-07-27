@@ -353,3 +353,10 @@ body.cbd-body {
   color: var(--brand-700);
   margin-top: 10px;
 }
+
+.cbd-wall__work {
+  display: block;
+  font-size: 10.5px;
+  color: var(--brand-700);
+  padding: 1px 9px 0;
+}
