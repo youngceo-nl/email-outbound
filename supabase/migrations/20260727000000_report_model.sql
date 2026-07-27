@@ -5,16 +5,20 @@
 -- exactly where a small model produces confident generalities instead of
 -- findings — so it gets its own setting rather than sharing openai_model.
 --
--- Default is gpt-5.6-terra: the same organisation's report-generator repo
--- verified that ID against the live OpenAI catalog on 2026-07-14 and chose it
--- specifically for report generation (gpt-5.6-luna for extraction,
--- gpt-5.6-sol for premium review). If deeper analysis is wanted later,
--- gpt-5.6-sol is the upgrade — change this one value, no code change.
+-- Default is claude-sonnet-5. The report's value is entirely in the quality of the
+-- reasoning behind it, which is the one thing worth paying for here — a report costs
+-- cents either way, and a weak one costs a prospect.
 --
--- If the ID is ever rejected by the API, lib/report/ai/client.ts falls back to
--- openai_model so a bad value degrades the prose rather than breaking reports.
+-- lib/report/ai/client.ts infers the provider from this string: anything starting
+-- with "claude" goes to the Anthropic API, anything else to OpenAI. So switching
+-- providers is this one value (gpt-5.6-terra for the OpenAI equivalent, gpt-5.6-sol
+-- for its premium tier) — no code change, no second setting to keep in sync.
+--
+-- If the ID is rejected, or that provider has no key configured, the client falls
+-- back to claude_model and then openai_model, so a bad value degrades the prose
+-- rather than breaking report generation.
 alter table public.app_settings
-  add column if not exists report_model text not null default 'gpt-5.6-terra';
+  add column if not exists report_model text not null default 'claude-sonnet-5';
 
 -- House strategy brief, appended to the report analysis prompt.
 --

@@ -16,13 +16,24 @@ export type FunnelEnrichmentResult = {
   funnel_program_name: string | null;
   funnel_offer_summary: string | null;
   funnel_price: string | null;
+  funnel_prices: CapturedFunnelPrice[];
   error: string | null;
+};
+
+/** Matches leads.funnel_prices entries and lib/report/ladder.ts CapturedPrice. */
+export type CapturedFunnelPrice = {
+  raw: string;
+  label: string | null;
+  url: string | null;
+  source: string;
+  context?: string | null;
 };
 
 type FunnelData = {
   funnel_url: string;
   funnel_platform: string;
   program: { program_name: string | null; offer_summary: string | null; price: string | null };
+  prices: CapturedFunnelPrice[];
   error: string | null;
 };
 
@@ -64,6 +75,7 @@ export async function enrichFunnelForLead(opts: {
           funnel_url: entry.finalUrl,
           funnel_platform: entryClass.platform,
           program: { program_name: domainName, offer_summary: null, price: null },
+          prices: [],
           error: "no_drill_candidate",
         });
       }
@@ -77,6 +89,13 @@ export async function enrichFunnelForLead(opts: {
     let program_name = cheap.program_name ?? domainName;
     let offer_summary = cheap.offer_summary;
     let price = cheap.price;
+    const prices: CapturedFunnelPrice[] = cheap.prices.map((p) => ({
+      raw: p.raw,
+      label: null,
+      url: pageUrl,
+      source: "offer_page",
+      context: p.context,
+    }));
 
     if (!cheap.good_enough) {
       try {
@@ -93,6 +112,16 @@ export async function enrichFunnelForLead(opts: {
           offer_summary = extraction.offer_summary ?? offer_summary;
           price = extraction.price ?? price;
         }
+        // LLM-read prices carry labels and cleaned periods the regex pass
+        // cannot see; both sets go in and the ladder dedupes on the raw string.
+        for (const p of extraction.prices) {
+          prices.push({
+            raw: p.period === "monthly" && !/[/]|per\s/i.test(p.price) ? `${p.price}/mo` : p.price,
+            label: p.label,
+            url: pageUrl,
+            source: "llm_extract",
+          });
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return persistResult({
@@ -100,6 +129,7 @@ export async function enrichFunnelForLead(opts: {
           funnel_url: pageUrl,
           funnel_platform: platform,
           program: { program_name, offer_summary, price },
+          prices,
           error: `llm_failed: ${msg.slice(0, 200)}`,
         });
       }
@@ -110,6 +140,7 @@ export async function enrichFunnelForLead(opts: {
       funnel_url: pageUrl,
       funnel_platform: platform,
       program: { program_name, offer_summary, price },
+      prices,
       error: null,
     });
   } catch (err) {
@@ -192,6 +223,13 @@ function extractFromPage(
     funnel_url: url,
     funnel_platform: platform,
     program: { program_name, offer_summary: cheap.offer_summary, price: cheap.price },
+    prices: cheap.prices.map((p) => ({
+      raw: p.raw,
+      label: null,
+      url,
+      source: "offer_page",
+      context: p.context,
+    })),
     error: null,
   };
 }
@@ -218,6 +256,7 @@ async function persistResult(args: {
   funnel_url: string;
   funnel_platform: string;
   program: { program_name: string | null; offer_summary: string | null; price: string | null };
+  prices: CapturedFunnelPrice[];
   error: string | null;
 }): Promise<FunnelEnrichmentResult> {
   const program_name = sanitizeProgramName(args.program.program_name);
@@ -230,6 +269,7 @@ async function persistResult(args: {
       funnel_program_name: program_name,
       funnel_offer_summary: args.program.offer_summary,
       funnel_price: args.program.price,
+      funnel_prices: args.prices.length > 0 ? args.prices : null,
       funnel_extracted_at: new Date().toISOString(),
       funnel_extraction_error: args.error,
     })
@@ -241,6 +281,7 @@ async function persistResult(args: {
     funnel_program_name: program_name,
     funnel_offer_summary: args.program.offer_summary,
     funnel_price: args.program.price,
+    funnel_prices: args.prices,
     error: args.error,
   };
 }
@@ -261,6 +302,7 @@ async function persistError(leadId: string, error: string): Promise<FunnelEnrich
     funnel_program_name: null,
     funnel_offer_summary: null,
     funnel_price: null,
+    funnel_prices: [],
     error,
   };
 }

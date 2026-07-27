@@ -1,7 +1,18 @@
 import type { Lead } from "@/lib/types";
-import { calculateScenario, roundForDisplay } from "./calculations/formulas";
-import type { AssumptionKey } from "./assumptions/defaults";
+import { calculateScenario, roundForDisplay, type ScenarioOutputs } from "./calculations/formulas";
+import { DEFAULT_PRICE_BAND, matchNiche, type AssumptionKey } from "./assumptions/defaults";
 import { limitationsFrom, resolveAssumptions, type ResolveResult } from "./assumptions/resolve";
+import {
+  RUNG_LABEL,
+  RUNGS,
+  buildLadder,
+  ladderSummary,
+  routeLadder,
+  type CapturedPrice,
+  type Ladder,
+  type PriceBand,
+  type RouteDecision,
+} from "./ladder";
 import { accessLimitations, internalSignals, leadFacts, sourceNotesFrom, type Fact, type InternalSignals } from "./facts";
 import { analyseContent, contentObservations } from "./content";
 import { compact, count, peopleRange, pct, reportDate, usd } from "./format";
@@ -34,6 +45,32 @@ export type BuiltReport = {
   facts: Fact[];
   /** Never rendered — see facts.ts. */
   signals: InternalSignals;
+  /** The offer ladder, the routing decision it produced, and the band used. */
+  ladder: LadderResult;
+};
+
+export type PricePoint = {
+  key: "observed" | "band_mid" | "band_high";
+  label: string;
+  price: number;
+  outputs: ScenarioOutputs;
+};
+
+export type LadderResult = {
+  ladder: Ladder;
+  decision: RouteDecision;
+  band: PriceBand;
+  /** The §3.3 payload — what the dossier and (later) charts consume. */
+  summary: ReturnType<typeof ladderSummary>;
+  /**
+   * The projected scenario re-run at up to three front-end prices: what was
+   * observed, the category band's midpoint, and its top end. Same assumptions
+   * throughout — only the price moves, which is what makes the comparison an
+   * argument rather than three unrelated guesses.
+   */
+  pricePoints: PricePoint[];
+  /** False when the projected case loses money at the modelled price. */
+  viable: boolean;
 };
 
 export function buildReport(args: BuildArgs): BuiltReport {
@@ -55,6 +92,8 @@ export function buildReport(args: BuildArgs): BuiltReport {
     projected: calculateScenario(resolution.inputs.projected),
     worst: calculateScenario(resolution.inputs.worst),
   };
+
+  const ladderResult = deriveLadder(lead, resolution, scenarios);
 
   const facts = leadFacts(lead);
   const contentAnalysis = analyseContent(lead);
@@ -78,7 +117,20 @@ export function buildReport(args: BuildArgs): BuiltReport {
       followersDisplay: lead.followers ? compact(lead.followers) : null,
       verified: lead.is_verified,
       reportTitle: "Webinar Strategy",
-      thesis: `A direct-checkout webinar selling ${offerName}, a selective private backend, and a practical 21-day launch plan.`,
+      // The route decides the argument. One fixed sentence for every prospect was
+      // the templated-output smell in its purest form; this is still a template
+      // sentence per shape, but the shape is chosen by their evidence — and the
+      // model's pass 1 sharpens it against the dossier.
+      //
+      // Discovery deliberately keeps the standard sentence for now: its route
+      // thesis says "this is a diagnostic, not a projection", which would sit
+      // over a document that still contains projection sections until the
+      // per-route skeletons land (v3 §3.5). A thesis must not contradict the
+      // pages under it.
+      thesis:
+        ladderResult.decision.route === "standard" || ladderResult.decision.route === "discovery"
+          ? `A direct-checkout webinar selling ${offerName}, a selective private backend, and a practical 21-day launch plan.`
+          : ladderResult.summary.thesis,
       purpose:
         "Show the simplest webinar model that fits the current offer stack, the economics required for it to work, and the pieces that would need to be built.",
       preparedAt: reportDate(preparedAt),
@@ -171,6 +223,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
             columns: ["Asset group", "Observed position", "Status"],
             rows: assetReadiness(lead),
           },
+          ...ladderBlocks(ladderResult),
         ],
       },
 
@@ -478,7 +531,7 @@ export function buildReport(args: BuildArgs): BuiltReport {
     ],
   };
 
-  return { content, scenarios, resolution, facts, signals: internalSignals(lead) };
+  return { content, scenarios, resolution, facts, signals: internalSignals(lead), ladder: ladderResult };
 
   /** Builds one scenario row of the projections table. */
   function row(label: string, render: (key: keyof ScenarioSet) => string): string[] {
@@ -576,4 +629,116 @@ function decisionQuestions(resolution: ResolveResult, offerName: string): { orde
   questions.push("What refund, trial, payment-plan, and financing terms apply to buyers?");
 
   return questions.map((question, i) => ({ order: i + 1, question }));
+}
+
+/**
+ * Builds the offer ladder from everything the funnel scrape captured, routes the
+ * report from it, and re-runs the projected economics at the category band.
+ *
+ * The band is a labelled starting point until niche price research (v3 §3.4)
+ * replaces it with cited competitors — its tier says so and the report prints it.
+ */
+function deriveLadder(lead: Lead, resolution: ResolveResult, scenarios: ScenarioSet): LadderResult {
+  const captured: CapturedPrice[] =
+    lead.funnel_prices && lead.funnel_prices.length > 0
+      ? lead.funnel_prices
+      : lead.funnel_price
+        ? [{ raw: lead.funnel_price, label: lead.funnel_program_name, url: lead.funnel_url, source: "offer_page" }]
+        : [];
+
+  const ladder = buildLadder(captured);
+  const niche = matchNiche(lead.niche, lead.business_model);
+  const band: PriceBand = niche?.priceBand
+    ? {
+        ...niche.priceBand,
+        source: `starting point for ${niche.label.toLowerCase()} — not yet researched`,
+        tier: "assumed",
+      }
+    : { ...DEFAULT_PRICE_BAND, source: "category starting point (no niche match)", tier: "assumed" };
+  const decision = routeLadder(ladder, band);
+
+  // The observed point is the price a webinar would actually sell: the routed
+  // mid entry when one exists, otherwise the top capture product — which is
+  // exactly the case where this chart argues the price is the constraint.
+  const observedEntry =
+    decision.modeledEntry ?? ladder.rungs.low[0] ?? ladder.rungs.high[0] ?? null;
+
+  const at = (price: number): ScenarioOutputs =>
+    calculateScenario({ ...resolution.inputs.projected, front_end_price: price });
+
+  const pricePoints: PricePoint[] = [
+    ...(observedEntry
+      ? [
+          {
+            key: "observed" as const,
+            label: `Observed (${observedEntry.raw})`,
+            price: observedEntry.amount,
+            outputs: at(observedEntry.amount),
+          },
+        ]
+      : []),
+    { key: "band_mid" as const, label: `Category band mid (${usd(band.mid)})`, price: band.mid, outputs: at(band.mid) },
+    {
+      key: "band_high" as const,
+      label: `Category band high (${usd(band.high)})`,
+      price: band.high,
+      outputs: at(band.high),
+    },
+  ];
+
+  return {
+    ladder,
+    decision,
+    band,
+    summary: ladderSummary(ladder, decision, band),
+    pricePoints,
+    viable: scenarios.projected.front_end_net_profit > 0,
+  };
+}
+
+/**
+ * The ladder rendered as evidence: every price found, its rung, and which rungs
+ * are empty. The missing rung is frequently the whole argument — a document that
+ * shows the gap is making a case, one that hides it is filling a form.
+ */
+function ladderBlocks(result: LadderResult): ReportContent["sections"][number]["blocks"] {
+  const anyEntry = RUNGS.some((rung) => result.ladder.rungs[rung].length > 0);
+  if (!anyEntry) return [];
+
+  const rows: string[][] = [];
+  for (const rung of RUNGS) {
+    const entries = result.ladder.rungs[rung];
+    if (entries.length === 0) {
+      rows.push([RUNG_LABEL[rung], "—", "Nothing found at this rung"]);
+      continue;
+    }
+    for (const entry of entries) {
+      const period = entry.period === "monthly" ? " per month" : entry.period === "annual" ? " per year" : "";
+      rows.push([
+        RUNG_LABEL[rung],
+        entry.label ?? "Unnamed offer",
+        `${entry.raw}${period && !/mo|month|yr|year/i.test(entry.raw) ? period : ""}`,
+      ]);
+    }
+  }
+
+  return [
+    {
+      type: "table",
+      variant: "default",
+      emphasizeColumn: null,
+      columns: ["Rung", "Offer", "As found"],
+      rows,
+    },
+    ...(result.ladder.missing.includes("mid")
+      ? [
+          {
+            type: "callout" as const,
+            tone: "note" as const,
+            title: "The missing rung",
+            text: `No mid-ticket offer is publicly visible — and that is the rung a direct-checkout webinar sells. ${result.decision.reasoning}`,
+          },
+        ]
+      : []),
+  ];
 }

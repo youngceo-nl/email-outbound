@@ -138,7 +138,7 @@ export async function writePassages(args: { dossier: Dossier; analysis: Analysis
     ].join("\n\n"),
     maxTokens: 3500,
     // Lower than the analysis pass: this one should be consistent and plain, not
-    // inventive. The judgements are already made.
+    // inventive. The judgements are already made. OpenAI path only — see analyse.ts.
     temperature: 0.25,
   });
 
