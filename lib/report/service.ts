@@ -5,7 +5,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Lead } from "@/lib/types";
-import type { AssumptionKey } from "./assumptions/defaults";
+import type { ReportOverrides } from "./assumptions/defaults";
 import type { ReportContent, ScenarioSet } from "./schema";
 
 /*
@@ -29,7 +29,7 @@ export type ReportRow = {
   inputs_json: unknown | null;
   scenarios_json: unknown | null;
   formula_version: string | null;
-  overrides_json: Partial<Record<AssumptionKey, number>> | null;
+  overrides_json: ReportOverrides | null;
   confirmed_by: string | null;
   pdf_path: string | null;
   error: string | null;
@@ -40,7 +40,7 @@ export type ReportRow = {
 
 export async function createReport(args: {
   leadId: string;
-  overrides?: Partial<Record<AssumptionKey, number>>;
+  overrides?: ReportOverrides;
   confirmedBy?: string | null;
   createdBy?: string | null;
 }): Promise<ReportRow> {

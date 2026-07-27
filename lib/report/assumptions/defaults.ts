@@ -229,3 +229,11 @@ export function matchNiche(niche: string | null, businessModel: string | null): 
 
 /** Shared shape both scenarios are built from; only CPL differs between them. */
 export type ResolvedInputs = Omit<ScenarioInputs, "paid_cost_per_registration">;
+
+/**
+ * Everything a human can set before generating. The assumption keys flow through
+ * the cascade at `human` tier; `ladder_low_price` exists only for the ladder —
+ * an entry product has no scenario input, but it changes the routing (a low rung
+ * that exists is evidence).
+ */
+export type ReportOverrides = Partial<Record<AssumptionKey, number>> & { ladder_low_price?: number };
