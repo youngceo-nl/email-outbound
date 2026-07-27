@@ -1,17 +1,17 @@
 "use client";
 import { Mail, MailOpen, RefreshCw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { LeadCategory } from "@/lib/leads/category";
-import { CategoryTabs, ViewTabs, type OutreachView } from "./outreach-tabs";
-import type { InboxRow } from "./outreach-ready-client";
+import { Badge } from "@/components/ui/badge";
+import { InboxTrackTabs, ViewTabs, type OutreachView, type InboxTab } from "./outreach-tabs";
+import { inboxCampaignTag, type InboxRow } from "./outreach-ready-client";
 
 export function OutreachInboxRail({
   rows,
   selectedId,
   onSelect,
-  activeCategory,
-  onCategoryChange,
-  categoryCounts,
+  activeTab,
+  onTabChange,
+  tabCounts,
   view,
   onViewChange,
   unreadCount,
@@ -19,13 +19,13 @@ export function OutreachInboxRail({
   refreshing,
   refreshStatus,
 }: {
-  /** Already filtered to activeCategory by the parent. */
+  /** Already filtered to activeTab by the parent. */
   rows: InboxRow[];
   selectedId: string;
   onSelect: (id: string) => void;
-  activeCategory: LeadCategory;
-  onCategoryChange: (category: LeadCategory) => void;
-  categoryCounts: Record<LeadCategory, number>;
+  activeTab: InboxTab;
+  onTabChange: (tab: InboxTab) => void;
+  tabCounts: Record<InboxTab, number>;
   view: OutreachView;
   onViewChange: (view: OutreachView) => void;
   unreadCount: number;
@@ -37,7 +37,7 @@ export function OutreachInboxRail({
     <aside className="border-r bg-muted/20 flex flex-col overflow-hidden">
       <div className="px-4 py-3 border-b space-y-2">
         <h1 className="font-semibold tracking-tight">Outreach Ready</h1>
-        <CategoryTabs activeCategory={activeCategory} onCategoryChange={onCategoryChange} categoryCounts={categoryCounts} />
+        <InboxTrackTabs activeTab={activeTab} onTabChange={onTabChange} tabCounts={tabCounts} />
         <ViewTabs view={view} onViewChange={onViewChange} unreadCount={unreadCount} />
         <div className="flex items-center gap-2">
           <button
@@ -88,15 +88,18 @@ export function OutreachInboxRail({
                 {new Date(row.received_at).toLocaleDateString()}
               </span>
             </div>
-            <div className="text-xs text-muted-foreground truncate mt-0.5">
-              {row.lead_username ? `@${row.lead_username} — ` : ""}
-              {row.subject || "(no subject)"}
+            <div className="text-xs text-muted-foreground truncate mt-0.5 flex items-center gap-1.5">
+              <span className="truncate">
+                {row.lead_username ? `@${row.lead_username} — ` : ""}
+                {row.subject || "(no subject)"}
+              </span>
+              <Badge variant="outline" className="text-[10px] shrink-0">{inboxCampaignTag(row)}</Badge>
             </div>
           </button>
         ))}
         {rows.length === 0 && (
           <p className="text-xs text-muted-foreground px-4 py-6 text-center">
-            No replies in this category yet. Hit Refresh to check your mailbox.
+            No replies here yet. Hit Refresh to check your mailbox.
           </p>
         )}
       </div>

@@ -2,23 +2,13 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSettings } from "@/lib/config/settings";
-import { sendEmail, gmailReady } from "@/lib/outreach/gmail";
-import { textToHtml } from "@/lib/outreach/template";
-import { logCrawl } from "@/lib/pipeline/persist";
+import { sendOutreachEmailCore, type SendOutreachResponse } from "@/lib/outreach/send";
 
 async function requireUser() {
   const sb = await createClient();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) throw new Error("unauthorized");
   return user;
-}
-
-// Set OUTREACH_DRY_RUN=1 in .env.local to exercise the whole screen without
-// sending a real email or writing any state. Every send is irreversible and
-// permanently burns the lead, so this is the switch to develop against.
-function dryRunEnabled() {
-  return process.env.OUTREACH_DRY_RUN === "1";
 }
 
 export type SaveFieldsPatch = {
@@ -53,13 +43,9 @@ export async function saveOutreachFields(
   return { ok: true };
 }
 
-export type SendOutreachResponse = {
-  ok: boolean;
-  message_id?: string;
-  error?: string;
-  dryRun?: boolean;
-};
-
+// Thin auth+revalidation wrapper — the actual send/guard logic lives in
+// lib/outreach/send.ts's sendOutreachEmailCore, shared with the
+// auto-send-followups Inngest job so both callers run identical logic.
 // Sends exactly the subject/body the client rendered and the user approved —
 // no server-side re-render, so what was previewed is provably what ships.
 export async function sendOutreachEmail(opts: {
@@ -72,150 +58,10 @@ export async function sendOutreachEmail(opts: {
   campaignStepNumber?: number;
 }): Promise<SendOutreachResponse> {
   const user = await requireUser();
-
-  const to = opts.to.trim();
-  const subject = opts.subject.trim();
-  const bodyText = opts.body.trim();
-
-  if (!to.includes("@")) return { ok: false, error: "No valid recipient email." };
-  if (!subject) return { ok: false, error: "Subject is empty." };
-  if (!bodyText) return { ok: false, error: "Body is empty." };
-
   const admin = createAdminClient();
+  const result = await sendOutreachEmailCore(admin, { ...opts, sentBy: user.id, sentVia: "manual" });
 
-  // Re-read from the DB rather than trusting client state — this is the guard
-  // that stops a stale tab or a double-click from sending twice.
-  const { data: lead, error: leadErr } = await admin
-    .from("leads")
-    .select("id, username, outreach_count, campaign_id, campaign_step, reply_count")
-    .eq("id", opts.leadId)
-    .single();
-  if (leadErr || !lead) return { ok: false, error: leadErr?.message ?? "Lead not found" };
-
-  const campaignId = lead.campaign_id as string | null;
-  const campaignStep = (lead.campaign_step as number | null) ?? 0;
-
-  if (!campaignId) {
-    // Non-campaign leads: unchanged — one send, ever.
-    if ((lead.outreach_count ?? 0) > 0) return { ok: false, error: "Already sent to this lead." };
-  } else {
-    // Campaign leads: the guard is step-aware instead of count-aware, since a
-    // campaign is allowed to send multiple times (its own sequence).
-    const stepNumber = opts.campaignStepNumber;
-    if (!stepNumber) return { ok: false, error: "Missing campaign step number." };
-    if (stepNumber !== campaignStep + 1) {
-      return { ok: false, error: "This lead's campaign step is out of date — reload and try again." };
-    }
-    if (((lead as { reply_count?: number | null }).reply_count ?? 0) > 0) {
-      return { ok: false, error: "Lead has replied — sequence stopped." };
-    }
-
-    const { data: existing } = await admin
-      .from("outreach_messages")
-      .select("id")
-      .eq("lead_id", opts.leadId)
-      .eq("campaign_id", campaignId)
-      .eq("step_number", stepNumber)
-      .maybeSingle();
-    if (existing) return { ok: false, error: "This step was already sent." };
-
-    const { data: maxStepRow } = await admin
-      .from("campaign_steps")
-      .select("step_number")
-      .eq("campaign_id", campaignId)
-      .order("step_number", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (maxStepRow && stepNumber > maxStepRow.step_number) {
-      return { ok: false, error: "No more steps in this campaign." };
-    }
-  }
-
-  // Bail before Gmail and before any write.
-  if (dryRunEnabled()) return { ok: true, message_id: "dry-run", dryRun: true };
-
-  if (!(await gmailReady())) {
-    return { ok: false, error: "Gmail not connected — check the OAuth credentials in Settings." };
-  }
-
-  const settings = await getSettings();
-  const bodyHtml = textToHtml(bodyText);
-
-  try {
-    const result = await sendEmail({
-      to,
-      subject,
-      text: bodyText,
-      html: bodyHtml,
-      replyTo: settings.outreach_reply_to ?? undefined,
-    });
-
-    await admin.from("outreach_messages").insert({
-      lead_id: opts.leadId,
-      to_email: to,
-      subject,
-      body_text: bodyText,
-      body_html: bodyHtml,
-      status: "sent",
-      message_id: result.messageId,
-      gmail_thread_id: result.threadId,
-      sent_by: user.id,
-      campaign_id: campaignId,
-      step_number: campaignId ? opts.campaignStepNumber : null,
-    });
-
-    const now = new Date().toISOString();
-    await admin
-      .from("leads")
-      .update({
-        outreach_count: (lead.outreach_count ?? 0) + 1,
-        last_outreach_at: now,
-        last_outreach_error: null,
-        ...(campaignId
-          ? { campaign_step: campaignStep + 1, last_campaign_send_at: now }
-          : {}),
-      })
-      .eq("id", opts.leadId);
-
-    await logCrawl({
-      crawl_job_id: null,
-      profile_username: lead.username,
-      parent_username: null,
-      action: "email_sent",
-      depth: 0,
-      detail: `To: ${to} · Subject: ${subject}`,
-    });
-
-    revalidatePath("/outreach-ready");
-    revalidatePath("/leads");
-    return { ok: true, message_id: result.messageId };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await admin.from("outreach_messages").insert({
-      lead_id: opts.leadId,
-      to_email: to,
-      subject,
-      body_text: bodyText,
-      body_html: bodyHtml,
-      status: "failed",
-      error: msg,
-      sent_by: user.id,
-      campaign_id: campaignId,
-      step_number: campaignId ? opts.campaignStepNumber : null,
-    });
-    await admin.from("leads").update({ last_outreach_error: msg }).eq("id", opts.leadId);
-
-    await logCrawl({
-      crawl_job_id: null,
-      profile_username: lead.username,
-      parent_username: null,
-      action: "email_failed",
-      depth: 0,
-      status: "failure",
-      detail: msg.slice(0, 200),
-    });
-
-    revalidatePath("/outreach-ready");
-    return { ok: false, error: msg };
-  }
+  revalidatePath("/outreach-ready");
+  revalidatePath("/leads");
+  return result;
 }

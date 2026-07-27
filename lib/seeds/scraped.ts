@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkOverridePassword } from "@/lib/security/override-password";
 
 /**
  * Seeds that have completed at least one crawl.
@@ -37,19 +38,7 @@ export async function hasBeenScraped(seedId: string): Promise<boolean> {
  * attacker.
  */
 export function checkRescrapeOverride(password: string | undefined): string | null {
-  const expected = process.env.RESCRAPE_OVERRIDE_PASSWORD;
-  if (!expected) {
-    return "This account has already been scraped. Re-scraping needs RESCRAPE_OVERRIDE_PASSWORD set in the environment.";
-  }
-  if (!password) return "This account has already been scraped. Enter the override password to scrape it again.";
-  if (!timingSafeEqual(password, expected)) return "Wrong override password.";
-  return null;
-}
-
-/** Constant-time compare so a wrong guess can't be narrowed by response timing. */
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
+  const denied = checkOverridePassword(password, "re-scrape this account");
+  if (!denied || denied === "Wrong override password.") return denied;
+  return `This account has already been scraped. ${denied}`;
 }

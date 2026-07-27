@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { LEAD_CATEGORIES, CATEGORY_LABELS, type LeadCategory } from "@/lib/leads/category";
+import { LEAD_CATEGORIES, CATEGORY_LABELS, type LeadCategory, LEAD_TRACK_LABELS, type LeadTrack } from "@/lib/leads/category";
 
 // Shared by the ready-to-send rail and the inbox rail so the two headers
 // (category tabs + ready/inbox toggle) stay visually and behaviorally
@@ -30,6 +30,43 @@ export function CategoryTabs({
           )}
         >
           {CATEGORY_LABELS[category]} {categoryCounts[category]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// The inbox restructures around campaign type (matching leadTrackFor, not the
+// 3-way business-model category the "ready to send" side keeps) plus a
+// catch-all — separate tab dimension from CategoryTabs above.
+export type InboxTab = "all" | LeadTrack;
+export const INBOX_TABS: InboxTab[] = ["all", "infopreneur", "partnership"];
+export const INBOX_TAB_LABELS: Record<InboxTab, string> = { all: "All", ...LEAD_TRACK_LABELS };
+
+export function InboxTrackTabs({
+  activeTab,
+  onTabChange,
+  tabCounts,
+}: {
+  activeTab: InboxTab;
+  onTabChange: (tab: InboxTab) => void;
+  tabCounts: Record<InboxTab, number>;
+}) {
+  return (
+    <div className="flex gap-1">
+      {INBOX_TABS.map((tab) => (
+        <button
+          key={tab}
+          type="button"
+          onClick={() => onTabChange(tab)}
+          className={cn(
+            "flex-1 text-xs px-2 py-1.5 rounded-md border transition-colors tabular-nums",
+            tab === activeTab
+              ? "bg-primary text-primary-foreground border-primary"
+              : "hover:bg-accent",
+          )}
+        >
+          {INBOX_TAB_LABELS[tab]} {tabCounts[tab]}
         </button>
       ))}
     </div>

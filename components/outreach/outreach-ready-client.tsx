@@ -2,11 +2,11 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { buildLeadContext, renderTemplate } from "@/lib/outreach/template";
-import { LEAD_CATEGORIES, leadCategory, type CategoryTemplates, type LeadCategory } from "@/lib/leads/category";
+import { LEAD_CATEGORIES, leadCategory, leadTrackFor, type CategoryTemplates, type LeadCategory } from "@/lib/leads/category";
 import { syncInbox, markReplyRead } from "@/app/actions/inbox";
 import type { LeadStatus } from "@/lib/types";
 import type { HandoverOutcome } from "@/lib/handover/outcomes";
-import type { OutreachView } from "./outreach-tabs";
+import type { OutreachView, InboxTab } from "./outreach-tabs";
 import { OutreachLeadRail } from "./outreach-lead-rail";
 import { OutreachInboxRail } from "./outreach-inbox-rail";
 import { OutreachComposer } from "./outreach-composer";
@@ -38,6 +38,11 @@ export type OutreachRow = {
   status: LeadStatus;
   firstName: string | null;
   needsFix: boolean;
+  // Only populated for cold/warm follow-up chains (never primary campaigns):
+  // template placeholders this row's due step uses that don't resolve to a
+  // real value for this lead — see lib/outreach/needs-input.ts. A non-empty
+  // array is why auto-send-followups skipped this row rather than sending it.
+  autoSendBlockedKeys?: string[];
   parent_username: string | null;
   sourceOutcome: HandoverOutcome | null;
   campaign: OutreachCampaignInfo | null;
@@ -51,14 +56,62 @@ export type InboxRow = {
   snippet: string | null;
   body_text: string | null;
   received_at: string;
+  // The original outreach's send timestamp (outreach_messages.sent_at via
+  // inbox_messages.outreach_message_id) — null for a legacy/orphaned reply
+  // whose originating send row didn't resolve.
+  sent_at: string | null;
   is_read: boolean;
+  // AI sentiment classification (lib/openai/classify-reply.ts) — drives
+  // whether the positive-reply template shows up in InboxDetail.
+  sentiment: "positive" | "neutral" | "negative" | null;
+  // The inbound message's own RFC Message-Id and its thread's Gmail thread
+  // id — needed to send a reply that actually lands in the same thread.
+  gmail_message_id: string | null;
+  gmail_thread_id: string | null;
+  // Set once a reply has actually been sent in-app (app/actions/inbox.ts's
+  // sendInboxReply) — powers the "you replied on ..." annotation.
+  replied_at: string | null;
   lead_id: string;
   lead_username: string | null;
   lead_full_name: string | null;
   business_model: string | null;
+  // Fields needed to render the positive-reply template via
+  // buildLeadContext/renderTemplate, same as outreach templates.
+  niche: string | null;
+  funnel_program_name: string | null;
+  funnel_offer_summary: string | null;
+  external_link: string | null;
+  campaign_name: string | null;
+  campaign_variant_label: string | null;
+  // The lead's campaign's canned positive-reply template, unrendered.
+  positive_reply_template: string | null;
 };
 
 export type Draft = { full_name: string; funnel_program_name: string };
+
+// Shared by inbox-detail.tsx, outreach-inbox-rail.tsx, and
+// campaigns/campaign-inbox-panel.tsx so every inbox row always shows a
+// clear tag — "{campaign} · {variant}" when campaign-assigned, or an
+// explicit "Non-campaign" badge rather than no badge at all.
+export function inboxCampaignTag(row: Pick<InboxRow, "campaign_name" | "campaign_variant_label">): string {
+  return row.campaign_name ? `${row.campaign_name} · ${row.campaign_variant_label ?? "—"}` : "Non-campaign";
+}
+
+// e.g. "Jan 10, 2026, 12:51 PM GMT+5:30" — used by inbox-detail.tsx to show
+// both when an outreach was sent and when its reply came in, explicit
+// timezone included so it's unambiguous across senders/recipients.
+export function formatWithTz(iso: string): string {
+  // Some Intl/ICU builds throw "Invalid option : option" when timeZoneName is
+  // combined with dateStyle/timeStyle, so spell out the fields explicitly.
+  return new Date(iso).toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}
 
 export function OutreachReadyClient({
   rows,
@@ -83,6 +136,7 @@ export function OutreachReadyClient({
   const [needsFixOnly, setNeedsFixOnly] = useState(false);
   const [view, setView] = useState<OutreachView>("ready");
   const [selectedInboxId, setSelectedInboxId] = useState<string>(inboxRows[0]?.id ?? "");
+  const [activeInboxTab, setActiveInboxTab] = useState<InboxTab>("all");
   const [syncing, startSync] = useTransition();
   const [syncStatus, setSyncStatus] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -110,8 +164,8 @@ export function OutreachReadyClient({
     () => rowsInCategory(defaultCategory)[0]?.id ?? rows[0]?.id ?? "",
   );
 
-  const inboxInCategory = (category: LeadCategory) =>
-    inboxRows.filter((r) => leadCategory(r.business_model) === category);
+  const rowsInInboxTab = (tab: InboxTab) =>
+    tab === "all" ? inboxRows : inboxRows.filter((r) => leadTrackFor(r.business_model) === tab);
 
   const handleCategoryChange = (category: LeadCategory) => {
     setActiveCategory(category);
@@ -121,18 +175,22 @@ export function OutreachReadyClient({
       const next = inCategory.find((r) => !sentIds.has(r.id)) ?? inCategory[0];
       setSelectedId(next?.id ?? "");
     }
-    const inboxInCat = inboxInCategory(category);
-    if (!inboxInCat.some((r) => r.id === selectedInboxId)) {
-      setSelectedInboxId(inboxInCat[0]?.id ?? "");
+  };
+
+  const handleInboxTabChange = (tab: InboxTab) => {
+    setActiveInboxTab(tab);
+    const inTab = rowsInInboxTab(tab);
+    if (!inTab.some((r) => r.id === selectedInboxId)) {
+      setSelectedInboxId(inTab[0]?.id ?? "");
     }
   };
 
   const handleViewChange = (next: OutreachView) => {
     setView(next);
     if (next === "inbox") {
-      const inCategory = inboxInCategory(activeCategory);
-      if (!inCategory.some((r) => r.id === selectedInboxId)) {
-        setSelectedInboxId(inCategory[0]?.id ?? "");
+      const inTab = rowsInInboxTab(activeInboxTab);
+      if (!inTab.some((r) => r.id === selectedInboxId)) {
+        setSelectedInboxId(inTab[0]?.id ?? "");
       }
     }
   };
@@ -221,15 +279,20 @@ export function OutreachReadyClient({
 
   const needsFixCount = visibleInCategory.filter((r) => r.needsFix && !sentIds.has(r.id)).length;
 
-  // Inbox counts per category — the tab bar always shows ready-lead counts
-  // (categoryCounts above); this is only for the Inbox pill's unread badge.
-  const inboxUnreadCounts = useMemo(() => {
-    const counts: Record<LeadCategory, number> = { partnerships: 0, info: 0, other: 0 };
-    for (const row of inboxRows) if (!row.is_read) counts[leadCategory(row.business_model)]++;
+  // Total unread across the whole inbox — shown on the ready side's Inbox
+  // pill, which has no matching dimension to split by (ready tabs are
+  // category-based, inbox tabs are track-based).
+  const totalUnread = useMemo(() => inboxRows.filter((r) => !r.is_read).length, [inboxRows]);
+
+  // Inbox tab counts (All/Info/Partnerships) — total rows per tab, used for
+  // the tab bar itself.
+  const inboxTabCounts = useMemo(() => {
+    const counts: Record<InboxTab, number> = { all: inboxRows.length, infopreneur: 0, partnership: 0 };
+    for (const row of inboxRows) counts[leadTrackFor(row.business_model)]++;
     return counts;
   }, [inboxRows]);
 
-  const visibleInboxRows = inboxInCategory(activeCategory);
+  const visibleInboxRows = rowsInInboxTab(activeInboxTab);
   const selectedInboxRow = inboxRows.find((r) => r.id === selectedInboxId) ?? visibleInboxRows[0];
 
   return (
@@ -251,19 +314,19 @@ export function OutreachReadyClient({
           categoryCounts={categoryCounts}
           view={view}
           onViewChange={handleViewChange}
-          unreadCount={inboxUnreadCounts[activeCategory]}
+          unreadCount={totalUnread}
         />
       ) : (
         <OutreachInboxRail
           rows={visibleInboxRows}
           selectedId={selectedInboxRow?.id ?? ""}
           onSelect={handleSelectInbox}
-          activeCategory={activeCategory}
-          onCategoryChange={handleCategoryChange}
-          categoryCounts={categoryCounts}
+          activeTab={activeInboxTab}
+          onTabChange={handleInboxTabChange}
+          tabCounts={inboxTabCounts}
           view={view}
           onViewChange={handleViewChange}
-          unreadCount={inboxUnreadCounts[activeCategory]}
+          unreadCount={visibleInboxRows.filter((r) => !r.is_read).length}
           onRefresh={handleRefreshInbox}
           refreshing={syncing}
           refreshStatus={syncStatus}
@@ -292,10 +355,10 @@ export function OutreachReadyClient({
           </div>
         )
       ) : selectedInboxRow ? (
-        <InboxDetail key={selectedInboxRow.id} row={selectedInboxRow} />
+        <InboxDetail key={selectedInboxRow.id} row={selectedInboxRow} senderName={senderName} />
       ) : (
         <div className="flex items-center justify-center text-sm text-muted-foreground">
-          No replies in this category yet
+          No replies in this tab yet
         </div>
       )}
     </div>

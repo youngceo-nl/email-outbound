@@ -3,6 +3,7 @@ import { LayoutDashboard, Users, Settings, Sprout, LogOut, Activity, MailCheck, 
 import { signOut } from "@/app/actions/auth";
 import { ActivityDrawerButton } from "@/components/logs/activity-drawer";
 import { getReviewPendingCount } from "@/app/actions/review";
+import { createClient } from "@/lib/supabase/server";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -18,8 +19,15 @@ const NAV = [
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const sb = await createClient();
+  const { data: { user } } = await sb.auth.getUser();
+  const isVa = user?.app_metadata?.role === "va";
+
+  // VA accounts never see the human-review queue — docs/va-access-restrictions.md.
+  const nav = isVa ? NAV.filter((item) => item.href !== "/review") : NAV;
+
   // Best-effort — a nav badge should never take the whole shell down.
-  const pendingReview = await getReviewPendingCount().catch(() => 0);
+  const pendingReview = isVa ? 0 : await getReviewPendingCount().catch(() => 0);
   return (
     <div className="grid grid-cols-[220px_1fr] h-screen overflow-hidden">
       <aside className="border-r bg-muted/20 overflow-y-auto">
@@ -30,7 +38,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
         <div className="sticky top-0 bg-muted/20">
           <nav className="p-2 space-y-1">
-            {NAV.map((item) => (
+            {nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

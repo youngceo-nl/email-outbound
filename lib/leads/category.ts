@@ -49,5 +49,12 @@ export function leadTrackFor(businessModel: string | null | undefined): LeadTrac
   return businessModel && PARTNERSHIPS_MODELS.includes(businessModel) ? "partnership" : "infopreneur";
 }
 
+// Display labels for LeadTrack — also what campaigns.campaign_type uses,
+// since a campaign must declare which track it targets.
+export const LEAD_TRACK_LABELS: Record<LeadTrack, string> = {
+  infopreneur: "Info",
+  partnership: "Partnerships",
+};
+
 export type CategoryTemplate = { subject: string; body: string };
 export type CategoryTemplates = Record<LeadCategory, CategoryTemplate>;

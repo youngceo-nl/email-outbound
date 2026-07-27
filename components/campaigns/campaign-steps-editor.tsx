@@ -5,17 +5,17 @@ import { Loader2, Plus, Trash2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { upsertCampaignSteps, type StepInput } from "@/app/actions/campaigns";
+import { upsertVariantSteps, type StepInput } from "@/app/actions/campaigns";
 import type { CampaignStep } from "@/lib/types";
 
 const TOKEN_HINT =
   "Tokens: {{first_name}}, {{name}}, {{full_name}}, {{username}}, {{niche}}, {{business_model}}, {{program_name}}, {{offer_summary}}, {{external_link}}, {{sender_name}} — {{key|fallback}} for a fallback.";
 
 export function CampaignStepsEditor({
-  campaignId,
+  variantId,
   initialSteps,
 }: {
-  campaignId: string;
+  variantId: string;
   initialSteps: CampaignStep[];
 }) {
   const [steps, setSteps] = useState<StepInput[]>(
@@ -48,7 +48,7 @@ export function CampaignStepsEditor({
     setError(null);
     setSaved(false);
     start(async () => {
-      const r = await upsertCampaignSteps(campaignId, steps);
+      const r = await upsertVariantSteps(variantId, steps);
       if (r.ok) {
         setSaved(true);
         router.refresh();

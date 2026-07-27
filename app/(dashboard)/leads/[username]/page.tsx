@@ -10,6 +10,7 @@ import { formatNumber, formatPct, scoreColor } from "@/lib/utils";
 import { actionLabel, statusLabel } from "@/lib/labels";
 import type { Lead, RecentPost } from "@/lib/types";
 import { NotesSection } from "@/components/leads/notes-section";
+import { describeLeadEmail, enrichmentBadgeVariant } from "@/lib/leads/email-status";
 import { ReportPanel, type ReportSummary } from "@/components/leads/report-panel";
 import { getAssumptionPanel } from "@/app/actions/reports";
 import { listReportsForLead } from "@/lib/report/service";
@@ -91,6 +92,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ use
           <span className="capitalize">{l.backfill_error === "blocked" ? "Instagram blocked scraping for this account" : l.backfill_error}</span>
         </div>
       )}
+
+      <EmailCard lead={l} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Followers" value={formatNumber(l.followers)} />
@@ -195,6 +198,30 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ use
 
       <NotesSection leadId={l.id} notes={(notes ?? []) as { id: string; body: string; created_at: string }[]} />
     </div>
+  );
+}
+
+function EmailCard({ lead }: { lead: Lead }) {
+  const { email, provider, status, badStatus, label, tone } = describeLeadEmail(lead);
+
+  return (
+    <Card>
+      <CardHeader><CardTitle>Email</CardTitle></CardHeader>
+      <CardContent className="space-y-2">
+        <div className="flex items-center gap-2">
+          {email ? (
+            <span className="font-mono text-sm select-all">{email}</span>
+          ) : (
+            <span className="text-sm text-muted-foreground">No email found</span>
+          )}
+          {badStatus && <Badge variant="destructive" className="capitalize">{status}</Badge>}
+        </div>
+        {email && provider && (
+          <p className="text-xs text-muted-foreground">via {provider}</p>
+        )}
+        <Badge variant={enrichmentBadgeVariant(tone)} className="text-xs">{label}</Badge>
+      </CardContent>
+    </Card>
   );
 }
 

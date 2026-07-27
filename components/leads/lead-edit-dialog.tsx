@@ -7,11 +7,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { updateLead, type LeadPatch } from "@/app/actions/leads";
 import type { LeadEditPayload } from "./double-click-row";
 import { statusLabel } from "@/lib/labels";
+import { describeLeadEmail, enrichmentBadgeVariant } from "@/lib/leads/email-status";
 
 const STATUS_OPTIONS = ["qualified", "review", "rejected", "pending"] as const;
+
+function EmailInfo({ lead }: { lead: LeadEditPayload }) {
+  const { email, provider, status, badStatus, label, tone } = describeLeadEmail(lead);
+  return (
+    <div className="rounded-md border bg-muted/30 px-3 py-2 space-y-1.5">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">Email</span>
+        {email ? (
+          <span className="font-mono text-xs select-all">{email}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground italic">No email found</span>
+        )}
+        {badStatus && <Badge variant="destructive" className="text-[10px] capitalize">{status}</Badge>}
+      </div>
+      <div className="flex items-center gap-2">
+        <Badge variant={enrichmentBadgeVariant(tone)} className="text-[10px]">{label}</Badge>
+        {email && provider && <span className="text-[11px] text-muted-foreground">via {provider}</span>}
+      </div>
+    </div>
+  );
+}
 
 export function LeadEditDialog() {
   const [lead, setLead] = useState<LeadEditPayload | null>(null);
@@ -83,6 +106,8 @@ export function LeadEditDialog() {
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        <EmailInfo lead={lead} />
 
         <div className="space-y-3">
           <div className="space-y-1">

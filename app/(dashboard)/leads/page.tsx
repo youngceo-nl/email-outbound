@@ -24,6 +24,7 @@ import { LeadEditDialog } from "@/components/leads/lead-edit-dialog";
 import { getSettings, resolveApifyToken } from "@/lib/config/settings";
 import { MarkBadLeadButton } from "@/components/leads/mark-bad-lead-button";
 import { BadLeadsTable, type RejectedLeadRow } from "@/components/leads/bad-leads-table";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 50;
@@ -48,6 +49,11 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const sb = createAdminClient();
+
+  // VA accounts never see the bad-leads section — docs/va-access-restrictions.md.
+  const authed = await createClient();
+  const { data: { user } } = await authed.auth.getUser();
+  const isVa = user?.app_metadata?.role === "va";
 
   // Build the filtered + sorted query. In `safe` mode we drop anything that
   // depends on a column which may not exist yet (e.g. reels_last_30_days before
@@ -112,10 +118,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       .neq("status", "rejected"),
     // The bad-leads training collection (docs/bottlenecks/bottleneck02.md) —
     // empty rather than fatal for the same reason as handoverAccounts above.
-    sb.from("rejected_leads")
-      .select("lead_id, username, category, note, created_at")
-      .order("created_at", { ascending: false })
-      .then((r) => (r.error ? { data: [] as RejectedLeadRow[] } : r)),
+    // Never queried for a VA account at all (not just hidden from render).
+    isVa
+      ? Promise.resolve({ data: [] as RejectedLeadRow[] })
+      : sb.from("rejected_leads")
+          .select("lead_id, username, category, note, created_at")
+          .order("created_at", { ascending: false })
+          .then((r) => (r.error ? { data: [] as RejectedLeadRow[] } : r)),
   ]);
 
   const seedMap = new Map((seeds ?? []).map((s) => [s.id, s.username]));
@@ -160,7 +169,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   const campaigns = (await listCampaigns().catch(() => []))
     .filter((c) => c.status === "active")
-    .map((c) => ({ id: c.id, name: c.name }));
+    .map((c) => ({ id: c.id, name: c.name, campaign_type: c.campaign_type }));
 
   return (
     <div className="p-6 space-y-6">
@@ -255,6 +264,14 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     bio: l.bio ?? null,
                     external_link: l.external_link ?? null,
                     status: l.status ?? null,
+                    email: l.email ?? null,
+                    email_v2: l.email_v2 ?? null,
+                    email_provider: l.email_provider ?? null,
+                    email_v2_provider: l.email_v2_provider ?? null,
+                    email_status: l.email_status ?? null,
+                    email_v2_status: l.email_v2_status ?? null,
+                    enriched_at: l.enriched_at ?? null,
+                    handover_enriched_at: l.handover_enriched_at ?? null,
                   }}
                 >
                   <TableCell className="pt-3"><LeadCheckbox id={l.id} /></TableCell>
@@ -334,7 +351,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       </Card>
       </SelectionProvider>
 
-      <BadLeadsTable rows={badLeadRows ?? []} />
+      {!isVa && <BadLeadsTable rows={badLeadRows ?? []} />}
 
       <Pagination page={page} totalPages={totalPages} sp={sp} />
       <LeadEditDialog />

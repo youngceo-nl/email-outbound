@@ -21,7 +21,6 @@ function LoginInner() {
   const next = sp.get("next") || "/";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -30,10 +29,7 @@ function LoginInner() {
     setError(null);
     setLoading(true);
     const sb = createClient();
-    const { error } =
-      mode === "signin"
-        ? await sb.auth.signInWithPassword({ email, password })
-        : await sb.auth.signUp({ email, password });
+    const { error } = await sb.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) return setError(error.message);
     router.replace(next);
@@ -45,7 +41,7 @@ function LoginInner() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Email Outbound</CardTitle>
-          <CardDescription>{mode === "signin" ? "Sign in to continue" : "Create an account"}</CardDescription>
+          <CardDescription>Sign in to continue</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-4">
@@ -59,15 +55,8 @@ function LoginInner() {
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "..." : mode === "signin" ? "Sign in" : "Sign up"}
+              {loading ? "..." : "Sign in"}
             </Button>
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:underline w-full text-center"
-              onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-            >
-              {mode === "signin" ? "Need an account? Sign up" : "Have an account? Sign in"}
-            </button>
           </form>
         </CardContent>
       </Card>

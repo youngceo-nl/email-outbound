@@ -40,6 +40,15 @@ export async function middleware(req: NextRequest) {
     redirect.pathname = "/";
     return NextResponse.redirect(redirect);
   }
+
+  // VA accounts (app_metadata.role === "va") never see the human-review
+  // queue — see docs/va-access-restrictions.md.
+  const isVa = user?.app_metadata?.role === "va";
+  if (isVa && url.pathname.startsWith("/review")) {
+    const redirect = url.clone();
+    redirect.pathname = "/";
+    return NextResponse.redirect(redirect);
+  }
   return res;
 }
 

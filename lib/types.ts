@@ -189,6 +189,9 @@ export type Lead = {
   recommended_action: string | null;
   status: LeadStatus;
   rejection_reason: string | null;
+  // Which qualification rubric this lead was scored against (lib/leads/category.ts
+  // leadTrackFor) — also the vocabulary campaigns.campaign_type reuses.
+  lead_type: "infopreneur" | "partnership";
   crawl_depth: number;
   source_seed_id: string | null;
   parent_username: string | null;
@@ -202,6 +205,13 @@ export type Lead = {
   email_v2: string | null;
   email_v2_status: string | null;
   email_v2_provider: string | null;
+  // `enriched_at` is stamped only when the Clay hand-back round-trip actually
+  // returned an email; `handover_enriched_at` is stamped either way, so it's
+  // the true "was this lead sent through enrichment at all" signal
+  // (lib/handover/batch.ts). A lead can have an email with both null — found
+  // by the original scrape-time waterfall before ever reaching Clay.
+  enriched_at: string | null;
+  handover_enriched_at: string | null;
   // Funnel enrichment — funnel_program_name feeds {{program_name}} in the
   // outreach subject line, so junk values are visible to the prospect.
   //
@@ -224,7 +234,10 @@ export type Lead = {
   last_outreach_error: string | null;
   // Campaign assignment (optional, layered on top of the category system).
   // campaign_step counts steps already sent — the next due step is +1.
+  // campaign_variant_id is rolled once at assignment (weighted by the
+  // campaign's variants) and never changes while the lead stays assigned.
   campaign_id: string | null;
+  campaign_variant_id: string | null;
   campaign_step: number;
   last_campaign_send_at: string | null;
   created_at: string;
@@ -232,19 +245,46 @@ export type Lead = {
 };
 
 export type CampaignStatus = "active" | "paused" | "archived";
+export type CampaignType = "infopreneur" | "partnership";
+// "primary" = a regular, human-run campaign (default). "cold_followup" /
+// "warm_followup" mark the (at most one each, per campaign_type) chain that
+// the route-followup-leads Inngest job auto-assigns leads into — see
+// docs/instantly-fying-outreachpage/leadpipelinetocampaign.md.
+export type CampaignRole = "primary" | "cold_followup" | "warm_followup";
 
 export type Campaign = {
   id: string;
   name: string;
   angle: string | null;
   status: CampaignStatus;
+  // Which leads this campaign may be assigned (must match leads.lead_type) —
+  // enforced in app/actions/campaigns.ts assignLeadsToCampaign.
+  campaign_type: CampaignType;
+  campaign_role: CampaignRole;
+  // Canned reply shown to the VA in the inbox when a reply on this campaign
+  // is classified 'positive' (lib/openai/classify-reply.ts) — rendered via
+  // the same buildLeadContext/renderTemplate as outreach templates.
+  positive_reply_template: string | null;
+  // Soft-delete marker — set by deleteCampaign, cleared by restoreCampaign.
+  // Kept for CAMPAIGN_RETENTION_DAYS (lib/campaigns/retention.ts) before the
+  // purge-deleted-campaigns cron removes the row for real.
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type CampaignStep = {
+export type CampaignVariant = {
   id: string;
   campaign_id: string;
+  label: string;
+  // A lead is rolled into one variant (weighted by this) at assignment time
+  // and stays on it for the whole campaign — not re-rolled per step.
+  weight_pct: number;
+};
+
+export type CampaignStep = {
+  id: string;
+  variant_id: string;
   step_number: number;
   delay_days: number;
   subject_template: string;
@@ -263,10 +303,12 @@ export type OutreachMessage = {
   gmail_thread_id: string | null;
   error: string | null;
   sent_by: string | null;
+  sent_via: "manual" | "auto";
   sent_at: string;
   bounced_at: string | null;
   email_type: "outreach" | "followup";
   campaign_id: string | null;
+  campaign_variant_id: string | null;
   step_number: number | null;
 };
 

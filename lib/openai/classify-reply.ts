@@ -1,10 +1,10 @@
 import "server-only";
+import OpenAI from "openai";
 import { z } from "zod";
-import { createClaude } from "./client";
 import { stripLoneSurrogates } from "@/lib/scoring/sanitize";
 
 // Cheap/fast model — this is a one-line triage call, not the ICP scoring pass.
-const MODEL = "claude-haiku-4-5-20251001";
+const MODEL = "gpt-4o-mini";
 
 const SYSTEM = `You are triaging replies to cold outreach emails sent to Instagram creators/agencies about a sales offer.
 
@@ -15,6 +15,15 @@ Classify the reply's sentiment toward the offer:
 
 Output STRICT JSON only — no prose, no markdown, no code fences.`;
 
+const SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["sentiment"],
+  properties: {
+    sentiment: { type: "string", enum: ["positive", "neutral", "negative"] },
+  },
+} as const;
+
 const Parsed = z.object({
   sentiment: z.enum(["positive", "neutral", "negative"]),
 });
@@ -24,7 +33,7 @@ export async function classifyReplySentiment(opts: {
   subject: string | null;
   body: string;
 }): Promise<"positive" | "neutral" | "negative"> {
-  const claude = createClaude(opts.apiKey);
+  const openai = new OpenAI({ apiKey: opts.apiKey });
   const userPrompt = `Subject: ${opts.subject ?? "(none)"}
 
 Reply body:
@@ -35,18 +44,21 @@ Return ONLY a JSON object: {"sentiment": "positive"|"neutral"|"negative"}`;
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const res = await claude.messages.create({
+      const res = await openai.chat.completions.create({
         model: MODEL,
+        messages: [
+          { role: "system", content: SYSTEM },
+          { role: "user", content: stripLoneSurrogates(userPrompt) },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "reply_sentiment", strict: true, schema: SCHEMA },
+        },
+        temperature: 0.2,
         max_tokens: 50,
-        system: SYSTEM,
-        messages: [{ role: "user", content: stripLoneSurrogates(userPrompt) }],
       });
-      const text = res.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
-      const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
-      const s = stripped.indexOf("{");
-      const e = stripped.lastIndexOf("}");
-      const slice = s !== -1 && e > s ? stripped.slice(s, e + 1) : stripped;
-      return Parsed.parse(JSON.parse(slice)).sentiment;
+      const text = res.choices[0]?.message?.content ?? "";
+      return Parsed.parse(JSON.parse(text)).sentiment;
     } catch (err) {
       lastErr = err;
       await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));

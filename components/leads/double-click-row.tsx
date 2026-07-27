@@ -7,6 +7,16 @@ export type LeadEditPayload = {
   bio: string | null;
   external_link: string | null;
   status: string | null;
+  // Read-only in the dialog — enough to render the email + enrichment state
+  // via describeLeadEmail (lib/leads/email-status.ts).
+  email: string | null;
+  email_v2: string | null;
+  email_provider: string | null;
+  email_v2_provider: string | null;
+  email_status: string | null;
+  email_v2_status: string | null;
+  enriched_at: string | null;
+  handover_enriched_at: string | null;
 };
 
 export function DoubleClickRow({

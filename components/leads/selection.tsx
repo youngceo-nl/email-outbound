@@ -167,24 +167,30 @@ export function BulkDeleteBar() {
 export function BulkAssignCampaignBar({
   campaigns,
 }: {
-  campaigns: { id: string; name: string }[];
+  campaigns: { id: string; name: string; campaign_type: "infopreneur" | "partnership" }[];
 }) {
   const { selected, clear } = useContext(SelectionContext);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ assigned: number; skipped: number; skippedReason?: string } | null>(null);
   const [campaignId, setCampaignId] = useState("");
   const router = useRouter();
   const count = selected.size;
 
   if (count === 0) return null;
 
+  const infopreneurCampaigns = campaigns.filter((c) => c.campaign_type === "infopreneur");
+  const partnershipCampaigns = campaigns.filter((c) => c.campaign_type === "partnership");
+
   const onAssign = () => {
     if (!campaignId) return;
     const ids = [...selected];
     setError(null);
+    setResult(null);
     start(async () => {
       const r = await assignLeadsToCampaign(ids, campaignId);
       if (r.ok) {
+        setResult({ assigned: r.assigned, skipped: r.skipped, skippedReason: r.skippedReason });
         clear();
         setCampaignId("");
         router.refresh();
@@ -195,7 +201,7 @@ export function BulkAssignCampaignBar({
   };
 
   return (
-    <div className="flex items-center gap-3 rounded-md border bg-muted/40 px-3 py-2">
+    <div className="flex items-center gap-3 rounded-md border bg-muted/40 px-3 py-2 flex-wrap">
       <span className="text-sm font-medium tabular-nums">{count} selected</span>
       <select
         className="h-9 rounded-md border border-input bg-background px-2 text-sm"
@@ -204,9 +210,20 @@ export function BulkAssignCampaignBar({
         disabled={pending}
       >
         <option value="">Assign to campaign…</option>
-        {campaigns.map((c) => (
-          <option key={c.id} value={c.id}>{c.name}</option>
-        ))}
+        {infopreneurCampaigns.length > 0 && (
+          <optgroup label="Info">
+            {infopreneurCampaigns.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </optgroup>
+        )}
+        {partnershipCampaigns.length > 0 && (
+          <optgroup label="Partnerships">
+            {partnershipCampaigns.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </optgroup>
+        )}
       </select>
       <Button variant="secondary" size="sm" onClick={onAssign} disabled={pending || !campaignId}>
         {pending ? (
@@ -219,6 +236,11 @@ export function BulkAssignCampaignBar({
       {error && (
         <span className="inline-flex items-center gap-1 text-xs text-red-600">
           <AlertCircle className="h-3.5 w-3.5" /> {error}
+        </span>
+      )}
+      {result && !error && (
+        <span className="text-xs text-muted-foreground">
+          {result.assigned} assigned{result.skipped > 0 ? ` · ${result.skippedReason ?? `${result.skipped} skipped`}` : ""}
         </span>
       )}
     </div>

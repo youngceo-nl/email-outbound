@@ -19,6 +19,18 @@ export function renderTemplate(tpl: string, ctx: TemplateContext): string {
   });
 }
 
+// The distinct set of context keys a template actually references (same
+// token shape renderTemplate parses) — used by lib/outreach/needs-input.ts
+// to check, per lead, whether every placeholder a step's own template uses
+// actually resolved to something real for that lead before auto-sending it.
+export function extractTemplateKeys(tpl: string): string[] {
+  const keys = new Set<string>();
+  for (const match of tpl.matchAll(TOKEN)) {
+    keys.add(match[1].trim().replace(/[\s-]+/g, "_"));
+  }
+  return [...keys];
+}
+
 export function buildLeadContext(opts: {
   lead: Pick<
     Lead,
@@ -160,7 +172,7 @@ const JUNK_PROGRAM_NAMES = new Set([
 
 // Cleans stored funnel_program_name values that slipped through as page title compounds.
 // Applied at render time so existing DB data is fixed without re-enrichment.
-function cleanProgramName(name: string | null | undefined): string | null {
+export function cleanProgramName(name: string | null | undefined): string | null {
   if (!name?.trim()) return null;
   // Strip from pipe onward: "Fortune Consulting | Welcome" → "Fortune Consulting"
   let clean = name.split(/\s*\|\s*/)[0]?.trim() ?? "";

@@ -4,10 +4,17 @@ import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { updateCampaign, setCampaignStatus } from "@/app/actions/campaigns";
+import { LEAD_TRACK_LABELS } from "@/lib/leads/category";
 import type { Campaign, CampaignStatus } from "@/lib/types";
 
 const STATUSES: CampaignStatus[] = ["active", "paused", "archived"];
+
+const ROLE_BADGE: Record<string, { label: string; className: string }> = {
+  cold_followup: { label: "Cold follow-up (auto)", className: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30" },
+  warm_followup: { label: "Warm follow-up (auto)", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" },
+};
 
 export function CampaignHeaderForm({ campaign }: { campaign: Campaign }) {
   const [name, setName] = useState(campaign.name);
@@ -38,10 +45,14 @@ export function CampaignHeaderForm({ campaign }: { campaign: Campaign }) {
     });
   };
 
+  const roleBadge = ROLE_BADGE[campaign.campaign_role];
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Input value={name} onChange={(e) => setName(e.target.value)} className="max-w-sm font-medium" />
+        <Badge variant="outline" title="Set at creation, not editable">{LEAD_TRACK_LABELS[campaign.campaign_type]}</Badge>
+        {roleBadge && <Badge variant="outline" className={roleBadge.className}>{roleBadge.label}</Badge>}
         <select
           value={campaign.status}
           onChange={(e) => changeStatus(e.target.value as CampaignStatus)}
@@ -53,6 +64,13 @@ export function CampaignHeaderForm({ campaign }: { campaign: Campaign }) {
           ))}
         </select>
       </div>
+      {roleBadge && (
+        <p className={`text-xs font-medium ${campaign.status === "active" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+          {campaign.status === "active"
+            ? "⚠ Active — this chain auto-sends due follow-ups with no human click."
+            : "Paused — this chain will not auto-send until status is set to active."}
+        </p>
+      )}
       <Input
         value={angle}
         onChange={(e) => setAngle(e.target.value)}
