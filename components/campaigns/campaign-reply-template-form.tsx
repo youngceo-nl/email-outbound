@@ -5,6 +5,7 @@ import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { updateCampaign } from "@/app/actions/campaigns";
+import { TemplatePreview } from "@/components/outreach/template-preview";
 
 // Authored once per campaign, shown to the VA in the inbox the moment a
 // reply on this campaign is classified 'positive' — see
@@ -51,8 +52,9 @@ export function CampaignReplyTemplateForm({
         Shown to the VA in this campaign's inbox whenever a reply is classified positive. Supports the same
         {" "}
         <code className="text-[11px]">{"{{first_name}}"}</code> / <code className="text-[11px]">{"{{program_name}}"}</code>
-        {" "}placeholders as outreach templates.
+        {" "}placeholders as outreach templates, plus <code className="text-[11px]">{"[option a|option b]"}</code> spintax.
       </p>
+      <TemplatePreview body={value} />
       <div className="flex items-center gap-2">
         <Button type="button" size="sm" variant="outline" onClick={save} disabled={pending}>
           {pending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}

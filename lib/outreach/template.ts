@@ -4,13 +4,80 @@ import type { Lead } from "@/lib/types";
 //   {{program_name}}  — double braces
 //   {program name}    — single braces, spaces normalized to underscores
 //   {{name|fallback}} — optional fallback value
+//   [option a|option b|option c] — spintax: one option picked per lead, reproducibly
 export type TemplateContext = Record<string, string | number | null | undefined>;
 
 // Matches {{key|fallback}} or {key} (single or double braces, spaces/hyphens in key allowed)
 const TOKEN = /\{\{?\s*([a-zA-Z0-9_ -]+?)(?:\s*\|\s*([^}]*?))?\s*\}?\}/g;
 
+// Matches [option a|option b|option c] — requires ≥1 top-level pipe (checked
+// in resolveSpintax) so a bare [bracketed word] or a markdown link [text](url)
+// is left untouched. Excludes [ ] from the char class, so nested brackets
+// aren't supported — the innermost bracket resolves, any outer bracket is
+// left as stray literal text (documented limitation, not worth the complexity).
+const SPINTAX = /\[([^\[\]]+)\]/g;
+
+// Splits spintax options on top-level "|" only — a "|" inside a {{...}} or
+// {...} placeholder (e.g. the fallback in {{name|there}}) is protected, since
+// brace depth is tracked while scanning.
+function splitSpintaxOptions(inner: string): string[] {
+  const options: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i];
+    if (c === "{") depth++;
+    else if (c === "}") depth = Math.max(0, depth - 1);
+    else if (c === "|" && depth === 0) {
+      options.push(inner.slice(start, i));
+      start = i + 1;
+    }
+  }
+  options.push(inner.slice(start));
+  return options.map((o) => o.trim());
+}
+
+function hashString(s: string): number {
+  let h = 2166136261 >>> 0; // FNV-1a
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed: number): number {
+  let a = seed >>> 0;
+  a = (a + 0x6d2b79f5) | 0;
+  let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// Resolves every [a|b|c] group in tpl to one option, deterministically, so
+// the same (lead, template text) always renders identically — matching
+// send.ts's "what was previewed is what shipped" guarantee — while different
+// leads rotate. No-pipe brackets are left completely untouched.
+function resolveSpintax(tpl: string, seed: string): string {
+  let occurrence = 0;
+  return tpl.replace(SPINTAX, (match, inner: string) => {
+    if (!inner.includes("|")) return match;
+    const options = splitSpintaxOptions(inner);
+    if (options.length < 2) return match;
+    const idx = occurrence++;
+    const rand = mulberry32(hashString(`${seed} ${idx}`));
+    return options[Math.min(options.length - 1, Math.floor(rand * options.length))];
+  });
+}
+
+function seedFromCtx(ctx: TemplateContext): string {
+  const u = ctx.username;
+  return u == null || u === "" ? "anon" : String(u);
+}
+
 export function renderTemplate(tpl: string, ctx: TemplateContext): string {
-  return tpl.replace(TOKEN, (_match, rawKey: string, fallback?: string) => {
+  const spun = resolveSpintax(tpl, seedFromCtx(ctx));
+  return spun.replace(TOKEN, (_match, rawKey: string, fallback?: string) => {
     // Normalize spaces and hyphens → underscores so "{first-name}" and "{program name}" both work
     const key = rawKey.trim().replace(/[\s-]+/g, "_");
     const v = ctx[key];
@@ -23,12 +90,46 @@ export function renderTemplate(tpl: string, ctx: TemplateContext): string {
 // token shape renderTemplate parses) — used by lib/outreach/needs-input.ts
 // to check, per lead, whether every placeholder a step's own template uses
 // actually resolved to something real for that lead before auto-sending it.
-export function extractTemplateKeys(tpl: string): string[] {
+// Spintax is resolved first so only the branch this lead would actually get
+// is scanned — an unchosen branch's placeholder can't wrongly block auto-send.
+export function extractTemplateKeys(tpl: string, ctx: TemplateContext): string[] {
+  const spun = resolveSpintax(tpl, seedFromCtx(ctx));
   const keys = new Set<string>();
-  for (const match of tpl.matchAll(TOKEN)) {
+  for (const match of spun.matchAll(TOKEN)) {
     keys.add(match[1].trim().replace(/[\s-]+/g, "_"));
   }
   return [...keys];
+}
+
+// A fixed, realistic dummy lead context for authoring-time previews — lets
+// editors show one resolved example as the user types without a real lead.
+export function buildSampleContext(): TemplateContext {
+  return {
+    first_name: "Alex",
+    name: "Alex",
+    full_name: "Alex Rivera",
+    username: "alex.rivera.fit",
+    niche: "fitness coaching",
+    business_model: "coaching",
+    program_name: "Shred Method",
+    offer_summary: "a 12-week fat-loss program with weekly check-ins",
+    external_link: "https://example.com/apply",
+    sender_name: "Jordan",
+  };
+}
+
+// Flags likely-broken spintax as the user types — a bracket-depth counter,
+// not a strict parser, just enough to catch a missing ] or [.
+export function hasUnbalancedBrackets(tpl: string): boolean {
+  let depth = 0;
+  for (const ch of tpl) {
+    if (ch === "[") depth++;
+    else if (ch === "]") {
+      depth--;
+      if (depth < 0) return true;
+    }
+  }
+  return depth !== 0;
 }
 
 export function buildLeadContext(opts: {

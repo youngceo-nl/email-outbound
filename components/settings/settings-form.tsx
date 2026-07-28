@@ -1,5 +1,5 @@
 "use client";
-import { useTransition, useState, useEffect, useCallback, useRef } from "react";
+import { useTransition, useState, useEffect, useCallback, useRef, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { AlertTriangle } from "lucide-react";
 import { saveSettings, removeManagedAccount } from "@/app/actions/settings";
 import { GroupManager } from "@/components/settings/group-manager";
 import { EmailKeyManager } from "@/components/settings/email-key-manager";
+import { TemplatePreview } from "@/components/outreach/template-preview";
 import type { AppSettings, ManagedAccountDisplay } from "@/lib/types";
 
 export function SettingsForm({
@@ -224,7 +225,7 @@ export function SettingsForm({
           <CardHeader>
             <CardTitle>Outreach copy</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Each Outreach Ready tab sends its own subject/body. Tokens: {"{{first_name}}"}, {"{{name}}"}, {"{{full_name}}"}, {"{{username}}"}, {"{{niche}}"}, {"{{business_model}}"}, {"{{program_name}}"}, {"{{offer_summary}}"}, {"{{external_link}}"}, {"{{sender_name}}"} — {"{{key|fallback}}"} for a fallback value.
+              Each Outreach Ready tab sends its own subject/body. Tokens: {"{{first_name}}"}, {"{{name}}"}, {"{{full_name}}"}, {"{{username}}"}, {"{{niche}}"}, {"{{business_model}}"}, {"{{program_name}}"}, {"{{offer_summary}}"}, {"{{external_link}}"}, {"{{sender_name}}"} — {"{{key|fallback}}"} for a fallback value. Spintax: {"[option a|option b]"} rotates a phrase per lead.
             </p>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -295,32 +296,46 @@ function OutreachCategoryFields({
 }: {
   label: string; prefix: "partnerships" | "info" | "other"; subject: string; body: string;
 }) {
+  const [subjectVal, setSubjectVal] = useState(subject);
+  const [bodyVal, setBodyVal] = useState(body);
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium">{label}</p>
-      <Field label="Subject" name={`outreach_subject_${prefix}`} defaultValue={subject} />
+      <Field label="Subject" name={`outreach_subject_${prefix}`} value={subjectVal} onChange={setSubjectVal} />
       <div className="space-y-1">
         <Label className="text-sm" htmlFor={`outreach_body_${prefix}`}>Body</Label>
         <Textarea
           id={`outreach_body_${prefix}`}
           name={`outreach_body_${prefix}`}
-          defaultValue={body}
+          value={bodyVal}
+          onChange={(e) => setBodyVal(e.target.value)}
           className="min-h-[140px] font-mono text-xs"
         />
       </div>
+      <TemplatePreview subject={subjectVal} body={bodyVal} />
     </div>
   );
 }
 
 function Field({
-  label, name, defaultValue, type = "text", step, hint,
+  label, name, defaultValue, value, onChange, type = "text", step, hint,
 }: {
-  label: string; name: string; defaultValue: string; type?: string; step?: string; hint?: string;
+  label: string; name: string; defaultValue?: string;
+  value?: string; onChange?: (v: string) => void; type?: string; step?: string; hint?: string;
 }) {
+  const controlled = value !== undefined;
   return (
     <div className="space-y-1">
       <Label htmlFor={name} className="text-sm">{label}</Label>
-      <Input id={name} name={name} defaultValue={defaultValue} type={type} step={step} />
+      <Input
+        id={name}
+        name={name}
+        type={type}
+        step={step}
+        {...(controlled
+          ? { value, onChange: (e: ChangeEvent<HTMLInputElement>) => onChange?.(e.target.value) }
+          : { defaultValue })}
+      />
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );

@@ -29,8 +29,8 @@ export function detectStepNeedsInput(opts: {
 }): NeedsInputResult {
   const ctx = buildLeadContext({ lead: opts.lead, senderName: opts.senderName });
   const usedKeys = new Set([
-    ...extractTemplateKeys(opts.subjectTemplate),
-    ...extractTemplateKeys(opts.bodyTemplate),
+    ...extractTemplateKeys(opts.subjectTemplate, ctx),
+    ...extractTemplateKeys(opts.bodyTemplate, ctx),
   ]);
 
   const missing: string[] = [];

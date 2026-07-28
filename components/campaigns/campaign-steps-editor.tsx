@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { upsertVariantSteps, type StepInput } from "@/app/actions/campaigns";
 import type { CampaignStep } from "@/lib/types";
+import { TemplatePreview } from "@/components/outreach/template-preview";
 
 const TOKEN_HINT =
-  "Tokens: {{first_name}}, {{name}}, {{full_name}}, {{username}}, {{niche}}, {{business_model}}, {{program_name}}, {{offer_summary}}, {{external_link}}, {{sender_name}} — {{key|fallback}} for a fallback.";
+  "Tokens: {{first_name}}, {{name}}, {{full_name}}, {{username}}, {{niche}}, {{business_model}}, {{program_name}}, {{offer_summary}}, {{external_link}}, {{sender_name}} — {{key|fallback}} for a fallback. Spintax: [option a|option b] rotates a phrase per lead.";
 
 export function CampaignStepsEditor({
   variantId,
@@ -103,6 +104,7 @@ export function CampaignStepsEditor({
             onChange={(e) => update(i, { body_template: e.target.value })}
             className="min-h-[120px] font-mono text-xs"
           />
+          <TemplatePreview subject={s.subject_template} body={s.body_template} />
         </div>
       ))}
 
