@@ -1,37 +1,48 @@
 # VA Access Restrictions
 
-No such doc existed before this one — this is the first pass, written after
-checking the actual auth/access model in the codebase (not just the two
-things you asked about).
+**Status as of 2026-07-31**: implemented, then partially reversed by
+request. The VA account (`va@theconversionbrands.com`) is tagged
+`app_metadata.role = "va"` on its Supabase Auth record. Originally this
+blocked both `/review` and the bad-leads table; **Review access was
+explicitly restored on 2026-07-31** (this doc's history below), so today the
+VA role only restricts the bad-leads table plus the secrets/billing tables
+found while building this. Everything else in this doc reflects the
+original investigation and is still accurate.
 
 ## Short answer up front
 
-**There is currently no concept of restricted/VA-tier access anywhere in this
-app.** Every authenticated user — founder or VA — has 100% identical access
-to every page and every row in every table. `middleware.ts` only checks "is
-this person logged in at all," and every Row Level Security policy in
-`supabase/migrations/` is written as:
+Originally (first pass, before any of this was built): every authenticated
+user — founder or VA — had 100% identical access to every page and every
+row in every table. `middleware.ts` only checked "is this person logged in
+at all," and every Row Level Security policy in `supabase/migrations/` was
+written as:
 
 ```sql
 for all to authenticated using (true) with check (true)
 ```
 
-That's the login gate. There is no second gate.
+That's the login gate described below — it's what the original "other
+liabilities" section still refers to, and is **still true for every table
+not explicitly listed as locked down** (see "Current state" below).
 
 ---
 
-## The two things you flagged
+## The two things you originally flagged
 
-### 1. `/review` — inaccessible for VA
+### 1. `/review` — **restored for VA on 2026-07-31**, no longer restricted
 `app/(dashboard)/review/page.tsx` — the human-review queue for AI-qualified
-leads (`getReviewQueue`, `getReviewStats`). Reachable today by anyone logged
-in via the flat nav list in `app/(dashboard)/layout.tsx`; no per-item guard
-exists on that nav or on the route itself.
+leads (`getReviewQueue`, `getReviewStats`). Was blocked at three layers
+(`middleware.ts` redirect, nav filtering in `app/(dashboard)/layout.tsx`,
+a page-level redirect) plus a DB-level RLS rule hiding review-queue-shaped
+`leads` rows. All four were explicitly reversed by request — the VA now
+sees this tab exactly like any other account, including the nav badge.
 
-### 2. Bad leads — inaccessible for VA
-Not a separate route — it's the `<BadLeadsTable>` component embedded directly
-inside `app/(dashboard)/leads/page.tsx` (line 345), backed by the
-`rejected_leads` table. Rendered unconditionally to whoever opens `/leads`.
+### 2. Bad leads — still inaccessible for VA
+Not a separate route — it's the `<BadLeadsTable>` component embedded
+directly inside `app/(dashboard)/leads/page.tsx`, backed by the
+`rejected_leads` table. Both the UI (component not rendered, query not run
+for a VA session) and the DB (RLS blocks the `rejected_leads` table outright
+for `role = 'va'`) still restrict this — unchanged, still live.
 
 ---
 
@@ -59,13 +70,13 @@ what React renders.
 Went looking for anything else in the same category. Found four more, all
 live right now:
 
-1. **Signup is open, not invite-only.** `app/(auth)/login/page.tsx` calls
-   `supabase.auth.signUp()` directly. Anyone who reaches the login page can
-   create their own account, and that account gets the exact same
-   `authenticated` role as every other user — i.e., everything above, for
-   free, without you provisioning anything. (Worth double-checking whether
-   the Supabase project itself restricts signups at the dashboard level,
-   outside this code.)
+1. **~~Signup is open, not invite-only.~~ Fixed — see "Current state" below.**
+   `app/(auth)/login/page.tsx` used to call `supabase.auth.signUp()`
+   directly, meaning anyone who reached the login page could create their
+   own account with the exact same `authenticated` role as everyone else.
+   That call was removed; sign-in only now. (Still worth double-checking
+   whether the Supabase project itself also restricts signups at the
+   dashboard level, outside this code, as defense in depth.)
 
 2. **Live API keys sit in the `app_settings` table, not just `.env.local`.**
    Checked the live row directly: `openai_api_key` is populated, and
@@ -89,24 +100,35 @@ something unexpected, there's currently no way to tell what they touched.
 
 ---
 
-## What real VA-tier access would require
+## Current state (built, then Review partially reversed)
 
-Not implemented — this is the shape of the fix, for you to react to before
-anyone builds it:
+Everything below this line WAS implemented, not just proposed:
 
-- A role concept Postgres can actually see — either a custom claim on the
-  Supabase JWT, or an app-level `user_roles` table joined into policies.
-- RLS rewritten from blanket `using (true)` to a role check, at minimum on
-  `rejected_leads`, `app_settings`, `api_usage_events`, `fixed_costs`, and
-  wherever `review`-status leads live.
-- Nav + route guards (`middleware.ts` / `layout.tsx`) so a VA never even sees
-  `/review` or the bad-leads table rendered — as defense in depth *on top of*
-  RLS, not instead of it.
-- Closing open signup or gating it to an allowlist, so a VA account is
-  something you explicitly provision rather than anyone-with-the-URL.
-- Moving the secrets currently sitting in `app_settings` (OpenAI key, the 7
-  Apify tokens) to server-only storage instead of a DB row every
-  authenticated session can read.
+- **Role concept**: `app_metadata.role = "va"` on the VA's Supabase Auth
+  user (set via the Admin API — `app_metadata` is not user-editable, unlike
+  `user_metadata`, so the VA can't grant itself a different role). RLS
+  policies read it via `(auth.jwt() -> 'app_metadata' ->> 'role') = 'va'`.
+- **RLS rewritten from blanket `using (true)` to a role check** on:
+  `rejected_leads` (fully blocked for VA), `app_settings` (fully blocked —
+  this is where the OpenAI key and Apify tokens live), `api_usage_events` and
+  `fixed_costs` (fully blocked, billing data). `leads` was *also* locked down
+  (hiding review-queue-shaped rows) but that specific carve-out was reversed
+  on 2026-07-31 — `leads` RLS is back to `using (true)` for everyone,
+  VA included.
+- **Nav + route guards** (`middleware.ts` / `app/(dashboard)/layout.tsx`) —
+  built for `/review` specifically, then removed again on 2026-07-31 per the
+  same request that relaxed the `leads` RLS above. No nav/route guard exists
+  for the bad-leads table since it was never a separate route — its
+  restriction is query-level + component-level inside `/leads`, both still
+  in place.
+- **Self-service signup removed** — `app/(auth)/login/page.tsx` no longer
+  calls `supabase.auth.signUp()`; sign-in only. New accounts require the
+  Admin API now, not "anyone who reaches the login page."
+- **Not done**: moving the `app_settings` secrets to server-only storage
+  instead of a DB row (RLS now blocks VA from reading that row directly, so
+  the immediate risk is closed, but the OpenAI key/Apify tokens still
+  physically live in a table rather than env-only storage for whoever *can*
+  read `app_settings`).
 
 ## Out of scope here
 

@@ -1,19 +1,11 @@
-import { redirect } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { getReviewQueue, getReviewStats, getReviewTrackCounts } from "@/app/actions/review";
 import { Card, CardContent } from "@/components/ui/card";
 import { ReviewClient } from "@/components/review/review-client";
-import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReviewPage() {
-  // Defense-in-depth on top of middleware.ts's redirect — VA accounts never
-  // see the human-review queue (docs/va-access-restrictions.md).
-  const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (user?.app_metadata?.role === "va") redirect("/");
-
   // Default to the infopreneur track; the client's tabs re-fetch on switch.
   const [queue, stats, trackCounts] = await Promise.all([
     getReviewQueue(100, "asc", "infopreneur"),
