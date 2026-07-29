@@ -94,8 +94,12 @@ export type AppSettings = {
   min_reels_last_30_days: number;
   include_keywords: string[];
   exclude_keywords: string[];
-  following_scraper_provider: "playwright" | "apify" | "scrapingbee" | "cookie" | "auto";
+  following_scraper_provider: "playwright" | "apify" | "scrapingbee" | "cookie" | "auto" | "colddms";
   instagram_session_cookie: string | null;
+  // ColdDMS (app.colddms.com) login for the "Auto IG Scraper" provider —
+  // see lib/instagram/colddms-scraper.ts.
+  colddms_email: string | null;
+  colddms_password: string | null;
   instagram_session_cookies: string[];
   scoring_provider: "openai" | "claude" | "gemini" | "groq";
   openai_api_key: string | null;

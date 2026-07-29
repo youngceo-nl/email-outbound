@@ -136,6 +136,21 @@ export function SettingsForm({
         </Card>
 
         <Card>
+          <CardHeader>
+            <CardTitle>Auto IG Scraper</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Login for app.colddms.com — an alternative to Apify for scraping a seed
+              account&apos;s following list. Select &quot;Auto IG Scraper&quot; as the provider on a
+              seed to use it.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Field label="ColdDMS email" name="colddms_email" defaultValue={initial.colddms_email ?? ""} />
+            <Field label="ColdDMS password" name="colddms_password" defaultValue={initial.colddms_password ?? ""} type="password" />
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader><CardTitle>Cookie management</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div id="instagram" className="space-y-2">

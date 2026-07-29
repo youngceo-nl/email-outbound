@@ -5,7 +5,7 @@ import { buildCookiePool, markRateLimited, isRateLimited } from "@/lib/instagram
 import { logCrawl, logError } from "@/lib/pipeline/persist";
 import type { AppSettings } from "@/lib/types";
 
-export type FollowingProvider = "apify" | "playwright" | "cookie";
+export type FollowingProvider = "apify" | "playwright" | "cookie" | "colddms";
 
 /**
  * Apify and Playwright walk the whole list in one call; this is their ceiling.
@@ -25,6 +25,10 @@ export type FollowingProvider = "apify" | "playwright" | "cookie";
  */
 const FULL_ACCOUNT_TARGET = 5_000;
 const PLAYWRIGHT_TIMEOUT_MS = 5 * 60 * 1000;
+// ColdDMS scrapes run server-side on their end and take much longer than the
+// direct-Instagram Playwright path — ~10 minutes was typical for ~700 results
+// in testing.
+const COLDDMS_TIMEOUT_MS = 25 * 60 * 1000;
 
 export type FollowingResult = {
   items: DiscoveredFollowing[];
@@ -105,6 +109,29 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
     return { items, provider: "playwright", nextCursor: null };
   };
 
+  const tryColdDMS = async (): Promise<FollowingResult> => {
+    if (!settings.colddms_email || !settings.colddms_password) {
+      throw new Error("ColdDMS is the configured following scraper but no ColdDMS email/password is set in Settings.");
+    }
+    const { scrapeFollowingColdDMS } = await import("@/lib/instagram/colddms-scraper");
+    const items = await Promise.race([
+      scrapeFollowingColdDMS({
+        username,
+        limit: bulkLimit,
+        email: settings.colddms_email,
+        password: settings.colddms_password,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("ColdDMS timed out after 25 minutes")), COLDDMS_TIMEOUT_MS),
+      ),
+    ]);
+    if (items.length === 0) {
+      throw new Error(`ColdDMS returned 0 accounts for @${username}`);
+    }
+    // ColdDMS fetches everything in one task, same as Apify/Playwright.
+    return { items, provider: "colddms", nextCursor: null };
+  };
+
   const tryCookie = async (): Promise<FollowingResult> => {
     if (cookiePool.length === 0) throw new Error("No Instagram session cookies configured");
     const available = cookiePool.filter((e) => !isRateLimited(e.cookie));
@@ -140,6 +167,7 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
     apify: tryApify,
     playwright: tryPlaywright,
     cookie: tryCookie,
+    colddms: tryColdDMS,
   };
 
   // Anything not in the chain (a stale 'scrapingbee' row, say) lands on the
