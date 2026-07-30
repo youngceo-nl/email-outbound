@@ -140,6 +140,7 @@ export function SeedManager({
 // offering it meant picking a provider that silently ran something else.
 const PROVIDER_OPTIONS: { value: ScrapeProvider; label: string }[] = [
   { value: "apify",      label: "Apify (standard)" },
+  { value: "hikerapi",   label: "HikerAPI" },
   { value: "colddms",    label: "Auto IG Scraper" },
   { value: "auto",       label: "Auto (Apify → Playwright → cookie)" },
   { value: "playwright", label: "Playwright" },

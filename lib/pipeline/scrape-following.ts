@@ -3,9 +3,10 @@ import type { DiscoveredFollowing } from "@/lib/apify/actors";
 import { fetchFollowingDirect, InstagramDirectError } from "@/lib/instagram/direct";
 import { buildCookiePool, markRateLimited, isRateLimited } from "@/lib/instagram/cookie-pool";
 import { logCrawl, logError } from "@/lib/pipeline/persist";
+import { resolveHikerApiKey } from "@/lib/config/settings";
 import type { AppSettings } from "@/lib/types";
 
-export type FollowingProvider = "apify" | "playwright" | "cookie" | "colddms";
+export type FollowingProvider = "apify" | "playwright" | "cookie" | "colddms" | "hikerapi";
 
 /**
  * Apify and Playwright walk the whole list in one call; this is their ceiling.
@@ -132,6 +133,24 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
     return { items, provider: "colddms", nextCursor: null };
   };
 
+  // HikerAPI paginates internally (25/page, ~1 request per page) up to bulkLimit,
+  // same "fetch everything in one call" contract as Apify/Playwright/ColdDMS from
+  // the caller's perspective. Requires a funded HikerAPI balance — see Settings.
+  const tryHikerApi = async (): Promise<FollowingResult> => {
+    const apiKey = resolveHikerApiKey(settings);
+    if (!apiKey) {
+      throw new Error(
+        "HikerAPI is the configured following scraper but no HikerAPI key is set — add one in Settings.",
+      );
+    }
+    const { scrapeFollowingViaHikerApi } = await import("@/lib/hikerapi/instagram");
+    const items = await scrapeFollowingViaHikerApi({ apiKey, username, limit: bulkLimit });
+    if (items.length === 0) {
+      throw new Error(`HikerAPI returned 0 accounts for @${username}`);
+    }
+    return { items, provider: "hikerapi", nextCursor: null };
+  };
+
   const tryCookie = async (): Promise<FollowingResult> => {
     if (cookiePool.length === 0) throw new Error("No Instagram session cookies configured");
     const available = cookiePool.filter((e) => !isRateLimited(e.cookie));
@@ -168,6 +187,7 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
     playwright: tryPlaywright,
     cookie: tryCookie,
     colddms: tryColdDMS,
+    hikerapi: tryHikerApi,
   };
 
   // Anything not in the chain (a stale 'scrapingbee' row, say) lands on the

@@ -85,6 +85,7 @@ export type AppSettings = {
   claude_api_key: string | null;
   claude_model: string;
   scrapingbee_api_key: string | null;
+  hikerapi_api_key: string | null;
   default_seeds: string[];
   max_profiles_per_account: number;
   crawl_score_threshold: number;
@@ -94,7 +95,7 @@ export type AppSettings = {
   min_reels_last_30_days: number;
   include_keywords: string[];
   exclude_keywords: string[];
-  following_scraper_provider: "playwright" | "apify" | "scrapingbee" | "cookie" | "auto" | "colddms";
+  following_scraper_provider: "playwright" | "apify" | "scrapingbee" | "cookie" | "auto" | "colddms" | "hikerapi";
   instagram_session_cookie: string | null;
   // ColdDMS (app.colddms.com) login for the "Auto IG Scraper" provider —
   // see lib/instagram/colddms-scraper.ts.

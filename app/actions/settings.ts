@@ -31,6 +31,7 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     report_model: String(formData.get("report_model") ?? prev.report_model),
     report_strategy_notes: String(formData.get("report_strategy_notes") ?? "") || null,
     scrapingbee_api_key: String(formData.get("scrapingbee_api_key") ?? "") || null,
+    hikerapi_api_key: String(formData.get("hikerapi_api_key") ?? "") || null,
     max_profiles_per_account: num(formData.get("max_profiles_per_account"), prev.max_profiles_per_account),
     crawl_score_threshold: num(formData.get("crawl_score_threshold"), prev.crawl_score_threshold),
     min_followers: num(formData.get("min_followers"), prev.min_followers),
@@ -43,7 +44,7 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
       const raw = formData.get("following_scraper_provider");
       if (raw == null) return prev.following_scraper_provider; // field not in form — keep DB value
       const v = String(raw);
-      return (["playwright", "apify", "scrapingbee", "cookie", "auto", "colddms"] as const).includes(v as never) ? (v as "playwright" | "apify" | "scrapingbee" | "cookie" | "auto" | "colddms") : "auto";
+      return (["playwright", "apify", "scrapingbee", "cookie", "auto", "colddms", "hikerapi"] as const).includes(v as never) ? (v as "playwright" | "apify" | "scrapingbee" | "cookie" | "auto" | "colddms" | "hikerapi") : "auto";
     })(),
     instagram_session_cookie: String(formData.get("instagram_session_cookie") ?? "") || null,
     colddms_email: String(formData.get("colddms_email") ?? "") || null,

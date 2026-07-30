@@ -57,6 +57,10 @@ export function resolveApifyTokens(s: AppSettings): string[] {
   if (fallback && !fromEnv.includes(fallback)) fromEnv.push(fallback);
   return fromEnv;
 }
+export function resolveHikerApiKey(s: AppSettings): string | null {
+  return s.hikerapi_api_key || process.env.HIKERAPI_KEY || null;
+}
+
 export function resolveClaudeKey(s: AppSettings): string {
   const k = s.claude_api_key || process.env.ANTHROPIC_API_KEY || "";
   if (!k) throw new Error("ANTHROPIC_API_KEY not configured (set in Settings or env)");

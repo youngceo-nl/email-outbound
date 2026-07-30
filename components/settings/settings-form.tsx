@@ -11,6 +11,7 @@ import { AlertTriangle } from "lucide-react";
 import { saveSettings, removeManagedAccount } from "@/app/actions/settings";
 import { GroupManager } from "@/components/settings/group-manager";
 import { EmailKeyManager } from "@/components/settings/email-key-manager";
+import { CheckHikerApiBalanceButton } from "@/components/settings/check-hikerapi-balance-button";
 import { TemplatePreview } from "@/components/outreach/template-preview";
 import type { AppSettings, ManagedAccountDisplay } from "@/lib/types";
 
@@ -79,6 +80,14 @@ export function SettingsForm({
               <p className="text-xs text-muted-foreground">Add multiple accounts to rotate credits. Falls back to SCRAPINGBEE_API_KEY env var.</p>
               <EmailKeyManager provider="scrapingbee" keys={initial.scrapingbee_api_keys ?? []} placeholder="SB API key…" keyStatuses={initial.email_key_statuses ?? {}} />
             </div>
+            <Field
+              label="HikerAPI key"
+              name="hikerapi_api_key"
+              defaultValue={initial.hikerapi_api_key ?? ""}
+              type="password"
+              hint="Pay-per-request Instagram API (api.hikerapi.com). Select 'HikerAPI' as the provider on a seed to use it for following-list scrapes. Falls back to HIKERAPI_KEY env var. Needs a funded balance on the HikerAPI dashboard — the free tier is small."
+            />
+            <CheckHikerApiBalanceButton />
 
             <div className="space-y-1 pt-2">
               <Label className="text-sm">Scoring provider</Label>
