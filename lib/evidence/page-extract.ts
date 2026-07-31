@@ -21,7 +21,20 @@ export type PageExtraction = {
   prices: string[];
   outbound_links: Array<{ url: string; label: string }>;
   text_excerpt: string;
+  /** Signals that a form exists on the page, and what it asks for. */
+  form_signals: string[];
+  service_delivery_signals: string[];
+  education_delivery_signals: string[];
+  proof_claims: string[];
   destination_type: DestinationType;
+  /*
+   * When a page carries signals for more than one model, all of them are kept.
+   * Forcing a single answer here is exactly how an agency running a course, or a
+   * coach running a small service arm, gets silently mislabeled before the AI or
+   * a reviewer ever sees the ambiguity.
+   */
+  candidate_types: DestinationType[];
+  classification_state: "resolved" | "conflicting" | "unknown";
   visitor_receives: VisitorOutcome[];
   classification_reason: string;
 };
@@ -140,6 +153,20 @@ const CTA_TEXT_PATTERNS = [
   /\blearn more\b/i, /\bsign up\b/i, /\brequest\b/i, /\bdm\b/i,
 ];
 
+const PROOF_PATTERNS = [
+  /\b(helped|coached|trained|taught|mentored|served)\s+(?:over\s+|\+)?[\d,]+\+?\s+[a-z]+/i,
+  /\b[\d,]+\+?\s+(clients|students|members|customers)\b/i,
+  /[$€£]\s?[\d,.]+\s?(k|m|million)?\s+(in\s+)?(revenue|sales|generated|collected)/i,
+  /\b(testimonial|case stud(y|ies)|success stor(y|ies)|client results|student wins)\b/i,
+  /\b(before and after|transformation)s?\b/i,
+];
+
+const FORM_FIELD_PATTERNS = [
+  /\b(email|e-mail)\b/i, /\bphone\b/i, /\bname\b/i, /\brevenue\b/i,
+  /\bbudget\b/i, /\bapplication\b/i, /\bmonthly income\b/i, /\bwebsite\b/i,
+  /\binstagram\b/i, /\bwhat.s your\b/i,
+];
+
 const PRICE_PATTERN =
   /[$€£]\s?\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?(?:\s?k\b)?(?:\s?\/\s?(?:mo|month|yr|year|wk|week)\b|\s?per\s+(?:month|year|week)\b)?/gi;
 
@@ -211,8 +238,40 @@ export function extractPage(opts: { html: string; url: string }): PageExtraction
   // footer, and legal blocks are excluded so a cookie banner never reads as an offer.
   const offerCopy = collectOfferCopy($);
 
+  // Forms are the strongest application/booking signal a page can carry.
+  const formSignals: string[] = [];
+  $("form").each((_, el) => {
+    if (formSignals.length >= 12) return;
+    const action = clean($(el).attr("action") ?? "");
+    if (action) formSignals.push(`form_action:${action}`);
+    $(el)
+      .find("input, textarea, select")
+      .each((__, field) => {
+        if (formSignals.length >= 12) return;
+        const name = clean($(field).attr("name") ?? $(field).attr("placeholder") ?? "");
+        if (name && FORM_FIELD_PATTERNS.some((pattern) => pattern.test(name))) {
+          formSignals.push(`form_field:${name.slice(0, 60)}`);
+        }
+      });
+  });
+  // Calendar and form embeds live in iframes and never appear as <form>.
+  $("iframe[src]").each((_, el) => {
+    const src = $(el).attr("src") ?? "";
+    if (/calendly|cal\.com|acuity|typeform|tally|jotform|hubspot|savvycal|youcanbook/i.test(src)) {
+      formSignals.push(`embed:${(hostOf(src) ?? src).slice(0, 60)}`);
+    }
+  });
+
   const bodyText = extractBodyText($);
   const prices = [...new Set([...bodyText.matchAll(PRICE_PATTERN)].map((m) => m[0].trim()))].slice(0, 12);
+
+  const serviceSignals = matchedPhrases(bodyText, [
+    ...SERVICE_DELIVERY_PATTERNS,
+    ...TEAM_PERFORMANCE_PATTERNS,
+    ...SERVICE_CTA_PATTERNS,
+  ], 6);
+  const educationSignals = matchedPhrases(bodyText, EDUCATION_CONTENT_PATTERNS, 6);
+  const proofClaims = matchedPhrases(bodyText, PROOF_PATTERNS, 6);
 
   const classification = classifyDestination({
     url: opts.url,
@@ -223,6 +282,7 @@ export function extractPage(opts: { html: string; url: string }): PageExtraction
     offerCopy,
     ctaLabels,
     bodyText,
+    formSignals,
   });
 
   return {
@@ -235,7 +295,13 @@ export function extractPage(opts: { html: string; url: string }): PageExtraction
     prices,
     outbound_links: outbound,
     text_excerpt: bodyText.slice(0, MAX_EXCERPT),
+    form_signals: [...new Set(formSignals)],
+    service_delivery_signals: serviceSignals,
+    education_delivery_signals: educationSignals,
+    proof_claims: proofClaims,
     destination_type: classification.type,
+    candidate_types: classification.candidateTypes,
+    classification_state: classification.state,
     visitor_receives: classification.visitorReceives,
     classification_reason: classification.reason,
   };
@@ -266,6 +332,34 @@ function extractBodyText($: cheerio.CheerioAPI): string {
 // Destination classification
 // ---------------------------------------------------------------------------
 
+export type DestinationClassification = {
+  type: DestinationType;
+  candidateTypes: DestinationType[];
+  state: "resolved" | "conflicting" | "unknown";
+  visitorReceives: VisitorOutcome[];
+  reason: string;
+};
+
+const TYPE_OUTCOMES: Record<string, VisitorOutcome[]> = {
+  application: ["unknown"],
+  booking: ["coaching"],
+  education: ["education", "coaching"],
+  lead_magnet: ["education"],
+  community: ["community"],
+  agency_service: ["done_for_you_service"],
+  store: ["commerce_product"],
+  youtube: ["education"],
+  link_hub: ["unknown"],
+  unknown: ["unknown"],
+};
+
+/*
+ * Deterministic-signals-first classification. Every signal that fires is kept as
+ * a candidate; the strongest becomes `type`. When an information signal and an
+ * agency signal both fire, the state is `conflicting` and the primary type is
+ * deliberately left `unknown` — that is precisely the case the spec sends to the
+ * AI and then to targeted review, and collapsing it here would hide it.
+ */
 export function classifyDestination(opts: {
   url: string;
   canonicalUrl?: string | null;
@@ -275,40 +369,37 @@ export function classifyDestination(opts: {
   offerCopy: string[];
   ctaLabels: ExtractedCta[];
   bodyText: string;
-}): { type: DestinationType; visitorReceives: VisitorOutcome[]; reason: string } {
+  formSignals?: string[];
+}): DestinationClassification {
   const host = hostOf(opts.url) ?? "";
   const path = pathOf(opts.url).toLowerCase();
+  const formSignals = opts.formSignals ?? [];
   const matchesHost = (list: string[]) =>
     list.some((candidate) => host === candidate || host.endsWith(`.${candidate}`));
 
-  // --- Host-level classification is the most reliable signal available. ---
-  if (matchesHost(YOUTUBE_HOSTS)) {
-    return { type: "youtube", visitorReceives: ["education"], reason: "youtube host" };
-  }
-  if (matchesHost(LINK_HUB_HOSTS)) {
-    return { type: "link_hub", visitorReceives: ["unknown"], reason: "link hub host" };
-  }
-  if (matchesHost(BOOKING_HOSTS)) {
-    return { type: "booking", visitorReceives: ["coaching"], reason: "booking platform host" };
-  }
-  if (matchesHost(COMMUNITY_HOSTS)) {
-    return { type: "community", visitorReceives: ["community"], reason: "community platform host" };
-  }
-  if (matchesHost(FORM_HOSTS)) {
-    return { type: "application", visitorReceives: ["unknown"], reason: "form platform host" };
-  }
-  if (matchesHost(STORE_HOSTS)) {
-    return { type: "store", visitorReceives: ["commerce_product"], reason: "store platform host" };
-  }
-  if (matchesHost(COURSE_HOSTS)) {
-    return {
-      type: "education",
-      visitorReceives: ["information_product", "education"],
-      reason: "course platform host",
-    };
-  }
+  const resolve = (type: DestinationType, reason: string): DestinationClassification => ({
+    type,
+    candidateTypes: [type],
+    state: "resolved",
+    visitorReceives: TYPE_OUTCOMES[type] ?? ["unknown"],
+    reason,
+  });
 
-  // --- Content evidence: the agency bundle outranks a generic path. ---
+  // --- Host-level classification is the most reliable signal available. ---
+  if (matchesHost(YOUTUBE_HOSTS)) return resolve("youtube", "youtube host");
+  if (matchesHost(LINK_HUB_HOSTS)) return resolve("link_hub", "link hub host");
+  if (matchesHost(BOOKING_HOSTS)) return resolve("booking", "booking platform host");
+  if (matchesHost(COMMUNITY_HOSTS)) return resolve("community", "community platform host");
+  if (matchesHost(FORM_HOSTS)) return resolve("application", "form platform host");
+  if (matchesHost(STORE_HOSTS)) return resolve("store", "store platform host");
+  if (matchesHost(COURSE_HOSTS)) return resolve("education", "course platform host");
+
+  // --- Embedded booking/form widgets are as decisive as the host. ---
+  const bookingEmbed = formSignals.find((signal) =>
+    /^embed:(calendly|cal\.com|acuity|savvycal|youcanbook|hey)/i.test(signal),
+  );
+  if (bookingEmbed) return resolve("booking", `booking embed (${bookingEmbed})`);
+
   const haystack = [
     opts.title ?? "",
     opts.metaDescription ?? "",
@@ -322,62 +413,88 @@ export function classifyDestination(opts: {
   const teamPerformance = countMatches(fullText, TEAM_PERFORMANCE_PATTERNS);
   const serviceCta = countMatches(fullText, SERVICE_CTA_PATTERNS);
   const educationHits = countMatches(fullText, EDUCATION_CONTENT_PATTERNS);
-
   const agencyComponents = [serviceDelivery, teamPerformance, serviceCta].filter((n) => n > 0).length;
+
   // Two corroborating components with explicit done-for-you delivery language,
   // per the spec's reliability rule. A single component is never enough.
-  if (agencyComponents >= 2 && serviceDelivery > 0) {
-    return {
+  const agencyReliable = agencyComponents >= 2 && serviceDelivery > 0;
+
+  const candidates: Array<{ type: DestinationType; weight: number; reason: string }> = [];
+
+  if (agencyReliable) {
+    candidates.push({
       type: "agency_service",
-      visitorReceives: ["done_for_you_service"],
+      weight: 6,
       reason: `agency bundle: delivery=${serviceDelivery} team=${teamPerformance} cta=${serviceCta}`,
-    };
+    });
+  } else if (agencyComponents >= 2) {
+    candidates.push({ type: "agency_service", weight: 3, reason: `partial agency bundle x${agencyComponents}` });
   }
 
-  // --- Path-level classification ---
+  const applicationForm = formSignals.some((signal) => /application|apply/i.test(signal));
   const pathHit = (paths: string[]) => paths.find((candidate) => path.includes(candidate));
 
   const applicationPath = pathHit(APPLICATION_PATHS);
-  if (applicationPath) {
-    return { type: "application", visitorReceives: ["unknown"], reason: `path ${applicationPath}` };
+  if (applicationPath || applicationForm) {
+    candidates.push({
+      type: "application",
+      weight: 5,
+      reason: applicationPath ? `path ${applicationPath}` : "application form fields",
+    });
   }
   const bookingPath = pathHit(BOOKING_PATHS);
-  if (bookingPath) {
-    return { type: "booking", visitorReceives: ["coaching"], reason: `path ${bookingPath}` };
-  }
+  if (bookingPath) candidates.push({ type: "booking", weight: 5, reason: `path ${bookingPath}` });
+
   const educationPath = pathHit(EDUCATION_PATHS);
-  if (educationPath) {
-    return {
-      type: "education",
-      visitorReceives: ["education", "coaching"],
-      reason: `path ${educationPath}`,
-    };
-  }
+  if (educationPath) candidates.push({ type: "education", weight: 5, reason: `path ${educationPath}` });
+
   const leadMagnetPath = pathHit(LEAD_MAGNET_PATHS);
-  if (leadMagnetPath) {
-    return { type: "lead_magnet", visitorReceives: ["education"], reason: `path ${leadMagnetPath}` };
-  }
+  if (leadMagnetPath) candidates.push({ type: "lead_magnet", weight: 4, reason: `path ${leadMagnetPath}` });
+
   const storePath = pathHit(STORE_PATHS);
-  if (storePath) {
-    return { type: "store", visitorReceives: ["commerce_product"], reason: `path ${storePath}` };
+  if (storePath) candidates.push({ type: "store", weight: 4, reason: `path ${storePath}` });
+
+  if (educationHits >= 2 && !educationPath) {
+    candidates.push({ type: "education", weight: 3, reason: `education language x${educationHits}` });
   }
 
-  if (educationHits >= 2) {
+  if (candidates.length === 0) {
     return {
-      type: "education",
-      visitorReceives: ["education"],
-      reason: `education language x${educationHits}`,
-    };
-  }
-  if (agencyComponents >= 2) {
-    return {
-      type: "agency_service",
-      visitorReceives: ["done_for_you_service"],
-      reason: `partial agency bundle x${agencyComponents}`,
+      type: "unknown",
+      candidateTypes: [],
+      state: "unknown",
+      visitorReceives: ["unknown"],
+      reason: "no decisive host, path, form, or content signal",
     };
   }
 
-  return { type: "unknown", visitorReceives: ["unknown"], reason: "no decisive host, path, or content signal" };
+  candidates.sort((a, b) => b.weight - a.weight);
+  const uniqueTypes = [...new Set(candidates.map((candidate) => candidate.type))];
+
+  const INFORMATION_TYPES: DestinationType[] = ["education", "lead_magnet", "community", "application", "booking"];
+  const hasAgency = uniqueTypes.includes("agency_service");
+  const hasInformation = uniqueTypes.some((type) => INFORMATION_TYPES.includes(type));
+
+  // An information page and a service page on the same destination is a genuine
+  // business-model conflict — preserve it rather than picking a winner.
+  if (hasAgency && hasInformation) {
+    return {
+      type: "unknown",
+      candidateTypes: uniqueTypes,
+      state: "conflicting",
+      visitorReceives: ["unknown"],
+      reason: `conflicting signals: ${candidates.map((c) => `${c.type}(${c.reason})`).join("; ")}`,
+    };
+  }
+
+  const winner = candidates[0];
+  return {
+    type: winner.type,
+    candidateTypes: uniqueTypes,
+    state: uniqueTypes.length > 1 ? "conflicting" : "resolved",
+    visitorReceives: TYPE_OUTCOMES[winner.type] ?? ["unknown"],
+    reason: winner.reason,
+  };
 }
 
 export function isSocialHost(url: string): boolean {

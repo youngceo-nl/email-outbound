@@ -172,6 +172,13 @@ export type ExternalDestination = {
   offer_copy: string[];
   prices: string[];
   destination_type: DestinationType;
+  /** Every type whose signals fired, preserved when the page is ambiguous. */
+  candidate_types: DestinationType[];
+  classification_state: "resolved" | "conflicting" | "unknown";
+  form_signals: string[];
+  service_delivery_signals: string[];
+  education_delivery_signals: string[];
+  proof_claims: string[];
   visitor_receives: VisitorOutcome[];
   commercial_relevance: CommercialRelevance;
   selection_reason: string;

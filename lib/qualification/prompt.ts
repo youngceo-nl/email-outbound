@@ -341,9 +341,15 @@ STORY HIGHLIGHTS
 capture_status: ${ig.story_highlights_capture_status}
 titles_json: ${json(ig.story_highlight_titles)}
 
-EXTERNAL DESTINATION
+EXTERNAL DESTINATIONS
 url: ${json(ig.external_link)}
 external_capture_status: ${snapshot.external_capture_status}
+
+The deterministic collector pre-classified each destination. Where
+classification_state is "conflicting", candidate_types lists every model whose
+signals fired and deterministic_type is deliberately "unknown" — resolve that
+conflict from the evidence, or report it in conflicts if it cannot be resolved.
+A capture_status other than "captured" means UNKNOWN, never absent.
 inspected_destinations_json: ${json(
     snapshot.external_destinations.map((destination) => ({
       source_id: destination.destination_id,
@@ -351,19 +357,23 @@ inspected_destinations_json: ${json(
       final_url: destination.final_url,
       visible_label: destination.visible_label,
       page_title: destination.page_title,
-      meta_description: destination.meta_description,
-      headings: destination.headings.slice(0, 12),
-      cta_labels: destination.cta_labels.slice(0, 15),
-      offer_copy: destination.offer_copy.slice(0, 15),
-      prices: destination.prices,
-      destination_type: destination.destination_type,
+      description: destination.meta_description,
+      headings: destination.headings.slice(0, 8),
+      ctas: destination.cta_labels.slice(0, 10),
+      relevant_paragraphs: destination.offer_copy.slice(0, 8),
+      prices: destination.prices.slice(0, 6),
+      form_signals: destination.form_signals.slice(0, 8),
+      service_delivery_signals: destination.service_delivery_signals,
+      education_delivery_signals: destination.education_delivery_signals,
+      proof_claims: destination.proof_claims,
+      deterministic_type: destination.destination_type,
+      candidate_types: destination.candidate_types,
+      classification_state: destination.classification_state,
       visitor_receives: destination.visitor_receives,
-      commercial_relevance: destination.commercial_relevance,
       selection_reason: destination.selection_reason,
       hop: destination.hop,
       capture_status: destination.capture_status,
       error: destination.error,
-      text_excerpt: destination.text_excerpt?.slice(0, 1800) ?? null,
     })),
   )}
 
@@ -388,7 +398,7 @@ ${json(
     source_id: video.video_id,
     url: video.url,
     title: video.title,
-    description: video.description?.slice(0, 2500) ?? null,
+    description: video.description?.slice(0, 1500) ?? null,
     published_at: video.published_at,
     outbound_urls: video.outbound_urls,
     selection_reason: video.selection_reason,

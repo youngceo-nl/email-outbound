@@ -18,7 +18,7 @@ import type {
   DestinationType,
   ExternalDestination,
 } from "@/lib/qualification/types";
-import { canonicalizeUrl, freeFetchPage, scrapingBeeFetchPage, type PageFetchOutcome } from "./http";
+import { canonicalizeUrl, createAcquirePage, type PageFetchOutcome } from "./http";
 import {
   extractPage,
   isLinkHubHost,
@@ -165,6 +165,10 @@ export type ExternalCollectorConfig = {
   /** Link-hub children inspected before the collector needs a reason to continue. */
   defaultChildBudget: number;
   maxChildBudget: number;
+  /** Hard ceiling on pages fetched per lead, independent of hop depth. */
+  maxPages: number;
+  /** Hard ceiling on paid renders per lead. */
+  maxScrapingBeeCalls: number;
   scrapingBeeApiKey: string | null;
 };
 
@@ -173,6 +177,8 @@ export const DEFAULT_EXTERNAL_CONFIG: ExternalCollectorConfig = {
   absoluteHopBudget: 5,
   defaultChildBudget: 3,
   maxChildBudget: 5,
+  maxPages: 6,
+  maxScrapingBeeCalls: 2,
   scrapingBeeApiKey: null,
 };
 
@@ -187,24 +193,15 @@ export type ExternalCollectionResult = {
 
 export type PageFetcher = (url: string) => Promise<PageFetchOutcome>;
 
-/** Free fetch first, ScrapingBee only when the free attempt fails or renders nothing. */
-export function createPageFetcher(config: ExternalCollectorConfig): PageFetcher {
-  return async (url: string) => {
-    const free = await freeFetchPage(url);
-    if (free.ok && looksRendered(free.page.html)) return free;
-    if (!config.scrapingBeeApiKey) return free;
-    const rendered = await scrapingBeeFetchPage({ apiKey: config.scrapingBeeApiKey, url });
-    return rendered.ok ? rendered : free;
-  };
-}
-
-/*
- * A shell that ships no readable copy means the commercial content is behind
- * JavaScript; the spec calls for a rendering collector in exactly that case.
+/**
+ * Free fetch first, ScrapingBee only on demonstrable acquisition failure, with a
+ * hard cap on paid renders. See lib/evidence/http.ts for the gating predicate.
  */
-function looksRendered(html: string): boolean {
-  const withoutTags = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ");
-  return withoutTags.replace(/\s+/g, " ").trim().length > 400;
+export function createPageFetcher(config: ExternalCollectorConfig): PageFetcher {
+  return createAcquirePage({
+    scrapingBeeApiKey: config.scrapingBeeApiKey,
+    maxScrapingBeeCalls: config.maxScrapingBeeCalls,
+  });
 }
 
 export async function collectExternalEvidence(opts: {
@@ -271,6 +268,7 @@ export async function collectExternalEvidence(opts: {
   let stopReason: AcquisitionStopReason = "complete";
   let hopsUsed = 0;
   let destinationIndex = 0;
+  let pagesFetched = 0;
   let cycleDetected = false;
   let anyCaptured = false;
   let anyFailed = false;
@@ -284,6 +282,10 @@ export async function collectExternalEvidence(opts: {
     }
     if (item.hop > config.absoluteHopBudget) {
       stopReason = "max_hops_reached";
+      break;
+    }
+    if (pagesFetched >= config.maxPages) {
+      stopReason = "budget_exhausted";
       break;
     }
     visited.add(item.url);
@@ -315,6 +317,7 @@ export async function collectExternalEvidence(opts: {
       continue;
     }
 
+    pagesFetched += 1;
     const outcome = await opts.fetcher(item.url);
 
     if (!outcome.ok) {
@@ -357,6 +360,12 @@ export async function collectExternalEvidence(opts: {
       offer_copy: extraction.offer_copy.slice(0, 25),
       prices: extraction.prices,
       destination_type: extraction.destination_type,
+      candidate_types: extraction.candidate_types,
+      classification_state: extraction.classification_state,
+      form_signals: extraction.form_signals,
+      service_delivery_signals: extraction.service_delivery_signals,
+      education_delivery_signals: extraction.education_delivery_signals,
+      proof_claims: extraction.proof_claims,
       visitor_receives: extraction.visitor_receives,
       commercial_relevance: item.relevance,
       selection_reason: `${item.reason} | ${extraction.classification_reason}`,
@@ -536,6 +545,12 @@ function placeholderDestination(args: {
     offer_copy: [],
     prices: [],
     destination_type: args.type,
+    candidate_types: [],
+    classification_state: "unknown",
+    form_signals: [],
+    service_delivery_signals: [],
+    education_delivery_signals: [],
+    proof_claims: [],
     visitor_receives: [],
     commercial_relevance: args.item.relevance,
     selection_reason: args.item.reason,
