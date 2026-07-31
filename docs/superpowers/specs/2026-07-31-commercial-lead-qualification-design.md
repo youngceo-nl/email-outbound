@@ -21,6 +21,12 @@ Universal exclusions
 Personal-brand information classification
     |
     v
+Four-pillar gate: Proof + Authority + Transformation + CTA
+    |
+    +-- pillar unknown ------------> data retry / targeted review
+    +-- pillar reliably absent ----> not auto-approved
+    |
+    v
 Commercial-fit score
     |
     +-- 8.0 to 10.0 -------------> qualified
@@ -84,6 +90,27 @@ see why a lead qualified, entered review, or was rejected.
    silently rejected.
 7. The same evidence should produce the same decision regardless of which
    scrape or scoring entry point processed the lead.
+
+## Four-pillar qualification rule
+
+After confirming that the account is a human personal brand with an
+information funnel, qualification depends on four independent pillars:
+
+| Pillar | Required meaning | Typical evidence |
+|---|---|---|
+| Proof | Evidence that the person or their customers achieved results | Amount generated, number of people or students helped, testimonials, client wins, student wins, Results Highlights |
+| Authority | Evidence that the person is credible enough to teach the subject | Specialized expertise, demonstrated skill, personal results, named methodology, education brand, relevant audience, consistent expert content |
+| Transformation | A recognizable change offered to a defined person | `I help [ideal client] achieve [dream outcome]` or a semantic equivalent |
+| CTA | A visible next action that advances the visitor into the information funnel | Book, watch, join, apply, DM, comment, claim, download, start, or request |
+
+The four pillars are not interchangeable. Strong authority does not replace
+missing proof, and a strong CTA does not replace a missing transformation.
+High-confidence automatic qualification requires evidence for all four.
+
+When one pillar is unavailable because the scraper did not capture the
+relevant surface, the profile enters targeted review or data retry. When a
+pillar was reliably inspected and is genuinely absent, the profile does not
+receive automatic approval.
 
 # Chapter 2: Evidence collection and signal recognition
 
@@ -152,18 +179,20 @@ be conflated.
 
 ### Primary AI recognition model
 
-Before assigning numeric scores, the AI must explicitly answer four semantic
+Before assigning numeric scores, the AI must explicitly answer five semantic
 questions:
 
 1. Is this a human-led personal brand built around expertise or information?
-2. What recognizable transformation does the person help an audience achieve?
-3. What visible path moves a visitor from content toward information,
+2. What proof shows that the person, clients, or students achieved results?
+3. What authority makes this person credible enough to teach the subject?
+4. What recognizable transformation does the person help an audience achieve?
+5. What visible path moves a visitor from content toward information,
    application, coaching, or another conversion step?
-4. What proof or authority makes the expertise credible?
 
-These are the highest-value signals in the qualification system. Keywords help
-the AI locate evidence, but the AI must interpret complete phrases, context,
-and equivalent language rather than count exact matches.
+The human personal brand is a prerequisite. Proof, Authority, Transformation,
+and CTA are the four required qualification pillars. Keywords help the AI
+locate evidence, but the AI must interpret complete phrases, context, and
+equivalent language rather than count exact matches.
 
 #### High-value phrases and concepts
 
@@ -253,6 +282,8 @@ free training
 claim my [asset]
 get or download a blueprint or roadmap
 book a strategy call or session
+book in a call
+watch my latest video
 click an educational link
 visit a YouTube channel
 open a link hub
@@ -459,8 +490,9 @@ Direct-response and information-funnel phrases include:
 ```text
 DM me, DM us, DM for, send me a DM, message me, DM [keyword],
 comment [keyword], apply, apply now, apply below, book a call,
-book a strategy call, strategy session, schedule a call, work with me, work with us,
-join now, enroll, start here, click below, link below, link in bio,
+book in a call, book a strategy call, strategy session, schedule a call,
+work with me, work with us, join, join now, enroll, start here, watch,
+watch my latest video, click below, link below, link in bio,
 claim my [asset], claim the [asset], get my [asset], get the blueprint,
 get the training,
 get the roadmap, get the guide, free course, free training, download,
@@ -824,6 +856,17 @@ fat, building muscle, improving confidence, or learning a language.
 | 1.5 | Testimonials, results, a named method, or meaningful audience authority |
 | 2 | Strong quantified results, client wins, recognized authority, or repeated proof |
 
+Calculate this dimension from two independent subscores:
+
+| Subscore | Range | Evidence |
+|---|---:|---|
+| `proof_strength` | 0 to 1 | Quantified results, amount generated, people or students helped, testimonials, client wins, student wins, or results statements and Highlights |
+| `authority_strength` | 0 to 1 | Specialized expertise, demonstrated personal outcome, named method, education brand, relevant audience, or consistent expert content |
+
+`proof_maturity` is the exact sum of `proof_strength` and
+`authority_strength`. Automatic qualification requires each subscore to be at
+least 0.5. One subscore cannot compensate for zero evidence in the other.
+
 Proof-oriented Story Highlights such as `RESULTS`, `CLIENTS`, `REVIEWS`,
 `WINS`, and `TESTIMONIALS` count as supporting evidence under the caps defined
 in Step 1. Offer and funnel Highlights support their corresponding dimensions.
@@ -842,6 +885,10 @@ Automatically qualify when all conditions hold:
 - Commercial-fit score is at least 8.0.
 - Information offer and funnel evidence is at least 1.0.
 - At least one of buyer clarity or transformation clarity is at least 1.5.
+- Proof strength is at least 0.5.
+- Authority strength is at least 0.5.
+- A recognizable transformation is present.
+- A visible CTA is present.
 - The track is `information_personal_brand`.
 - No universal exclusion applies.
 
@@ -855,6 +902,7 @@ hold:
 - Information offer and funnel evidence is at least 1.0. This allows a verified
   YouTube or link-hub education funnel to qualify without a visible paid offer.
 - Conversion intent is at least 1.0.
+- Proof, Authority, Transformation, and CTA recognition are all `true`.
 - At least one valid strong commercial bundle is present.
 - No contradictory-evidence, follower-range, uncertain-track, or suspicious
   proof flag applies.
@@ -990,9 +1038,15 @@ Answer these questions before scoring:
 3. What recognizable transformation or learning outcome is offered?
 4. What information offer or funnel is visible?
 5. What visitor action creates a conversion path?
-6. What proof or authority supports the expertise?
-7. Is the core model information, agency service, commerce, SaaS,
+6. What proof shows results for the person, clients, or students?
+7. What authority makes the person credible enough to teach this subject?
+8. Is the core model information, agency service, commerce, SaaS,
    non-commercial content, or uncertain?
+
+FOUR-PILLAR GATE
+Evaluate Proof, Authority, Transformation, and CTA independently. Do not merge
+Proof and Authority. Do not allow a strong pillar to replace a missing pillar.
+Automatic qualification requires evidence for all four.
 
 SEMANTIC INTERPRETATION
 Interpret meaning, equivalent wording, grammar, and translated language.
@@ -1029,10 +1083,16 @@ transformation.
 
 PROOF TEST
 Proof can include client wins, testimonials, student outcomes, quantified
-revenue, number of people helped, large owned or managed audiences, personal
-transformation, specialized expertise, named methodologies, Results
-Highlights, or a relevant education brand association. Label unverified claims
-as self-reported. Agency client results do not prove an information business.
+revenue, number of people helped, personal or customer transformation, and
+Results or Testimonial Highlights. Label unverified claims as self-reported.
+Agency client results do not prove an information business.
+
+AUTHORITY TEST
+Authority can include specialized expertise, demonstrated skill, a named
+methodology, a relevant education brand, an owned audience, consistent expert
+content, long-form educational media, credentials, or a credible personal
+transformation. Authority indicates why this person can teach. It does not
+replace proof that results occurred.
 
 LINK TEST
 - Application, booking, coaching, education, blueprint, roadmap, guide,
@@ -1049,14 +1109,20 @@ the signal is absent. Mark unavailable evidence as unknown. Do not reject a
 profile because activity data is missing.
 
 SCORING
-Score each dimension from 0 to 2 in increments of 0.5:
+Score these four dimensions from 0 to 2 in increments of 0.5:
 - buyer_clarity
 - transformation_clarity
 - information_funnel_evidence
 - conversion_intent
-- proof_maturity
 
-commercial_fit is the exact sum and ranges from 0 to 10.
+Score these independent subscores from 0 to 1 in increments of 0.25:
+- proof_strength
+- authority_strength
+
+proof_maturity is proof_strength + authority_strength and ranges from 0 to 2.
+commercial_fit is buyer_clarity + transformation_clarity +
+information_funnel_evidence + conversion_intent + proof_maturity. It ranges
+from 0 to 10. Do not add proof_strength or authority_strength a second time.
 
 TRACK
 Return exactly one:
@@ -1078,7 +1144,9 @@ not on how much you like the profile.
 RECOMMENDED DECISION
 - qualified: commercial_fit is at least 8.0, information funnel is at least
   1.0, buyer or transformation is at least 1.5, track is
-  information_personal_brand, and no exclusion applies
+  information_personal_brand, Proof, Authority, Transformation, and CTA are
+  all present, proof_strength and authority_strength are each at least 0.5,
+  and no exclusion applies
 - review: commercial_fit is 6.0 to 7.5, confidence is low, or the model is mixed
 - rejected: a reliable exclusion applies, or commercial_fit is at most 5.5
   with confidence of at least 0.75
@@ -1203,15 +1271,18 @@ The classifier returns a versioned object with this logical shape:
   "confidence": 0.91,
   "recognition": {
     "human_personal_brand": true,
+    "proof_present": true,
+    "authority_present": true,
     "recognizable_transformation": true,
-    "visible_conversion_path": true,
-    "credible_proof_or_authority": true
+    "visible_cta": true
   },
   "scores": {
     "buyer_clarity": 2,
     "transformation_clarity": 2,
     "information_funnel_evidence": 2,
     "conversion_intent": 2,
+    "proof_strength": 0.75,
+    "authority_strength": 0.75,
     "proof_maturity": 1.5,
     "commercial_fit": 9.5
   },
@@ -1263,7 +1334,8 @@ Required enum values:
 recalculates it from the validated scores, confidence, track, data quality,
 bundle evidence, and review flags before changing lead state.
 
-The backend validates the four recognition answers, score ranges, required
+The backend validates the personal-brand prerequisite, four pillar answers,
+score ranges, required
 fields, permitted enum values, score totals, and decision rules. Invalid AI
 output is retried once. A second invalid response enters a scoring-error queue
 rather than being treated as rejection.
@@ -1359,8 +1431,8 @@ independent final evaluation example.
 - Every decision exposes dimension scores, evidence, confidence, and model
   version.
 - Every automatic qualification identifies a human personal brand, a
-  recognizable transformation, a visible conversion path, and credible proof
-  or authority, with cited evidence for each available signal.
+  recognizable transformation, a visible CTA, credible proof, and credible
+  authority, with cited evidence for every pillar.
 - At least 80% of high-confidence qualified profiles bypass manual review after
   the automatic-approval rollout.
 
