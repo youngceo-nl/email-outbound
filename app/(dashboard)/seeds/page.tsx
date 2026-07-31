@@ -33,10 +33,10 @@ export default async function SeedsPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Source Accounts</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Add Profiles to Scrape</h1>
         <p className="text-sm text-muted-foreground">
-          These are the Instagram accounts we start from. Each one kicks off a search through the people
-          they follow — and, for the best matches, the people <em>those</em> people follow.
+          Add an Instagram profile below and we&rsquo;ll search through who they follow — and for the best
+          matches, who <em>those</em> people follow too — to find new leads.
         </p>
       </div>
 
@@ -45,7 +45,7 @@ export default async function SeedsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Your source accounts</CardTitle>
+            <CardTitle>Profiles you&rsquo;re scraping from</CardTitle>
             <Link href="/seeds/history" className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4">
               View all accounts ever used →
             </Link>
@@ -72,18 +72,18 @@ export default async function SeedsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Bio coverage</CardTitle>
+          <CardTitle>Missing bios</CardTitle>
           <CardDescription>
-            Every lead&rsquo;s bio is pulled with your Instagram burner account right after it&rsquo;s found.
-            If any are missing — e.g. leads found before your cookie was set up — top them up here.
+            We pull each lead&rsquo;s bio automatically once they&rsquo;re found. If any slipped through,
+            fetch the missing ones here.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <BioCoverageCard initial={coverage} />
           {!cookieSet && (
             <p className="text-xs text-amber-600">
-              No Instagram session cookie is set, so bios fall back to paid Apify lookups (or fail). Add one in{" "}
-              <Link href="/settings" className="underline">Settings</Link> to fetch bios free with your burner account.
+              No Instagram account connected, so bios use paid lookups instead (or fail). Connect one in{" "}
+              <Link href="/settings" className="underline">Settings</Link> to fetch bios for free.
             </p>
           )}
         </CardContent>

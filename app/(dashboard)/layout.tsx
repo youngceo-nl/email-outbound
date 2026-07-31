@@ -1,19 +1,16 @@
 import Link from "next/link";
-import { LayoutDashboard, Users, Settings, Sprout, LogOut, Activity, MailCheck, ClipboardCheck, Handshake, Megaphone, FileText } from "lucide-react";
+import Image from "next/image";
+import { LayoutDashboard, Users, Settings, Sprout, LogOut, Handshake, Megaphone, GraduationCap } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
 import { ActivityDrawerButton } from "@/components/logs/activity-drawer";
 import { getReviewPendingCount } from "@/app/actions/review";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/seeds", label: "Source Accounts", icon: Sprout },
   { href: "/leads", label: "Leads", icon: Users },
-  { href: "/review", label: "Review", icon: ClipboardCheck },
-  { href: "/handover", label: "Handover", icon: Handshake },
-  { href: "/outreach-ready", label: "Outreach Ready", icon: MailCheck },
-  { href: "/campaigns", label: "Campaigns", icon: Megaphone },
-  { href: "/reports", label: "Reports", icon: FileText },
-  { href: "/logs", label: "Pipeline", icon: Activity },
+  { href: "/seeds", label: "Scrape Profiles", icon: Sprout },
+  { href: "/handover", label: "Enrich Emails", icon: Handshake },
+  { href: "/campaigns", label: "Outreach", icon: Megaphone },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -24,8 +21,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="grid grid-cols-[220px_1fr] h-screen overflow-hidden">
       <aside className="border-r bg-muted/20 overflow-y-auto">
         <div className="px-5 py-4 border-b">
-          <Link href="/" className="font-semibold tracking-tight text-lg">
-            leads<span className="text-muted-foreground">.scraper</span>
+          <Link href="/" className="flex h-7 items-center">
+            <Image
+              src="/outbound-system-logo.png"
+              alt="Outbound System"
+              width={2652}
+              height={508}
+              className="h-auto w-[165px]"
+              priority
+            />
           </Link>
         </div>
         <div className="sticky top-0 bg-muted/20">
@@ -34,11 +38,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-muted transition-colors"
               >
                 <item.icon className="h-4 w-4" />
                 {item.label}
-                {item.href === "/review" && pendingReview > 0 && (
+                {item.href === "/leads" && pendingReview > 0 && (
                   <span className="ml-auto text-[11px] tabular-nums rounded-full bg-primary/15 text-primary px-1.5 py-0.5 min-w-[1.25rem] text-center">
                     {pendingReview > 99 ? "99+" : pendingReview}
                   </span>
@@ -48,6 +52,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
             {/* Activity — opens a live slide-out drawer instead of navigating away */}
             <ActivityDrawerButton />
+
+            <Link
+              href="/how-to-use"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-muted transition-colors text-muted-foreground"
+            >
+              <GraduationCap className="h-4 w-4" />
+              How to use
+            </Link>
           </nav>
           <form action={signOut} className="p-2 border-t">
             <button

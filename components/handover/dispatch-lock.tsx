@@ -99,12 +99,12 @@ export function DispatchLock() {
         <div className="w-full max-w-md rounded-lg border bg-background shadow-lg p-4 space-y-3">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-            <h2 className="font-semibold text-sm">Batch dispatched — page locked</h2>
+            <h2 className="font-semibold text-sm">Sent — waiting on results</h2>
           </div>
           <p className="text-xs text-muted-foreground">
-            Leads are out with Clay. Copy them all, paste into Clay, then upload the enriched CSV.
-            One upload tracks everything automatically — anything Clay didn&apos;t return goes back to
-            the pool.
+            Leads are out for email lookup. Copy them, run the lookup, then upload the results.
+            One upload tracks everything automatically — anything that didn&apos;t come back goes
+            into the next round.
           </p>
 
           <Button size="sm" variant="outline" className="w-full" onClick={copyAll}>
@@ -136,7 +136,7 @@ export function DispatchLock() {
           </div>
 
           <Button size="sm" className="w-full" disabled={busy} onClick={() => fileRef.current?.click()}>
-            <Upload className="h-3.5 w-3.5 mr-1.5" /> Upload enriched CSV
+            <Upload className="h-3.5 w-3.5 mr-1.5" /> Upload results
           </Button>
           <input
             ref={fileRef}

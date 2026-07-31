@@ -92,9 +92,9 @@ export type Draft = { full_name: string; funnel_program_name: string };
 // Shared by inbox-detail.tsx, outreach-inbox-rail.tsx, and
 // campaigns/campaign-inbox-panel.tsx so every inbox row always shows a
 // clear tag — "{campaign} · {variant}" when campaign-assigned, or an
-// explicit "Non-campaign" badge rather than no badge at all.
+// explicit "Not in a campaign" badge rather than no badge at all.
 export function inboxCampaignTag(row: Pick<InboxRow, "campaign_name" | "campaign_variant_label">): string {
-  return row.campaign_name ? `${row.campaign_name} · ${row.campaign_variant_label ?? "—"}` : "Non-campaign";
+  return row.campaign_name ? `${row.campaign_name} · ${row.campaign_variant_label ?? "—"}` : "Not in a campaign";
 }
 
 // e.g. "Jan 10, 2026, 12:51 PM GMT+5:30" — used by inbox-detail.tsx to show
@@ -208,10 +208,10 @@ export function OutreachReadyClient({
     startSync(async () => {
       const r = await syncInbox();
       if (r.ok) {
-        setSyncStatus({ ok: true, msg: `Synced — ${r.new_replies ?? 0} new repl${r.new_replies === 1 ? "y" : "ies"} (scanned ${r.scanned ?? 0}).` });
+        setSyncStatus({ ok: true, msg: `Checked — ${r.new_replies ?? 0} new repl${r.new_replies === 1 ? "y" : "ies"} found.` });
         router.refresh();
       } else {
-        setSyncStatus({ ok: false, msg: r.error ?? "Sync failed." });
+        setSyncStatus({ ok: false, msg: r.error ?? "Check failed." });
       }
     });
   };
@@ -296,7 +296,7 @@ export function OutreachReadyClient({
   const selectedInboxRow = inboxRows.find((r) => r.id === selectedInboxId) ?? visibleInboxRows[0];
 
   return (
-    <div className="grid grid-cols-[300px_1fr] h-screen overflow-hidden">
+    <div className="grid grid-cols-[300px_1fr] h-[calc(100vh-11rem)] overflow-hidden rounded-lg border">
       {view === "ready" ? (
         <OutreachLeadRail
           rows={visibleInCategory}
@@ -315,6 +315,7 @@ export function OutreachReadyClient({
           view={view}
           onViewChange={handleViewChange}
           unreadCount={totalUnread}
+          showInboxToggle={false}
         />
       ) : (
         <OutreachInboxRail

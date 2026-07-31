@@ -14,10 +14,9 @@ export function BadSeedsTable({ rows }: { rows: RejectedSeedRow[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Bad seeds</CardTitle>
+        <CardTitle>Excluded profiles</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Accounts marked as bad seed candidates — kept as a training set, excluded from
-          Recommended above.
+          Accounts you&rsquo;ve marked as not worth using — kept out of Suggested above.
         </p>
       </CardHeader>
       <CardContent className="p-0">
@@ -34,7 +33,7 @@ export function BadSeedsTable({ rows }: { rows: RejectedSeedRow[] }) {
             {visible.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-8">
-                  No bad seeds marked yet.
+                  Nothing excluded yet.
                 </TableCell>
               </TableRow>
             )}

@@ -179,7 +179,7 @@ export function LeadsFilterBar({ initial }: { initial: State }) {
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="any">Any</SelectItem>
-              <SelectItem value="crawl">IG crawl</SelectItem>
+              <SelectItem value="crawl">Found via scraping</SelectItem>
               <SelectItem value="telegram">Telegram</SelectItem>
               <SelectItem value="manual_ui">Manual (UI)</SelectItem>
               <SelectItem value="manual_api">API</SelectItem>

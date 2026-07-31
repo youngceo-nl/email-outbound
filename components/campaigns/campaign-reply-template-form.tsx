@@ -49,7 +49,7 @@ export function CampaignReplyTemplateForm({
         className="text-sm"
       />
       <p className="text-xs text-muted-foreground">
-        Shown to the VA in this campaign's inbox whenever a reply is classified positive. Supports the same
+        Shown in this campaign's inbox whenever a reply is marked positive. Supports the same
         {" "}
         <code className="text-[11px]">{"{{first_name}}"}</code> / <code className="text-[11px]">{"{{program_name}}"}</code>
         {" "}placeholders as outreach templates, plus <code className="text-[11px]">{"[option a|option b]"}</code> spintax.

@@ -50,7 +50,7 @@ export function PipelineStats({ stats }: { stats: Stats }) {
     <div className="space-y-4">
       {/* Lead status breakdown */}
       <div>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Lead pipeline ({total.toLocaleString()} total)</p>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">All leads ({total.toLocaleString()} total)</p>
         <div className="flex flex-wrap gap-2">
           {Object.entries(stats.byStatus).sort((a, b) => b[1] - a[1]).map(([s, n]) => (
             <span key={s} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s] ?? "bg-muted text-muted-foreground"}`}>

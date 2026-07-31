@@ -36,9 +36,9 @@ export function AccountHandoverBlock({ account, onResumed }: { account: AccountH
 
   // What the "processing" spinner is actually waiting on, for its tooltip.
   const processingBreakdown = [
-    processing.awaitingBackfill > 0 && `${processing.awaitingBackfill.toLocaleString()} awaiting backfill (fetching followers/bio)`,
-    processing.awaitingFilterScore > 0 && `${processing.awaitingFilterScore.toLocaleString()} awaiting filter & AI scoring`,
-    processing.awaitingAiScore > 0 && `${processing.awaitingAiScore.toLocaleString()} awaiting AI scoring`,
+    processing.awaitingBackfill > 0 && `${processing.awaitingBackfill.toLocaleString()} still fetching details (followers/bio)`,
+    processing.awaitingFilterScore > 0 && `${processing.awaitingFilterScore.toLocaleString()} still being filtered & scored`,
+    processing.awaitingAiScore > 0 && `${processing.awaitingAiScore.toLocaleString()} still being scored`,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -51,7 +51,7 @@ export function AccountHandoverBlock({ account, onResumed }: { account: AccountH
     : null;
   const stalledBreakdown =
     `${processingBreakdown || "leads still mid-pipeline"} — no activity since ${stalledSince ?? "a while ago"}. ` +
-    `Run Backfill from the Leads page to finish these.`;
+    `Fetch missing details from the Leads page to finish these.`;
 
   const copyToClipboard = async (text: string) => {
     await navigator.clipboard.writeText(text);
@@ -85,8 +85,8 @@ export function AccountHandoverBlock({ account, onResumed }: { account: AccountH
       }
       setNotice(
         result.returnedToPool
-          ? `Batch closed. ${result.returnedToPool} lead(s) went back to the pool.`
-          : "Batch closed.",
+          ? `Round closed. ${result.returnedToPool} lead(s) went back for the next round.`
+          : "Round closed.",
       );
     });
 
@@ -101,24 +101,24 @@ export function AccountHandoverBlock({ account, onResumed }: { account: AccountH
             {stillProcessing && (
               <span className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                processing
-                <InfoTip text={processingBreakdown || "Leads still moving through the pipeline."} />
+                in progress
+                <InfoTip text={processingBreakdown || "Still being worked through."} />
               </span>
             )}
             {stalled && <StalledBadge parentUsername={parentUsername} detail={stalledBreakdown} onResumed={onResumed} />}
-            {openBatch && <Badge variant="secondary" className="text-[10px]">batch open</Badge>}
+            {openBatch && <Badge variant="secondary" className="text-[10px]">round in progress</Badge>}
           </div>
           {/* Full pipeline funnel, absolute counts. Each stage is a subset of
               the one before it: found → backfilled → (hard-filtered drops out) →
               AI-scored → awaiting review → ready for handover → handed over. */}
           <div className="mt-1 flex items-center gap-x-3 gap-y-0.5 flex-wrap text-xs text-muted-foreground tabular-nums">
             <Stat n={found} label="found" />
-            <Stat n={backfilled} label="backfilled" />
+            <Stat n={backfilled} label="details fetched" />
             <span className="inline-flex items-center gap-1">
-              <Stat n={hardFiltered} label="hard-filtered" />
+              <Stat n={hardFiltered} label="filtered out" />
               {hardFiltered > 0 && <InfoTip text={hardFilterBreakdown || "no breakdown available"} />}
             </span>
-            <Stat n={aiScored} label="AI-scored" />
+            <Stat n={aiScored} label="scored" />
             {/* Gated stage: qualified leads can't be handed over until approved
                 in Review. Amber + linked when any are waiting, so the reason
                 "ready for handover" is low is visible and actionable. */}
@@ -129,8 +129,8 @@ export function AccountHandoverBlock({ account, onResumed }: { account: AccountH
             ) : (
               <Stat n={0} label="awaiting review" />
             )}
-            <Stat n={total} label="ready for handover" highlight />
-            <Stat n={done} label="handed over" />
+            <Stat n={total} label="ready to send" highlight />
+            <Stat n={done} label="completed" />
           </div>
           <div className="mt-1.5 h-1 w-full max-w-xs rounded-full bg-muted overflow-hidden">
             <div
@@ -151,15 +151,15 @@ export function AccountHandoverBlock({ account, onResumed }: { account: AccountH
                 {awaitingReview > 0
                   ? "review leads first"
                   : done > 0
-                    ? "all handed over"
+                    ? "all sent"
                     : stillProcessing
-                      ? "no leads to enrich yet"
-                      : "no leads to enrich"}
+                      ? "no leads ready for emails yet"
+                      : "no leads ready for emails"}
               </span>
             ) : (
               <Button size="sm" variant="outline" disabled={pending} onClick={claimAndCopy}>
                 {copied ? <Check className="h-3.5 w-3.5 mr-1" /> : null}
-                {copied ? "Copied" : `Batch ${Math.min(remaining, BATCH_SIZE)}`}
+                {copied ? "Copied" : `Round ${Math.min(remaining, BATCH_SIZE)}`}
               </Button>
             )
           ) : (
@@ -193,7 +193,7 @@ export function AccountHandoverBlock({ account, onResumed }: { account: AccountH
           {openBatch && (
             <div>
               <p className="px-3 pt-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                In this batch
+                In this round
               </p>
               <table className="w-full text-xs">
                 <tbody>
@@ -223,7 +223,7 @@ export function AccountHandoverBlock({ account, onResumed }: { account: AccountH
           {/* Preview only — no actions here, just what's waiting in the pool. */}
           <div>
             <p className="px-3 pt-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-              Waiting in pool
+              Waiting for the next round
             </p>
             {poolLeads.length === 0 ? (
               <p className="px-3 py-2 text-xs text-muted-foreground">Nothing waiting.</p>

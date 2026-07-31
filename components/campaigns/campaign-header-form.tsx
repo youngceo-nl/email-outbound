@@ -67,8 +67,8 @@ export function CampaignHeaderForm({ campaign }: { campaign: Campaign }) {
       {roleBadge && (
         <p className={`text-xs font-medium ${campaign.status === "active" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
           {campaign.status === "active"
-            ? "⚠ Active — this chain auto-sends due follow-ups with no human click."
-            : "Paused — this chain will not auto-send until status is set to active."}
+            ? "⚠ Active — this campaign automatically sends follow-ups with no click needed."
+            : "Paused — this campaign will not auto-send until status is set to active."}
         </p>
       )}
       <Input

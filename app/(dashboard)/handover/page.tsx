@@ -50,10 +50,10 @@ export default async function HandoverPage() {
       <DispatchLock />
       <div className="p-6 max-w-5xl mx-auto space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Handover</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Enrich Emails</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Claim leads for Clay, upload the enriched CSV, and track what came back. Leads with an
-            email land on Outreach Ready; leads flagged bad are counted per account below.
+            Send leads out for email lookup, upload the results, and track what came back. Leads
+            with an email land on Outreach Ready; leads flagged bad are counted per account below.
           </p>
         </div>
 
@@ -88,7 +88,7 @@ export default async function HandoverPage() {
         )}
 
         <div className="space-y-2">
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Batches</h2>
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Rounds</h2>
           <BatchHistory batches={batches} />
         </div>
       </div>

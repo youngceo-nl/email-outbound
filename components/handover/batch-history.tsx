@@ -9,7 +9,7 @@ const DEST_LABEL: Record<BatchDestination, string> = {
   outreach_ready: "Outreach Ready",
   contacted: "Contacted",
   no_email: "No email",
-  pending: "Out with Clay",
+  pending: "Sent for emails",
 };
 
 function fmtDate(iso: string | null): string {
@@ -51,7 +51,7 @@ function BatchCard({ batch }: { batch: BatchRecord }) {
         {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm">{isOpen ? "Open batch" : `Batch · ${fmtDate(batch.createdAt)}`}</span>
+            <span className="text-sm">{isOpen ? "Open round" : `Round · ${fmtDate(batch.createdAt)}`}</span>
             {isOpen && <Badge variant="secondary" className="text-[10px]">open</Badge>}
             <span className="text-xs text-muted-foreground">{batch.total} lead{batch.total === 1 ? "" : "s"}</span>
           </div>
@@ -64,7 +64,7 @@ function BatchCard({ batch }: { batch: BatchRecord }) {
             </span>
             {batch.pending > 0 && (
               <span>
-                <span className="font-medium text-blue-600 dark:text-blue-400">{batch.pending}</span> out with Clay
+                <span className="font-medium text-blue-600 dark:text-blue-400">{batch.pending}</span> sent for emails
               </span>
             )}
           </div>
@@ -78,7 +78,7 @@ function BatchCard({ batch }: { batch: BatchRecord }) {
         <div className="border-t">
           {batch.leads.length === 0 ? (
             <p className="px-3 py-2 text-xs text-muted-foreground">
-              No leads still linked to this batch (any results were marked bad or returned to the pool).
+              No leads left in this round (any results were marked bad or sent to the next round).
             </p>
           ) : (
             <table className="w-full text-xs">
@@ -124,7 +124,7 @@ function AccountGroup({ parentUsername, batches }: { parentUsername: string; bat
       <div className="flex items-center gap-2 flex-wrap px-1">
         <span className="font-medium text-sm">@{parentUsername}</span>
         <span className="text-xs text-muted-foreground">
-          {batches.length} batch{batches.length === 1 ? "" : "es"} · {totalLeads} lead{totalLeads === 1 ? "" : "s"}
+          {batches.length} round{batches.length === 1 ? "" : "s"} · {totalLeads} lead{totalLeads === 1 ? "" : "s"}
         </span>
         <span className="text-xs text-muted-foreground tabular-nums">
           <span className="font-medium text-emerald-600 dark:text-emerald-400">{emailSum}</span> email ·{" "}
@@ -142,7 +142,7 @@ function AccountGroup({ parentUsername, batches }: { parentUsername: string; bat
 
 export function BatchHistory({ batches }: { batches: BatchRecord[] }) {
   if (batches.length === 0) {
-    return <p className="text-sm text-muted-foreground">No batches yet.</p>;
+    return <p className="text-sm text-muted-foreground">No rounds yet.</p>;
   }
 
   // Group by source account, preserving order — batches arrive newest-first, so

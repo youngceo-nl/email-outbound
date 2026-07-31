@@ -79,7 +79,7 @@ export function StalledBadge({
       <span className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
         <Loader2 className="h-3 w-3 animate-spin" />
         processing
-        <InfoTip text="Resuming — leads re-queued for backfill/scoring." />
+        <InfoTip text="Resuming — leads are being processed again." />
       </span>
     );
   }

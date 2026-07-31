@@ -17,7 +17,9 @@
     "report:render": "tsx --tsconfig tsconfig.scripts.json scripts/render-report.tsx",
     "report:shots": "tsx --tsconfig tsconfig.scripts.json scripts/screenshot-report.ts",
     "report:lead": "tsx --tsconfig tsconfig.scripts.json scripts/render-lead-report.ts",
-    "report:test": "tsx --test lib/report/calculations/formulas.test.ts lib/report/assumptions/resolve.test.ts lib/report/renderer/prospect-image.test.ts"
+    "report:test": "tsx --test lib/report/calculations/formulas.test.ts lib/report/assumptions/resolve.test.ts lib/report/renderer/prospect-image.test.ts",
+    "test:qualification": "tsx --test lib/qualification/*.test.ts lib/evidence/*.test.ts",
+    "qualify": "tsx --env-file-if-exists=.env.local scripts/qualify-profiles.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

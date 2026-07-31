@@ -104,7 +104,7 @@ export function OutreachComposer({
           <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             <TriangleAlert className="h-4 w-4 shrink-0" />
             <span>
-              <strong>Dry run</strong> — sends are simulated. No email leaves the app and nothing is written.
+              <strong>Test mode</strong> — nothing is actually sent. No email leaves the app and nothing is written.
             </span>
           </div>
         )}
@@ -154,7 +154,7 @@ export function OutreachComposer({
               placeholder="—"
             />
             <p className="text-xs text-muted-foreground truncate">
-              Scraped: {row.full_name ? `“${row.full_name}”` : "none"}
+              Found: {row.full_name ? `“${row.full_name}”` : "none"}
             </p>
           </div>
           <div className="space-y-1.5">
@@ -166,7 +166,7 @@ export function OutreachComposer({
               placeholder="—"
             />
             <p className="text-xs text-muted-foreground truncate">
-              Scraped: {row.funnel_program_name ? `“${row.funnel_program_name}”` : "none"}
+              Found: {row.funnel_program_name ? `“${row.funnel_program_name}”` : "none"}
             </p>
           </div>
 
@@ -222,12 +222,12 @@ export function OutreachComposer({
 
           <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/20">
             <span className="text-xs text-muted-foreground">
-              {bodyOverride !== null ? "Hand-edited body" : "Rendered from template"}
+              {bodyOverride !== null ? "Hand-edited body" : "Using the template"}
             </span>
             <div className="flex items-center gap-1">
               {bodyOverride !== null && (
                 <Button size="sm" variant="ghost" onClick={() => setBodyOverride(null)}>
-                  Revert to template
+                  Reset to template
                 </Button>
               )}
               <Button size="sm" variant="ghost" onClick={() => setEditing((v) => !v)}>
@@ -253,8 +253,8 @@ export function OutreachComposer({
 
         {(genericGreeting || fallbackProgram) && (
           <div className="text-xs text-amber-700 space-y-1">
-            {genericGreeting && <p>⚠ No first name resolved — the greeting reads “Hey there”.</p>}
-            {fallbackProgram && <p>⚠ No program name — the subject falls back to “{programName}”.</p>}
+            {genericGreeting && <p>⚠ No first name found — the greeting reads “Hey there”.</p>}
+            {fallbackProgram && <p>⚠ No program name — the subject will use “{programName}”.</p>}
           </div>
         )}
 
@@ -267,7 +267,7 @@ export function OutreachComposer({
             ) : (
               <Send className="h-4 w-4 mr-2" />
             )}
-            {alreadySent ? "Sent" : dryRun ? "Send (dry run)" : `Send to ${to}`}
+            {alreadySent ? "Sent" : dryRun ? "Send (test mode)" : `Send to ${to}`}
           </Button>
           {dirty && (
             <span className="text-xs text-muted-foreground">

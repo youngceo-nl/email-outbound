@@ -1,0 +1,4 @@
+venv/
+sessions/
+*_following.json
+*_followers.json

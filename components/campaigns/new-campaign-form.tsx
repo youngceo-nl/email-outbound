@@ -72,7 +72,7 @@ export function NewCampaignForm() {
           ))}
         </select>
         <p className="text-xs text-muted-foreground">
-          Only {LEAD_TRACK_LABELS[campaignType].toLowerCase()}-track leads can be assigned to this campaign.
+          Only {LEAD_TRACK_LABELS[campaignType].toLowerCase()} leads can be added to this campaign.
         </p>
         <select
           value={campaignRole}
@@ -85,7 +85,7 @@ export function NewCampaignForm() {
         </select>
         {campaignRole !== "primary" && (
           <p className="text-xs text-muted-foreground">
-            At most one {ROLE_LABELS[campaignRole].split(" ")[0].toLowerCase()} follow-up chain per track. Starts
+            At most one {ROLE_LABELS[campaignRole].split(" ")[0].toLowerCase()} follow-up campaign per type. Starts
             paused — nothing auto-sends until you switch its status to active.
           </p>
         )}

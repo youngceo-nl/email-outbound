@@ -56,7 +56,7 @@ export function CrawlJobsList({ jobs: initial }: { jobs: Row[] }) {
     };
   }, [hasActive]);
 
-  if (jobs.length === 0) return <p className="text-sm text-muted-foreground">No searches yet. Start one from a source account above.</p>;
+  if (jobs.length === 0) return <p className="text-sm text-muted-foreground">No searches yet. Start one from a profile above.</p>;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-end">
@@ -92,7 +92,7 @@ function JobRow({ job }: { job: Row }) {
             @{job.seeds?.username ?? "—"}
           </Link>
           <Badge variant={badgeVariant(job.status)}>{statusLabel(job.status)}</Badge>
-          <span className="text-xs text-muted-foreground">level {job.current_depth} of {job.max_depth}</span>
+          <span className="text-xs text-muted-foreground">step {job.current_depth} of {job.max_depth}</span>
           <span className="text-xs text-muted-foreground">
             {formatDistanceToNow(new Date(job.created_at), { addSuffix: true })}
           </span>

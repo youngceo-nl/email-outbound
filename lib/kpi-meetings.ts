@@ -24,6 +24,18 @@ export function countMeetingsInMonth(rows: string[][], monthDate: Date): number 
   }).length;
 }
 
+export function countMeetingsInRange(rows: string[][], start: Date, end: Date): number {
+  const year = end.getUTCFullYear();
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+  return rows.filter((row) => {
+    const date = parseDutchMeetingDate(row[0] ?? "", year);
+    if (!date) return false;
+    const dateMs = date.getTime();
+    return dateMs >= startMs && dateMs <= endMs;
+  }).length;
+}
+
 import { google } from "googleapis";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,6 +61,12 @@ function getSheetsClient(): any {
 // configured yet or the request fails, so a missing/broken Sheets connection
 // shows "Not connected" on the dashboard instead of crashing the page.
 export async function fetchMeetingsBookedThisMonth(): Promise<number | null> {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  return fetchMeetingsBooked({ start, end: now });
+}
+
+export async function fetchMeetingsBooked(range: { start: Date; end: Date }): Promise<number | null> {
   const sheetId = process.env.KPI_SHEET_ID;
   if (!sheetId || !process.env.GOOGLE_SHEETS_CLIENT_ID || !process.env.GOOGLE_SHEETS_REFRESH_TOKEN) {
     return null;
@@ -59,7 +77,7 @@ export async function fetchMeetingsBookedThisMonth(): Promise<number | null> {
       range: "Meetings!A2:E",
     });
     const rows: string[][] = res.data.values ?? [];
-    return countMeetingsInMonth(rows, new Date());
+    return countMeetingsInRange(rows, range.start, range.end);
   } catch {
     return null;
   }

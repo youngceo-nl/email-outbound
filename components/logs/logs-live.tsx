@@ -91,7 +91,7 @@ export function LogsLive({
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Search activity</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Recent searches</CardTitle></CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>

@@ -211,7 +211,7 @@ export function ReviewClient({
   }, [doApprove, doReject, doUndo, doUnsure, advance, rejecting]);
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-4">
+    <div className="max-w-2xl mx-auto space-y-4">
       <div className="inline-flex rounded-md border text-sm overflow-hidden">
         {(["infopreneur", "partnership"] as const).map((t) => (
           <button
@@ -232,9 +232,8 @@ export function ReviewClient({
 
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Review</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {remaining} left · target bad-lead rate ≤ {(TARGET * 100).toFixed(0)}%
+            {remaining} left to review · aim to keep under {(TARGET * 100).toFixed(0)}% marked bad
           </p>
           <div className="mt-2 inline-flex rounded-md border text-xs overflow-hidden">
             {(["asc", "desc"] as const).map((dir) => (
@@ -262,9 +261,9 @@ export function ReviewClient({
       {!lead ? (
         <div className="rounded-lg border p-10 text-center text-sm text-muted-foreground">
           <CheckCircle2 className="h-8 w-8 mx-auto mb-3 opacity-40" />
-          Queue cleared. {lastActed.current && "Press "}
+          All caught up. {lastActed.current && "Press "}
           {lastActed.current && <kbd className="px-1 rounded border text-xs">u</kbd>}
-          {lastActed.current && " to undo the last verdict, or reload for more."}
+          {lastActed.current && " to undo the last one, or reload for more."}
         </div>
       ) : (
         <div className="rounded-lg border overflow-hidden">

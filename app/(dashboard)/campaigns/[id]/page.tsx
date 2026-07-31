@@ -18,17 +18,17 @@ export const dynamic = "force-dynamic";
 
 const TABS = ["overview", "sequence", "send", "inbox", "leads"] as const;
 type Tab = (typeof TABS)[number];
-const TAB_LABELS: Record<Tab, string> = { overview: "Overview", sequence: "Sequence", send: "Send", inbox: "Inbox", leads: "Leads" };
+const TAB_LABELS: Record<Tab, string> = { overview: "Overview", sequence: "Steps", send: "Send", inbox: "Inbox", leads: "Leads" };
 
 function stepStatus(
   lead: { campaign_step: number; last_campaign_send_at: string | null; reply_count: number | null },
   totalSteps: number,
 ): string {
   if ((lead.reply_count ?? 0) > 0) return "replied — stopped";
-  if (totalSteps === 0) return "no steps configured";
-  if (lead.campaign_step >= totalSteps) return "sequence complete";
-  if (lead.campaign_step === 0) return "due now (step 1)";
-  return `sent step ${lead.campaign_step} — next due per delay`;
+  if (totalSteps === 0) return "no steps set up";
+  if (lead.campaign_step >= totalSteps) return "all steps sent";
+  if (lead.campaign_step === 0) return "ready to send (step 1)";
+  return `sent step ${lead.campaign_step} — next one coming up`;
 }
 
 export default async function CampaignDetailPage({
@@ -89,7 +89,7 @@ export default async function CampaignDetailPage({
           <CardContent className="flex gap-8 text-sm">
             <div>
               <p className="text-2xl font-semibold tabular-nums">{campaign.assigned_count}</p>
-              <p className="text-muted-foreground">Assigned</p>
+              <p className="text-muted-foreground">Leads</p>
             </div>
             <div>
               <p className="text-2xl font-semibold tabular-nums">{campaign.sent_count}</p>
@@ -101,7 +101,7 @@ export default async function CampaignDetailPage({
             </div>
             <div>
               <p className="text-2xl font-semibold tabular-nums">{campaign.variants.length}</p>
-              <p className="text-muted-foreground">Variant{campaign.variants.length === 1 ? "" : "s"}</p>
+              <p className="text-muted-foreground">Version{campaign.variants.length === 1 ? "" : "s"}</p>
             </div>
           </CardContent>
         </Card>
@@ -121,7 +121,7 @@ export default async function CampaignDetailPage({
       {tab === "sequence" && (
         <Card>
           <CardHeader>
-            <CardTitle>Sequence</CardTitle>
+            <CardTitle>Steps</CardTitle>
           </CardHeader>
           <CardContent>
             <CampaignVariantEditor
@@ -140,7 +140,7 @@ export default async function CampaignDetailPage({
       {tab === "leads" && (
         <Card>
           <CardHeader>
-            <CardTitle>Assigned leads</CardTitle>
+            <CardTitle>Leads in this campaign</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <LeadsTable campaignId={campaign.id} />
@@ -194,7 +194,7 @@ async function LeadsTable({ campaignId }: { campaignId: string }) {
         <TableRow>
           <TableHead>Account</TableHead>
           <TableHead>Email</TableHead>
-          <TableHead>Variant</TableHead>
+          <TableHead>Version</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Last send</TableHead>
         </TableRow>
@@ -219,7 +219,7 @@ async function LeadsTable({ campaignId }: { campaignId: string }) {
         {leads.length === 0 && (
           <TableRow>
             <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">
-              No leads assigned yet — select some on the Leads page and assign them to this campaign.
+              No leads yet — select some on the Leads page and add them to this campaign.
             </TableCell>
           </TableRow>
         )}

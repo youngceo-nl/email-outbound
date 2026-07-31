@@ -26,8 +26,8 @@ export function BadLeadsTable({ rows }: { rows: RejectedLeadRow[] }) {
       <CardHeader>
         <CardTitle>Bad leads</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Leads the AI qualified but a human flagged as a bad fit — kept as a training set for
-          teaching the scorer to stop allowing these.
+          Leads that passed automatically but a human flagged as a bad fit — kept here to help
+          the system learn what to avoid.
         </p>
       </CardHeader>
       <CardContent className="p-0">

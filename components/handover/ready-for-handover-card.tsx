@@ -48,7 +48,7 @@ export function ReadyForHandoverCard({
       }
       const accountPart = res.accounts === 1 ? "" : ` across ${res.accounts} accounts`;
       setMessage(
-        `Dispatched ${res.claimed} lead${res.claimed === 1 ? "" : "s"}${accountPart}. Paste into Clay, then upload the enriched CSV.`,
+        `Sent ${res.claimed} lead${res.claimed === 1 ? "" : "s"}${accountPart} for email lookup. Upload the results when they're back.`,
       );
     });
 
@@ -56,7 +56,7 @@ export function ReadyForHandoverCard({
     <div className="rounded-md border p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-sm font-medium">Ready for handover</h2>
+          <h2 className="text-sm font-medium">Ready to send for emails</h2>
           {readyCount > 0 ? (
             <p className="text-xs text-muted-foreground mt-0.5">
               {readyCount.toLocaleString()} approved lead{readyCount === 1 ? "" : "s"} without an email, across{" "}
@@ -68,7 +68,7 @@ export function ReadyForHandoverCard({
               <Link href="/review" className="text-foreground underline hover:no-underline">
                 Approve leads in Review
               </Link>{" "}
-              to make them available for handover.
+              first.
             </p>
           )}
         </div>
@@ -81,7 +81,7 @@ export function ReadyForHandoverCard({
             ) : (
               <Send className="h-3.5 w-3.5 mr-1.5" />
             )}
-            {copied ? "Copied" : `Batch ${Math.min(readyCount, BATCH_SIZE)}`}
+            {copied ? "Copied" : `Round ${Math.min(readyCount, BATCH_SIZE)}`}
           </Button>
         )}
       </div>

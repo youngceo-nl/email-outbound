@@ -39,7 +39,7 @@ export default async function SettingsPage({
     <div className="p-6 max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">API keys, search settings, and keyword filters.</p>
+        <p className="text-sm text-muted-foreground">Connect the accounts and services that power scraping, scoring, and outreach.</p>
       </div>
       {gmailStatus && (
         <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${

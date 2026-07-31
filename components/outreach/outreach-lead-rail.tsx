@@ -24,6 +24,7 @@ export function OutreachLeadRail({
   view,
   onViewChange,
   unreadCount,
+  showInboxToggle = true,
 }: {
   /** Already filtered to activeCategory by the parent. */
   rows: OutreachRow[];
@@ -42,6 +43,9 @@ export function OutreachLeadRail({
   view: OutreachView;
   onViewChange: (view: OutreachView) => void;
   unreadCount: number;
+  /** Hidden when embedded in the Outreach page's own Inbox tab, which already
+   *  shows every reply — avoids showing the same replies in two places. */
+  showInboxToggle?: boolean;
 }) {
   // Unsaved edits shouldn't leave a row flagged as broken.
   const stillNeedsFix = (row: OutreachRow) => {
@@ -55,9 +59,9 @@ export function OutreachLeadRail({
   return (
     <aside className="border-r bg-muted/20 flex flex-col overflow-hidden">
       <div className="px-4 py-3 border-b space-y-2">
-        <h1 className="font-semibold tracking-tight">Outreach Ready</h1>
+        <h1 className="font-semibold tracking-tight">Ad-hoc</h1>
         <CategoryTabs activeCategory={activeCategory} onCategoryChange={onCategoryChange} categoryCounts={categoryCounts} />
-        <ViewTabs view={view} onViewChange={onViewChange} unreadCount={unreadCount} />
+        {showInboxToggle && <ViewTabs view={view} onViewChange={onViewChange} unreadCount={unreadCount} />}
         <p className="text-xs text-muted-foreground">
           {readyCount} ready · {needsFixCount} need fix · {sentToday} sent today
         </p>
@@ -113,7 +117,7 @@ export function OutreachLeadRail({
                     (ecom/saas/creator/unknown) worth distinguishing at a glance. */}
                 {leadCategory(row.business_model) === "other" && (
                   <Badge variant="outline" className="text-[10px] shrink-0">
-                    {row.business_model ?? "unclassified"}
+                    {row.business_model ?? "uncategorized"}
                   </Badge>
                 )}
                 {row.parent_username && (

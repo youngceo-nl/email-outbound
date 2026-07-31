@@ -13,7 +13,7 @@ const STATUS_CLASS: Record<KpiRow["status"], string> = {
 };
 
 function formatActual(row: KpiRow): string {
-  if (row.actual === null) return "—";
+  if (row.actual === null) return "Unavailable";
   if (row.unit === "percent") return `${row.actual.toFixed(0)}%`;
   if (row.unit === "minutes") {
     const hours = row.actual / 60;
@@ -22,27 +22,34 @@ function formatActual(row: KpiRow): string {
   return Math.round(row.actual).toLocaleString();
 }
 
-export function KpiTable({ rows }: { rows: KpiRow[] }) {
+export function KpiTable({ rows, periodLabel }: { rows: KpiRow[]; periodLabel: string }) {
   return (
-    <div className="rounded-lg border overflow-hidden overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[720px] text-sm">
+        <thead className="border-y bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
           <tr>
-            <th className="text-left px-4 py-2 font-medium">Metric</th>
-            <th className="text-left px-4 py-2 font-medium">Target</th>
-            <th className="text-left px-4 py-2 font-medium">Frequency</th>
-            <th className="text-left px-4 py-2 font-medium">Actual</th>
-            <th className="text-left px-4 py-2 font-medium">Status</th>
+            <th className="text-left px-6 py-3 font-medium">KPI</th>
+            <th className="text-left px-4 py-3 font-medium">Target</th>
+            <th className="text-left px-4 py-3 font-medium">Frequency</th>
+            <th className="text-right px-4 py-3 font-medium">{periodLabel}</th>
+            <th className="text-right px-6 py-3 font-medium">Status</th>
           </tr>
         </thead>
         <tbody className="divide-y">
           {rows.map((row) => (
-            <tr key={row.key}>
-              <td className="px-4 py-2 font-medium">{row.label}</td>
-              <td className="px-4 py-2 text-muted-foreground">{row.targetLabel}</td>
-              <td className="px-4 py-2 text-muted-foreground capitalize">{row.frequency}</td>
-              <td className="px-4 py-2 tabular-nums">{formatActual(row)}</td>
-              <td className="px-4 py-2">
+            <tr key={row.key} className="transition-colors hover:bg-muted/25">
+              <td className="px-6 py-3.5 font-medium">{row.label}</td>
+              <td className="px-4 py-3.5 text-muted-foreground tabular-nums">{row.targetLabel}</td>
+              <td className="px-4 py-3.5 text-muted-foreground">
+                {row.frequency === "per_lead" ? "Per lead" : row.frequency === "monthly" ? "Monthly" : "Daily"}
+              </td>
+              <td className="px-4 py-3.5 text-right font-medium tabular-nums">
+                {formatActual(row)}
+                {row.frequency === "monthly" && row.actual !== null && (
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">this month</span>
+                )}
+              </td>
+              <td className="px-6 py-3.5 text-right">
                 <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[row.status]}`}>
                   {STATUS_LABEL[row.status]}
                 </span>

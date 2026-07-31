@@ -88,37 +88,37 @@ export function LeadsActionsMenu({
           {hasBulk && <DropdownMenuSeparator />}
 
           {backfillCount > 0 && (
-            <DropdownMenuItem onClick={() => run(() => triggerBulkBackfill(), { label: "Backfilling metadata", total: backfillCount, type: "backfill" })}>
+            <DropdownMenuItem onClick={() => run(() => triggerBulkBackfill(), { label: "Fetching missing details", total: backfillCount, type: "backfill" })}>
               <DatabaseZap className="h-4 w-4 mr-2" />
-              Backfill metadata ({backfillCount.toLocaleString()})
+              Fetch missing details ({backfillCount.toLocaleString()})
             </DropdownMenuItem>
           )}
 
           {pendingCount > 0 && (
             <DropdownMenuItem onClick={() => run(() => analyzeAllPending(), { label: "Analyzing leads", total: pendingCount, type: "analyze" })}>
               <Play className="h-4 w-4 mr-2" />
-              Analyze unanalyzed ({pendingCount})
+              Score unscored leads ({pendingCount})
             </DropdownMenuItem>
           )}
 
           {scoreableCount > 0 && (
             <DropdownMenuItem onClick={() => run(() => rescoreAllLeads("qualified_review"), { label: "Rescoring leads", total: scoreableCount, type: "rescore" })}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Rescore qualified ({scoreableCount})
+              Re-check qualified leads ({scoreableCount})
             </DropdownMenuItem>
           )}
 
           {rejectedCount > 0 && (
             <DropdownMenuItem onClick={() => run(() => rescoreAllLeads("all"), { label: "Rescoring rejected leads", total: rejectedCount, type: "rescore" })}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Rescore rejected ({rejectedCount})
+              Re-check rejected leads ({rejectedCount})
             </DropdownMenuItem>
           )}
 
           {rejectedWithScore > 0 && (
             <DropdownMenuItem onClick={() => run(() => clearRejectedScores(), {}, true)}>
               <XCircle className="h-4 w-4 mr-2" />
-              Clear rejected scores ({rejectedWithScore})
+              Clear scores for Not a fit leads ({rejectedWithScore})
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>

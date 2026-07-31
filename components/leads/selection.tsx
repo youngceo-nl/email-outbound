@@ -122,7 +122,7 @@ export function BulkDeleteBar() {
     const ids = [...selected];
     const ok = window.confirm(
       `Delete ${ids.length} lead${ids.length === 1 ? "" : "s"}? ` +
-        `They'll be added to your exclusion list so the scraper won't re-add them.`,
+        `We won't add them again automatically.`,
     );
     if (!ok) return;
     setError(null);

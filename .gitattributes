@@ -1,0 +1,2 @@
+worker/assets/base-pitch-video.mp4 filter=lfs diff=lfs merge=lfs -text
+*.pdf binary

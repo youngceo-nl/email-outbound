@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { parseDutchMeetingDate, countMeetingsInMonth } from "./kpi-meetings";
+import { parseDutchMeetingDate, countMeetingsInMonth, countMeetingsInRange } from "./kpi-meetings";
 
 describe("parseDutchMeetingDate", () => {
   it("parses a 'D month' Dutch label into a Date in the given year", () => {
@@ -27,5 +27,15 @@ describe("countMeetingsInMonth", () => {
   it("is 0 when nothing matches", () => {
     const rows = [["5 augustus"]];
     assert.equal(countMeetingsInMonth(rows, new Date(2026, 6, 1)), 0);
+  });
+});
+
+describe("countMeetingsInRange", () => {
+  it("counts meetings inside the inclusive selected range", () => {
+    const rows = [["1 juli"], ["7 juli"], ["8 juli"], ["30 juni"]];
+    assert.equal(
+      countMeetingsInRange(rows, new Date("2026-07-01T00:00:00Z"), new Date("2026-07-07T23:59:59Z")),
+      2,
+    );
   });
 });

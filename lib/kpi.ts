@@ -1,6 +1,6 @@
 export type KpiStatus = "ok" | "below" | "unknown";
 export type KpiUnit = "count" | "percent" | "minutes";
-export type KpiFrequency = "daily" | "monthly";
+export type KpiFrequency = "daily" | "monthly" | "per_lead";
 export type Comparator = "at_least" | "at_most";
 
 export type KpiRow = {
@@ -64,69 +64,116 @@ export function computePositiveReplyRate(positiveReplies: number, emailsSent: nu
   return (positiveReplies / emailsSent) * 100;
 }
 
-// UTC midnight-to-midnight for "today" - same boundary convention as the
-// existing `sentToday` counter in app/(dashboard)/outreach-ready/page.tsx.
-function utcDayRange(): { start: string; end: string } {
-  const start = new Date();
-  start.setUTCHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 1);
-  return { start: start.toISOString(), end: end.toISOString() };
+export function averageDurationMinutes(
+  intervals: Array<{ start: string | null; end: string | null }>,
+): number | null {
+  const durations = intervals.flatMap(({ start, end }) => {
+    if (!start || !end) return [];
+    const startMs = new Date(start).getTime();
+    const endMs = new Date(end).getTime();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return [];
+    return [(endMs - startMs) / 60000];
+  });
+  if (durations.length === 0) return null;
+  return durations.reduce((sum, minutes) => sum + minutes, 0) / durations.length;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function fetchDailyKpis(client: SupabaseClient<any, any, any>): Promise<KpiRow[]> {
-  const { start, end } = utcDayRange();
+type TimingRow = {
+  lead_id: string;
+  received_at: string;
+  replied_at?: string | null;
+  outreach_messages?: { sent_at?: string | null } | { sent_at?: string | null }[] | null;
+};
+
+function firstRowPerLead(rows: TimingRow[]): TimingRow[] {
+  const earliest = new Map<string, TimingRow>();
+  for (const row of rows) {
+    const current = earliest.get(row.lead_id);
+    if (!current || new Date(row.received_at).getTime() < new Date(current.received_at).getTime()) {
+      earliest.set(row.lead_id, row);
+    }
+  }
+  return [...earliest.values()];
+}
+
+function outreachSentAt(row: TimingRow): string | null {
+  const outreach = Array.isArray(row.outreach_messages) ? row.outreach_messages[0] : row.outreach_messages;
+  return outreach?.sent_at ?? null;
+}
+
+export async function fetchDailyKpis(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  client: SupabaseClient<any, any, any>,
+  range: { start: Date; end: Date },
+): Promise<KpiRow[]> {
+  const start = range.start.toISOString();
+  const end = range.end.toISOString();
 
   const [
     { count: scraped, error: scrapedErr },
     { count: enriched, error: enrichedErr },
     { count: emailsSent, error: emailsSentErr },
-    { data: repliedRows, error: repliedErr },
+    { data: speedRows, error: speedErr },
+    { data: responseRows, error: responseErr },
     { count: positiveReplies, error: positiveErr },
   ] = await Promise.all([
     client.from("crawl_logs").select("*", { count: "exact", head: true })
-      .eq("action", "scraped").gte("created_at", start).lt("created_at", end),
+      .eq("action", "scraped").gte("created_at", start).lte("created_at", end),
     client.from("leads").select("*", { count: "exact", head: true })
-      .not("email", "is", null).gte("enriched_at", start).lt("enriched_at", end),
+      .not("email", "is", null).gte("enriched_at", start).lte("enriched_at", end),
     client.from("outreach_messages").select("*", { count: "exact", head: true })
-      .eq("status", "sent").gte("sent_at", start).lt("sent_at", end),
-    client.from("inbox_messages").select("received_at, replied_at")
-      .not("replied_at", "is", null).gte("replied_at", start).lt("replied_at", end),
+      .eq("status", "sent").gte("sent_at", start).lte("sent_at", end),
+    client.from("inbox_messages").select("lead_id, received_at, replied_at")
+      .eq("sentiment", "positive").not("replied_at", "is", null)
+      .gte("replied_at", start).lte("replied_at", end),
+    client.from("inbox_messages").select("lead_id, received_at, outreach_messages(sent_at)")
+      .gte("received_at", start).lte("received_at", end),
     client.from("inbox_messages").select("*", { count: "exact", head: true })
-      .eq("sentiment", "positive").gte("received_at", start).lt("received_at", end),
+      .eq("sentiment", "positive").gte("received_at", start).lte("received_at", end),
   ]);
 
-  if (scrapedErr) throw scrapedErr;
-  if (enrichedErr) throw enrichedErr;
-  if (emailsSentErr) throw emailsSentErr;
-  if (repliedErr) throw repliedErr;
-  if (positiveErr) throw positiveErr;
+  const speedIntervals = firstRowPerLead((speedRows ?? []) as TimingRow[]).map((row) => ({
+    start: row.received_at,
+    end: row.replied_at ?? null,
+  }));
+  const responseIntervals = firstRowPerLead((responseRows ?? []) as TimingRow[]).map((row) => ({
+    start: outreachSentAt(row),
+    end: row.received_at,
+  }));
 
-  const replied = (repliedRows ?? []) as { received_at: string; replied_at: string }[];
-  const firstResponseMinutes = replied.length === 0 ? null : replied.reduce((sum, r) => {
-    return sum + (new Date(r.replied_at).getTime() - new Date(r.received_at).getTime()) / 60000;
-  }, 0) / replied.length;
+  const sentActual = emailsSentErr ? null : emailsSent ?? 0;
+  const positiveActual = positiveErr ? null : positiveReplies ?? 0;
 
   return [
-    buildKpiRow({ key: "leads_scraped", label: "Leads scraped", frequency: "daily", unit: "count", target: 500, targetLabel: "500", comparator: "at_least", actual: scraped ?? 0 }),
-    buildKpiRow({ key: "leads_enriched", label: "Leads enriched", frequency: "daily", unit: "count", target: 100, targetLabel: "100", comparator: "at_least", actual: enriched ?? 0 }),
-    buildKpiRow({ key: "emails_sent", label: "Emails sent", frequency: "daily", unit: "count", target: 100, targetLabel: "100", comparator: "at_least", actual: emailsSent ?? 0 }),
-    buildKpiRow({ key: "first_response_time", label: "First response time", frequency: "daily", unit: "minutes", target: 120, targetLabel: "< 2 hours", comparator: "at_most", actual: firstResponseMinutes }),
-    buildKpiRow({ key: "positive_reply_rate", label: "Positive reply rate", frequency: "daily", unit: "percent", target: 15, targetLabel: "15%", comparator: "at_least", actual: computePositiveReplyRate(positiveReplies ?? 0, emailsSent ?? 0) }),
+    buildKpiRow({ key: "leads_scraped", label: "Leads scraped", frequency: "daily", unit: "count", target: 500, targetLabel: "500", comparator: "at_least", actual: scrapedErr ? null : scraped ?? 0 }),
+    buildKpiRow({ key: "leads_enriched", label: "Leads enriched", frequency: "daily", unit: "count", target: 100, targetLabel: "100", comparator: "at_least", actual: enrichedErr ? null : enriched ?? 0 }),
+    buildKpiRow({ key: "emails_sent", label: "Emails sent", frequency: "daily", unit: "count", target: 100, targetLabel: "100", comparator: "at_least", actual: sentActual }),
+    buildKpiRow({ key: "speed_to_lead", label: "Speed-to-lead", frequency: "per_lead", unit: "minutes", target: 60, targetLabel: "30-60 min", comparator: "at_most", actual: speedErr ? null : averageDurationMinutes(speedIntervals) }),
+    buildKpiRow({ key: "first_response_time", label: "First response time", frequency: "daily", unit: "minutes", target: 120, targetLabel: "< 2 hours", comparator: "at_most", actual: responseErr ? null : averageDurationMinutes(responseIntervals) }),
+    buildKpiRow({ key: "positive_reply_rate", label: "Positive reply rate", frequency: "daily", unit: "percent", target: 15, targetLabel: "15%", comparator: "at_least", actual: sentActual === null || positiveActual === null ? null : computePositiveReplyRate(positiveActual, sentActual) }),
   ];
 }
 
-export function assembleKpiRows(daily: KpiRow[], meetingsBookedActual: number | null): KpiRow[] {
+export function assembleKpiRows(daily: KpiRow[], meetingsBookedActual: number | null, days = 1): KpiRow[] {
+  const scaledDaily = daily.map((row) => {
+    if (row.unit !== "count" || row.frequency !== "daily") return row;
+    const target = row.target * days;
+    return {
+      ...row,
+      target,
+      targetLabel: target.toLocaleString("en-US"),
+      status: computeStatus(row.actual, target, "at_least"),
+    };
+  });
   const meetingsRow = buildKpiRow({
     key: "meetings_booked",
     label: "Meetings booked",
     frequency: "monthly",
     unit: "count",
-    target: 30,
-    targetLabel: "30",
+    target: days,
+    targetLabel: days.toLocaleString("en-US"),
     comparator: "at_least",
     actual: meetingsBookedActual,
   });
-  return [...daily, meetingsRow, computeTaskCompletion(daily)];
+  return [...scaledDaily, meetingsRow, computeTaskCompletion(scaledDaily.filter((row) => row.frequency === "daily"))];
 }

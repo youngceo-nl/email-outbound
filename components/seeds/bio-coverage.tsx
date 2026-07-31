@@ -44,7 +44,7 @@ export function BioCoverageCard({ initial }: { initial: BioCoverage }) {
         return;
       }
       setMsg(
-        `Fetching ${res.queued.toLocaleString()} bio${res.queued === 1 ? "" : "s"} with your burner account` +
+        `Fetching ${res.queued.toLocaleString()} bio${res.queued === 1 ? "" : "s"}` +
           (res.capped ? " (first 1,000 — run again for the rest)" : "") +
           ". They'll fill in over the next few minutes.",
       );
@@ -79,7 +79,7 @@ export function BioCoverageCard({ initial }: { initial: BioCoverage }) {
           size="sm"
           onClick={onClick}
           disabled={pending || allCovered}
-          title="Look up bios for any leads that don't have one yet, using your Instagram burner account"
+          title="Look up missing bios"
         >
           {allCovered ? (
             <Check className="h-3.5 w-3.5 mr-1 text-green-600" />

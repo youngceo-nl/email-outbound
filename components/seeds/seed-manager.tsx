@@ -10,9 +10,9 @@ import { SystemStatus, type SystemStatusProps } from "@/components/ui/system-sta
 function friendlyCookieError(msg: string) {
   const l = msg.toLowerCase();
   if (l.includes("rate-limited") || l.includes("rate limited"))
-    return "Instagram rate-limited your cookie — wait a few hours or switch to Apify.";
+    return "Instagram slowed down your account — wait a few hours or switch to Apify.";
   if (l.includes("rejected") || l.includes("401") || l.includes("403"))
-    return "Instagram blocked this burner account — remove it in Settings and add a fresh cookie.";
+    return "Instagram blocked this account — remove it in Settings and reconnect a new one.";
   return `Last search failed: ${msg}`;
 }
 
@@ -108,14 +108,14 @@ export function SeedManager({
             }
           >
             <ChevronsRight className="h-3.5 w-3.5 mr-1.5" />
-            Crawl all
+            Scrape all
           </Button>
           {bulkMsg && <span className="text-xs text-muted-foreground">{bulkMsg}</span>}
         </div>
       )}
 
       <div className="rounded-md border divide-y">
-        {seeds.length === 0 && <p className="p-4 text-sm text-muted-foreground">No source accounts yet. Add one above to get started.</p>}
+        {seeds.length === 0 && <p className="p-4 text-sm text-muted-foreground">No profiles added yet. Add one above to get started.</p>}
         {seeds.map((s) => (
           <SeedRow
             key={s.id}
@@ -128,7 +128,7 @@ export function SeedManager({
 
       {exhaustedSeeds.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          {exhaustedSeeds.length} seed{exhaustedSeeds.length !== 1 ? "s" : ""} exhausted and hidden from auto-scrape:{" "}
+          {exhaustedSeeds.length} profile{exhaustedSeeds.length !== 1 ? "s" : ""} run out of new accounts and {exhaustedSeeds.length !== 1 ? "are" : "is"} hidden:{" "}
           {exhaustedSeeds.map((s) => `@${s.username}`).join(", ")}
         </p>
       )}

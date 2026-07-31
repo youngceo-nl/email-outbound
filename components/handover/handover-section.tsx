@@ -87,10 +87,10 @@ export function HandoverSection({ initial }: { initial: AccountHandover[] }) {
     const parts = [`${result.withEmail} email${result.withEmail === 1 ? "" : "s"} found`];
     if (result.withoutEmail) parts.push(`${result.withoutEmail} with none`);
     if (result.markedBad) parts.push(`${result.markedBad} marked bad`);
-    if (result.returnedToPool) parts.push(`${result.returnedToPool} returned to pool`);
+    if (result.returnedToPool) parts.push(`${result.returnedToPool} sent back for another round`);
     if (result.skipped) parts.push(`${result.skipped} row(s) skipped (no match)`);
     if (result.closedBatches) {
-      parts.push(`${result.closedBatches} batch${result.closedBatches === 1 ? "" : "es"} closed`);
+      parts.push(`${result.closedBatches} round${result.closedBatches === 1 ? "" : "s"} completed`);
     }
     setMessage(parts.join(", ") + ".");
     refresh();
@@ -138,17 +138,17 @@ export function HandoverSection({ initial }: { initial: AccountHandover[] }) {
         >
           {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           <Handshake className="h-4 w-4" />
-          <span className="font-medium">Handover</span>
+          <span className="font-medium">Email status</span>
           <span className="text-muted-foreground text-xs">
-            {accounts.length} account{accounts.length === 1 ? "" : "s"} · {ready.toLocaleString()} ready for handover · {handedOver.toLocaleString()} handed over
+            {accounts.length} account{accounts.length === 1 ? "" : "s"} · {ready.toLocaleString()} ready to send · {handedOver.toLocaleString()} completed
             {awaitingReview > 0 && ` · ${awaitingReview.toLocaleString()} awaiting review`}
-            {openBatches > 0 && ` · ${openBatches} batch${openBatches === 1 ? "" : "es"} open`}
+            {openBatches > 0 && ` · ${openBatches} round${openBatches === 1 ? "" : "s"} in progress`}
           </span>
         </button>
 
         <Button size="sm" variant="outline" disabled={pending} onClick={() => fileRef.current?.click()}>
           <Upload className="h-3.5 w-3.5 mr-1" />
-          Upload enriched CSV
+          Upload results
         </Button>
         <input
           ref={fileRef}

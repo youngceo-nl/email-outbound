@@ -33,12 +33,12 @@ export function RescoreAllButton({ totalScorable }: { totalScorable: number }) {
       size="sm"
       disabled={state === "queuing" || totalScorable === 0}
       onClick={handleRun}
-      title={`Re-run AI scoring for ${totalScorable} qualified + review leads`}
+      title={`Re-check ${totalScorable} qualified + review leads`}
     >
       {state === "queuing"
         ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
         : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
-      {state === "queuing" ? "Queuing…" : `Rescore all (${totalScorable})`}
+      {state === "queuing" ? "Queuing…" : `Re-check all (${totalScorable})`}
     </Button>
   );
 }

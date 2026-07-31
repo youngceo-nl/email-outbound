@@ -235,8 +235,8 @@ export function CsvImportButton({
                         onChange={() => setMode("update")}
                       />
                       <span>
-                        <span className="font-medium">Update existing leads (enrichment re-import)</span>
-                        <span className="block text-xs text-muted-foreground">Match by username and fill in mapped fields on leads already in the database — e.g. re-importing a CSV enriched in Clay. Rows with no matching username are skipped, nothing is inserted.</span>
+                        <span className="font-medium">Update existing leads (re-import with new data)</span>
+                        <span className="block text-xs text-muted-foreground">Match by username and fill in mapped fields on leads already in the database — e.g. re-importing a CSV you&rsquo;ve added data to elsewhere. Rows with no matching username are skipped, nothing is inserted.</span>
                       </span>
                     </label>
                   </div>

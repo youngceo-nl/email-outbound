@@ -18,9 +18,9 @@ const IDLE_POLL_MS = 15000;
 type ActionKind = "backfill" | "filter" | "verify";
 
 const ACTION_LABELS: Record<ActionKind, string> = {
-  backfill: "Backfill",
+  backfill: "Fetch details",
   filter: "Filter",
-  verify: "AI Verify",
+  verify: "Score",
 };
 
 type Stage = { label: string; n: number | null };
@@ -48,9 +48,9 @@ function StageList({ stages }: { stages: Stage[] }) {
 function runStages(run: ScrapeRun): Stage[] {
   return [
     { label: "found", n: run.found },
-    { label: "backfilled", n: run.legacy ? null : run.backfilled },
+    { label: "details fetched", n: run.legacy ? null : run.backfilled },
     { label: "filtered", n: run.legacy ? null : run.filtered },
-    { label: "AI verified", n: run.legacy ? null : run.verified },
+    { label: "scored", n: run.legacy ? null : run.verified },
   ];
 }
 
@@ -63,14 +63,14 @@ function runStages(run: ScrapeRun): Stage[] {
 function seedStages(f: SeedFunnel): Stage[] {
   return [
     { label: "following", n: f.found },
-    { label: "scraped", n: f.scraped },
+    { label: "found", n: f.scraped },
     { label: "duplicates removed", n: f.duplicates },
     { label: "excluded", n: f.excluded },
     { label: "new", n: f.new },
-    { label: "backfilled", n: f.backfilled },
-    { label: "rejected", n: f.rejected },
+    { label: "details fetched", n: f.backfilled },
+    { label: "not a fit", n: f.rejected },
     { label: "filtered", n: f.filtered },
-    { label: "AI verified", n: f.verified },
+    { label: "scored", n: f.verified },
   ];
 }
 

@@ -19,12 +19,11 @@ export function RecommendedSeeds({ candidates }: { candidates: SeedCandidate[] }
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Sparkles className="h-4 w-4" />
-          Recommended source accounts
+          Suggested profiles to add
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Accounts already in your leads that look like good seeds — ranked by business type,
-          ICP fit, following size, and overlap with your existing seeds. Nothing here is
-          added automatically.
+          Accounts we found in your leads that look worth searching too — ranked by fit and
+          overlap with what&rsquo;s already working. Nothing here is added automatically.
         </p>
       </CardHeader>
       <CardContent className="p-0 divide-y">
@@ -54,7 +53,7 @@ function CandidateRow({ candidate, onHandled }: { candidate: SeedCandidate; onHa
       if (c.following != null) fd.append("following_count", String(c.following));
       const res = await addSeed(fd);
       if ("error" in res && res.error) { setMsg(`Error: ${res.error}`); return; }
-      setMsg("Added as a source account.");
+      setMsg("Added.");
       onHandled();
     });
 
@@ -85,8 +84,8 @@ function CandidateRow({ candidate, onHandled }: { candidate: SeedCandidate; onHa
           </a>
           <Badge variant="secondary" className="text-[10px]">{CATEGORY_LABELS[category]}</Badge>
           {c.seedOverlap > 1 && (
-            <Badge variant="outline" className="text-[10px]" title="Followed by more than one of your existing seeds">
-              overlaps {c.seedOverlap} seeds
+            <Badge variant="outline" className="text-[10px]" title="Followed by more than one of your added profiles">
+              overlaps {c.seedOverlap} profiles
             </Badge>
           )}
         </div>
@@ -113,15 +112,15 @@ function CandidateRow({ candidate, onHandled }: { candidate: SeedCandidate; onHa
           <>
             <Button size="sm" disabled={pending} onClick={addAsSeed}>
               <Plus className="h-3.5 w-3.5 mr-1" />
-              Add as seed
+              Add profile
             </Button>
             <Button
               size="icon"
               variant="ghost"
               disabled={pending}
               onClick={() => setConfirming(true)}
-              title="Mark as a bad seed candidate"
-              aria-label="Mark as a bad seed candidate"
+              title="Mark as not worth using"
+              aria-label="Mark as not worth using"
             >
               <X className="h-4 w-4" />
             </Button>

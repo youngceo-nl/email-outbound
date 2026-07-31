@@ -182,7 +182,7 @@ export function SettingsForm({
         <Card>
           <CardHeader>
             <CardTitle>Instagram search settings</CardTitle>
-            <p className="text-sm text-muted-foreground">Controls how the Instagram following list crawl behaves when a source account search runs.</p>
+            <p className="text-sm text-muted-foreground">Controls how deep a search goes when you add a profile to scrape.</p>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
             <Field label="Accounts to check per source" name="max_profiles_per_account" type="number" defaultValue={String(initial.max_profiles_per_account)} hint="How many accounts to look at from each source before stopping." />

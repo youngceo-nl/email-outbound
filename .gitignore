@@ -10,3 +10,16 @@ node_modules
 .env*.local
 # Plaintext shared-credentials handoff — must never be committed.
 CREDENTIALS.local.md
+
+# Voice biometric data - never commit
+vibevoice-server/voice-sample.wav
+
+# Now its own repo (github.com/youngceo-nl/vibevoice-server) - not tracked here
+vibevoice-server/
+
+# Local browser profiles contain cookies, login databases, and session state.
+worker/loom-session/
+
+# Generated Python bytecode.
+__pycache__/
+*.pyc

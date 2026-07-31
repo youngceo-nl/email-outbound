@@ -71,9 +71,9 @@ export function CampaignSendPanel({
     return (
       <div className="py-16 text-center text-muted-foreground">
         <Mail className="h-8 w-8 mx-auto mb-3 opacity-40" />
-        <p className="text-sm">No leads due right now.</p>
+        <p className="text-sm">Nothing to send right now.</p>
         <p className="text-xs mt-1">
-          A lead shows up here once it's assigned, has a valid email, and its next step is due.
+          A lead shows up here once it's in this campaign, has a working email, and it's time for their next message.
         </p>
       </div>
     );

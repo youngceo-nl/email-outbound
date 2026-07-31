@@ -85,8 +85,8 @@ export function CampaignVariantEditor({
       {locked && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground rounded-md border bg-muted/30 px-3 py-2">
           <Lock className="h-3.5 w-3.5 shrink-0" />
-          Leads are already assigned — variants (add/remove/split %) are locked.
-          Step copy within each existing variant can still be edited.
+          Leads are already in this campaign — versions (add/remove/split %) are locked.
+          Step copy within each existing version can still be edited.
         </div>
       )}
 
@@ -131,11 +131,11 @@ export function CampaignVariantEditor({
         {!locked && (
           <div className="flex items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={addVariant}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add variant (split-test)
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add a version (A/B test)
             </Button>
             <Button type="button" size="sm" onClick={save} disabled={pending}>
               {pending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-              {pending ? "Saving…" : "Save variants"}
+              {pending ? "Saving…" : "Save versions"}
             </Button>
             <span className="text-xs text-muted-foreground">{total}% total</span>
             {saved && !pending && (
@@ -155,13 +155,13 @@ export function CampaignVariantEditor({
       <div className="space-y-4">
         {variants.filter((v) => v.id).map((v) => (
           <div key={v.id} className="rounded-lg border p-4 space-y-3">
-            <p className="text-sm font-semibold">Variant {v.label} — {v.weight_pct}%</p>
+            <p className="text-sm font-semibold">Version {v.label} — {v.weight_pct}%</p>
             <CampaignStepsEditor variantId={v.id!} initialSteps={v.steps ?? []} />
           </div>
         ))}
         {variants.some((v) => !v.id) && (
           <p className="text-xs text-muted-foreground">
-            Save the new variant above before adding its steps.
+            Save the new version above before adding its steps.
           </p>
         )}
       </div>

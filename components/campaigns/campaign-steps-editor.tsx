@@ -114,7 +114,7 @@ export function CampaignStepsEditor({
         </Button>
         <Button type="button" size="sm" onClick={save} disabled={pending}>
           {pending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-          {pending ? "Saving…" : "Save steps"}
+          {pending ? "Saving…" : "Save follow-up steps"}
         </Button>
         {saved && !pending && (
           <span className="inline-flex items-center gap-1 text-xs text-green-600">

@@ -40,7 +40,7 @@ export function InboxDetail({ row, senderName }: { row: InboxRow; senderName: st
     const r = await sendInboxReply(row.id, draft);
     setSending(false);
     if (r.ok) {
-      setStatus({ ok: true, msg: r.dryRun ? "Sent (dry run — no real email went out)." : "Reply sent." });
+      setStatus({ ok: true, msg: r.dryRun ? "Sent (test mode — no real email went out)." : "Reply sent." });
       router.refresh();
     } else {
       setStatus({ ok: false, msg: r.error ?? "Send failed." });

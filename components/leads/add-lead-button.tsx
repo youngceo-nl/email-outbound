@@ -66,8 +66,8 @@ export function AddLeadButton() {
                 </p>
                 <p className="text-muted-foreground text-xs mt-0.5">
                   {result.analyzing
-                    ? "Scraping & scoring now — check the Activity drawer for progress."
-                    : "Added to your pipeline."}
+                    ? "Finding and scoring this lead now — check Activity for progress."
+                    : "Added."}
                 </p>
               </div>
             </div>
@@ -105,7 +105,7 @@ export function AddLeadButton() {
 
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="checkbox" name="analyze" defaultChecked className="h-4 w-4 rounded border-input" />
-              Scrape &amp; score it right away
+              Find and score it right away
             </label>
 
             {error && (

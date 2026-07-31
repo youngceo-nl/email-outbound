@@ -257,7 +257,7 @@ export function ActivityDrawerButton() {
               href="/logs"
               onClick={() => setOpen(false)}
               className="text-muted-foreground hover:text-foreground p-1 rounded"
-              title="Go to Pipeline page"
+              title="Go to Activity page"
             >
               <LayoutDashboard className="h-4 w-4" />
             </Link>
@@ -432,11 +432,11 @@ function ActiveJobRow({ job }: { job: ActiveJob }) {
       </div>
       {isWarmingUp ? (
         <p className="text-[11px] text-muted-foreground pl-5">
-          Fetching the following list — no results reported yet, this can take a few minutes
+          Finding who they follow — this can take a few minutes
         </p>
       ) : isStalled ? (
         <p className="text-[11px] text-yellow-700 dark:text-yellow-400 pl-5">
-          No updates in the last 90 s — Inngest may be paused or out of retries
+          No updates in the last 90 s — this may have stalled
         </p>
       ) : pct !== null ? (
         <div className="pl-5 space-y-1">
@@ -545,7 +545,7 @@ function BulkProgress({ job, onCancel }: { job: BulkJob; onCancel: () => void })
       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
         <span>{pct}% done{perMin ? ` · ${Math.round(perMin)}/min` : ""}</span>
         {stalled
-          ? <span className="text-yellow-700 dark:text-yellow-400">No progress in {stalledMin} min — check Inngest</span>
+          ? <span className="text-yellow-700 dark:text-yellow-400">No progress in {stalledMin} min — this may need a restart</span>
           : eta && <span>ETA {eta}</span>
         }
       </div>

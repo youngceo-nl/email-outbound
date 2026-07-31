@@ -23,7 +23,7 @@ export function OutreachSourceBadge({
             {outcome.accepted} accepted · {outcome.noEmail} no email · {outcome.markedBad} marked bad
           </p>
         ) : (
-          <p className="text-muted-foreground text-xs mt-0.5">No handover data yet</p>
+          <p className="text-muted-foreground text-xs mt-0.5">No email-lookup data yet</p>
         )}
       </PopoverContent>
     </Popover>

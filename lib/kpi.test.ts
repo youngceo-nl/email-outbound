@@ -1,6 +1,23 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { computeStatus, buildKpiRow, computeTaskCompletion, computePositiveReplyRate, assembleKpiRows, type KpiRow } from "./kpi";
+import { averageDurationMinutes, computeStatus, buildKpiRow, computeTaskCompletion, computePositiveReplyRate, assembleKpiRows, type KpiRow } from "./kpi";
+
+describe("averageDurationMinutes", () => {
+  it("averages completed timestamp intervals in minutes", () => {
+    assert.equal(averageDurationMinutes([
+      { start: "2026-07-31T08:00:00.000Z", end: "2026-07-31T08:30:00.000Z" },
+      { start: "2026-07-31T09:00:00.000Z", end: "2026-07-31T10:00:00.000Z" },
+    ]), 45);
+  });
+
+  it("ignores incomplete, invalid, and negative intervals", () => {
+    assert.equal(averageDurationMinutes([
+      { start: "2026-07-31T08:00:00.000Z", end: null },
+      { start: "invalid", end: "2026-07-31T09:00:00.000Z" },
+      { start: "2026-07-31T10:00:00.000Z", end: "2026-07-31T09:00:00.000Z" },
+    ]), null);
+  });
+});
 
 describe("computeStatus", () => {
   it("is unknown when actual is null", () => {
@@ -85,22 +102,32 @@ describe("computePositiveReplyRate", () => {
 });
 
 describe("assembleKpiRows", () => {
-  it("orders all 7 rows: 5 daily, then meetings booked, then task completion", () => {
+  it("orders all 8 rows: 6 operational metrics, meetings booked, then task completion", () => {
     const daily = [
       buildKpiRow({ key: "leads_scraped", label: "Leads scraped", frequency: "daily", unit: "count", target: 500, targetLabel: "500", comparator: "at_least", actual: 500 }),
       buildKpiRow({ key: "leads_enriched", label: "Leads enriched", frequency: "daily", unit: "count", target: 100, targetLabel: "100", comparator: "at_least", actual: 100 }),
       buildKpiRow({ key: "emails_sent", label: "Emails sent", frequency: "daily", unit: "count", target: 100, targetLabel: "100", comparator: "at_least", actual: 100 }),
+      buildKpiRow({ key: "speed_to_lead", label: "Speed-to-lead", frequency: "per_lead", unit: "minutes", target: 60, targetLabel: "30-60 min", comparator: "at_most", actual: 20 }),
       buildKpiRow({ key: "first_response_time", label: "First response time", frequency: "daily", unit: "minutes", target: 120, targetLabel: "< 2 hours", comparator: "at_most", actual: 90 }),
       buildKpiRow({ key: "positive_reply_rate", label: "Positive reply rate", frequency: "daily", unit: "percent", target: 15, targetLabel: "15%", comparator: "at_least", actual: 15 }),
     ];
     const rows = assembleKpiRows(daily, 30);
     assert.deepEqual(rows.map((r) => r.key), [
-      "leads_scraped", "leads_enriched", "emails_sent", "first_response_time",
+      "leads_scraped", "leads_enriched", "emails_sent", "speed_to_lead", "first_response_time",
       "positive_reply_rate", "meetings_booked", "task_completion",
     ]);
-    assert.equal(rows[5].actual, 30);
-    assert.equal(rows[5].frequency, "monthly");
-    assert.equal(rows[6].actual, 100); // all 5 daily rows were "ok"
+    assert.equal(rows[6].actual, 30);
+    assert.equal(rows[6].frequency, "monthly");
+    assert.equal(rows[7].actual, 100);
+  });
+
+  it("treats speed-to-lead responses under 30 minutes as on track", () => {
+    const row = buildKpiRow({
+      key: "speed_to_lead", label: "Speed-to-lead", frequency: "per_lead",
+      unit: "minutes", target: 60, targetLabel: "30-60 min",
+      comparator: "at_most", actual: 12,
+    });
+    assert.equal(row.status, "ok");
   });
 
   it("shows meetings booked as unknown when the sheet is unreachable", () => {
@@ -108,5 +135,34 @@ describe("assembleKpiRows", () => {
     const meetings = rows.find((r) => r.key === "meetings_booked")!;
     assert.equal(meetings.status, "unknown");
     assert.equal(meetings.actual, null);
+  });
+
+  it("excludes the per-lead speed metric from daily task completion", () => {
+    const daily = [
+      buildKpiRow({ key: "emails_sent", label: "Emails sent", frequency: "daily", unit: "count", target: 1, targetLabel: "1", comparator: "at_least", actual: 1 }),
+      buildKpiRow({ key: "speed_to_lead", label: "Speed-to-lead", frequency: "per_lead", unit: "minutes", target: 60, targetLabel: "30-60 min", comparator: "at_most", actual: 90 }),
+    ];
+    const taskCompletion = assembleKpiRows(daily, null).find((row) => row.key === "task_completion")!;
+    assert.equal(taskCompletion.actual, 100);
+  });
+
+  it("scales count targets by the selected number of days", () => {
+    const rows = assembleKpiRows([
+      buildKpiRow({ key: "leads_scraped", label: "Leads scraped", frequency: "daily", unit: "count", target: 500, targetLabel: "500", comparator: "at_least", actual: 3500 }),
+    ], 7, 7);
+    assert.equal(rows[0].target, 3500);
+    assert.equal(rows[0].targetLabel, "3,500");
+    const meetings = rows.find((row) => row.key === "meetings_booked")!;
+    assert.equal(meetings.target, 7);
+    assert.equal(meetings.targetLabel, "7");
+  });
+
+  it("does not scale time or percentage targets", () => {
+    const rows = assembleKpiRows([
+      buildKpiRow({ key: "speed_to_lead", label: "Speed-to-lead", frequency: "per_lead", unit: "minutes", target: 60, targetLabel: "30-60 min", comparator: "at_most", actual: 45 }),
+      buildKpiRow({ key: "positive_reply_rate", label: "Positive reply rate", frequency: "daily", unit: "percent", target: 15, targetLabel: "15%", comparator: "at_least", actual: 15 }),
+    ], 7, 30);
+    assert.equal(rows[0].target, 60);
+    assert.equal(rows[1].target, 15);
   });
 });

@@ -132,7 +132,7 @@ export function JobDetailLive({
             <div className="flex items-center gap-3 flex-wrap">
               <CardTitle className="text-base">Status</CardTitle>
               <Badge variant={badgeVariant(job.status)}>{statusLabel(job.status)}</Badge>
-              <span className="text-xs text-muted-foreground">level {job.current_depth} of {job.max_depth}</span>
+              <span className="text-xs text-muted-foreground">step {job.current_depth} of {job.max_depth}</span>
               <LiveStatus active={active} />
             </div>
             <div className="flex items-center gap-1.5">
@@ -232,7 +232,7 @@ export function JobDetailLive({
                 <TableRow>
                   <TableHead>What happened</TableHead>
                   <TableHead>Account</TableHead>
-                  <TableHead>Level</TableHead>
+                  <TableHead>Step</TableHead>
                   <TableHead>Details</TableHead>
                   <TableHead>When</TableHead>
                 </TableRow>
@@ -272,7 +272,7 @@ export function JobDetailLive({
                   <span className="text-xs text-muted-foreground tabular-nums w-12">
                     {l.overall_score != null ? Number(l.overall_score).toFixed(1) : "—"}
                   </span>
-                  <span className="text-xs text-muted-foreground">level {l.crawl_depth}</span>
+                  <span className="text-xs text-muted-foreground">step {l.crawl_depth}</span>
                   {l.parent_username && (
                     <span className="text-xs text-muted-foreground truncate">via @{l.parent_username}</span>
                   )}
