@@ -229,20 +229,17 @@ A qualified personal brand gives the visitor somewhere meaningful to go.
 Recognized conversion patterns include:
 
 ```text
-DM RUTHLESS
-DM SCALE
-DM LAUNCH
-DM READY
-comment a keyword
+DM [keyword]
+comment [keyword]
 apply through a landing page
-download a blueprint
-get a roadmap
-watch a free training
+free training
+claim my [asset]
+get or download a blueprint or roadmap
+book a strategy call or session
 click an educational link
 visit a YouTube channel
 open a link hub
 request private instruction
-book a call
 join a program or community
 learn from me
 ```
@@ -443,11 +440,12 @@ The following are important policy rules:
 Direct-response and information-funnel phrases include:
 
 ```text
-DM me, DM us, DM for, send me a DM, message me, DM "[keyword]",
-comment "[keyword]", apply, apply now, apply below, book a call,
-book a strategy call, schedule a call, work with me, work with us,
+DM me, DM us, DM for, send me a DM, message me, DM [keyword],
+comment [keyword], apply, apply now, apply below, book a call,
+book a strategy call, strategy session, schedule a call, work with me, work with us,
 join now, enroll, start here, click below, link below, link in bio,
-get the blueprint, steal my blueprint, get the training,
+claim my [asset], claim the [asset], get my [asset], get the blueprint,
+get the training,
 get the roadmap, get the guide, free course, free training, download,
 watch the training, watch on YouTube, subscribe on YouTube, request coaching,
 application form, fill out the application, learn from me
@@ -460,11 +458,29 @@ Intent levels:
 | 0 | No next step | No conversion evidence |
 | 1 | `follow`, generic link | Audience CTA only |
 | 2 | `free guide`, `blueprint`, `roadmap`, `YouTube`, `Linktree`, `watch`, `download` | Information-funnel intent |
-| 3 | `DM SCALE`, `apply`, `book a call`, `1:1 coaching` | Direct sales intent |
+| 3 | `DM [keyword]`, `apply`, `book a strategy call`, `1:1 coaching` | Direct sales intent |
 
-A direct keyword CTA is especially strong because it shows an operating DM
-funnel. Extract the action and keyword separately, such as action `DM` and
-keyword `RUTHLESS`, `SCALE`, `LAUNCH`, or `READY`.
+A direct keyword CTA is especially strong because it shows an operating DM or
+comment funnel. Detect the structure rather than maintaining a list of allowed
+keywords. Extract the action and user-supplied token separately, such as action
+`DM` or `comment` and token `[keyword]`.
+
+Use the following semantic pattern families:
+
+| Pattern family | Accepted structures | Extracted values |
+|---|---|---|
+| Message keyword | `DM [keyword]`, `message me [keyword]`, `send [keyword]` | action, keyword |
+| Comment keyword | `comment [keyword]`, `reply [keyword]` | action, keyword |
+| Application | `apply`, `application`, `apply to work with me` | action, destination |
+| Free education | `free training`, `free course`, `watch the training` | asset type, topic when available |
+| Claim asset | `claim my [asset]`, `get my [asset]`, `download the [asset]` | action, asset type, asset name |
+| Strategy | `strategy call`, `strategy session`, `strategy audit`, `strategy plan` | action, strategy type |
+
+The bracketed values are variables, not literal keywords. Quoted and unquoted
+tokens both count. The model should understand equivalent grammar and word
+order, not depend on a single regular expression. `Strategy` alone is too
+ambiguous; it counts as a conversion path only when attached to a call,
+session, audit, plan, application, or other visitor action.
 
 #### External-link destination signals
 
@@ -917,7 +933,7 @@ The classifier returns a versioned object with this logical shape:
     "buyer": "Christian men",
     "transformation": "get jacked and drop vices",
     "offer": "1:1 transformation coaching",
-    "conversion": "DM READY",
+    "conversion": "DM [keyword]",
     "proof": "client results",
     "story_highlights": ["CLIENT WINS", "CLIENT RESULTS", "MY STORY"]
   },
@@ -930,7 +946,7 @@ The classifier returns a versioned object with this logical shape:
     {
       "group": "conversion",
       "source": "bio",
-      "phrase": "DM READY"
+      "phrase": "DM [keyword]"
     }
   ],
   "commercial_bundles": ["personal expert + buyer + transformation + coaching + direct CTA"],
