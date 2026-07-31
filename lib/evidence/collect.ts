@@ -155,6 +155,7 @@ export async function collectCommercialEvidence(
     instagram,
     destinations,
     youtubeIsPrimaryCta,
+    youtubeChannels: youtube.channels,
     youtubeVideos: youtube.videos,
     stopReason,
   });
@@ -224,13 +225,20 @@ function collectUnknownSurfaces(
     });
   }
   for (const destination of destinations) {
-    if (destination.capture_status !== "captured") {
-      out.push({
-        surface: `external:${destination.source_url}`,
-        capture_status: destination.capture_status,
-        reason: destination.error ?? "not captured",
-      });
+    if (destination.capture_status === "captured") continue;
+    /*
+     * A YouTube handoff is not an unknown surface — it was deliberately routed
+     * to the YouTube collector, whose own capture states are reported below.
+     * Listing it here would double-count one destination as two failures.
+     */
+    if (destination.destination_type === "youtube" && destination.error === "handed to youtube collector") {
+      continue;
     }
+    out.push({
+      surface: `external:${destination.source_url}`,
+      capture_status: destination.capture_status,
+      reason: destination.error ?? "not captured",
+    });
   }
   for (const channel of youtube.channels) {
     if (channel.capture_status !== "captured") {
@@ -306,10 +314,12 @@ function deriveSufficiency(args: {
   instagram: InstagramEvidence;
   destinations: ExternalDestination[];
   youtubeIsPrimaryCta: boolean;
+  youtubeChannels: Array<{ capture_status: string; description: string | null }>;
   youtubeVideos: Array<{ capture_status: string; description: string | null }>;
   stopReason: AcquisitionStopReason;
 }): AcquisitionSufficiency {
-  const { instagram, destinations, youtubeIsPrimaryCta, youtubeVideos, stopReason } = args;
+  const { instagram, destinations, youtubeIsPrimaryCta, youtubeChannels, youtubeVideos, stopReason } =
+    args;
 
   if (instagram.profile_capture_status !== "captured") return "insufficient";
 
@@ -319,6 +329,32 @@ function deriveSufficiency(args: {
   }
 
   const captured = destinations.filter((d) => d.capture_status === "captured");
+
+  /*
+   * A YouTube bio link is never fetched as HTML — it is handed to the YouTube
+   * collector, which leaves a `not_attempted` placeholder behind. Judging
+   * sufficiency on that placeholder would mark every YouTube-funnel profile
+   * insufficient no matter how much of the channel we actually read, so the
+   * YouTube evidence is what counts here.
+   */
+  if (youtubeIsPrimaryCta) {
+    const descriptionRead = youtubeVideos.some(
+      (video) => video.capture_status === "captured" && Boolean(video.description),
+    );
+    const channelRead = youtubeChannels.some(
+      (channel) => channel.capture_status === "captured" && Boolean(channel.description),
+    );
+    if (!descriptionRead) return channelRead ? "partial" : "insufficient";
+
+    // A description that led to a captured offer page resolves the outcome.
+    const followedThrough = captured.some((d) =>
+      ["application", "booking", "education", "community", "agency_service", "lead_magnet"].includes(
+        d.destination_type,
+      ),
+    );
+    return followedThrough ? "sufficient" : "partial";
+  }
+
   if (captured.length === 0) return "insufficient";
 
   // A hub that was read but whose children were never reached leaves the real
@@ -326,13 +362,6 @@ function deriveSufficiency(args: {
   const onlyHub =
     captured.length === 1 && captured[0].destination_type === "link_hub";
   if (onlyHub) return "partial";
-
-  if (youtubeIsPrimaryCta) {
-    const hasDescription = youtubeVideos.some(
-      (video) => video.capture_status === "captured" && Boolean(video.description),
-    );
-    if (!hasDescription) return "partial";
-  }
 
   const resolvedOutcome = captured.some((d) =>
     ["application", "booking", "education", "community", "agency_service", "store", "lead_magnet"].includes(

@@ -114,17 +114,36 @@ When evaluating Instagram profiles against this ICP, weight these signals highly
 
 ---
 
-# ICP #2 — Ad/Sales Agencies
+# ICP #2 — Partnerships
 
-Added when the ICP was broadened to include B2B service agencies alongside infopreneurs.
+Added when the ICP was broadened to include B2B partner types alongside infopreneurs.
 Source of truth: `lib/groq/classify.ts` (identical prompt in `lib/claude/classify.ts`,
-`lib/gemini/classify.ts`, `lib/openai/classify.ts`).
+`lib/gemini/classify.ts`, `lib/openai/classify.ts`). Maps to `business_model = "agency"` —
+the one classification value that routes a lead to the **partnership track**
+(`lib/leads/category.ts`'s `leadTrackFor()`), rather than the infopreneur track.
 
 ## Who We're Looking For
 
-An **ad/sales agency** sells marketing, advertising, or sales services — media buying, funnel
-building, appointment setting, lead generation, SMMA, sales consulting — to **other businesses
-(B2B)**, not consumers.
+**Individuals and businesses who work together with coaches and consultants selling courses
+or coaching programs** — not consumers we pitch our own offer to, but potential partners:
+
+- **Ad/sales agencies** — media buying, funnel building, appointment setting, lead generation,
+  SMMA, sales consulting, sold to other businesses (B2B)
+- **Branding agencies**
+- **Paid ads agencies**
+- **YouTube agencies**
+- **Appointment setting agencies**
+- **Fractional CMOs**
+- **Offer consultants**
+- **Launch strategists**
+- **Copywriters**
+
+> **Fixed:** the classification prompt (`lib/{groq,claude,gemini,openai}/classify.ts` — all
+> four kept identical) now explicitly names all 9 partner types under a broadened "B2B
+> partner" definition, and states the deciding factor is *who the client is* (other
+> businesses/professionals vs. end consumers), not team size — so a solo copywriter or
+> launch strategist marketing themselves personally is instructed to classify as `agency`,
+> not `coaching`, and route to the partnership track correctly.
 
 ## Scoring Signals
 
@@ -150,4 +169,4 @@ No dedicated "ICP type" filter exists in the leads UI (`components/leads/filter-
 existing `business_model` and `status` filters to separate the two ICPs:
 
 - **ICP #1 (Infopreneurs):** `business_model` = `course` or `coaching`, `status` = `qualified` or `review`
-- **ICP #2 (Ad/Sales Agencies):** `business_model` = `agency`, `status` = `qualified` or `review`
+- **ICP #2 (Partnerships):** `business_model` = `agency`, `status` = `qualified` or `review`
