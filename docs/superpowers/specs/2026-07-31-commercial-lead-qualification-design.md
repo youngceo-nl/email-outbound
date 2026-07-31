@@ -55,7 +55,10 @@ Commercial-fit score
 Priority score for qualified leads
     |
     v
-Manual approval and enrichment
+Automatic approval or targeted manual review
+    |
+    v
+Enrichment
 ```
 
 ## Step 1: Collect the qualification evidence
@@ -120,6 +123,276 @@ signal requires adding a nullable `story_highlight_titles` collection and its
 capture timestamp to the backfill result. A null collection means not captured;
 an empty collection means captured and none were visible. These states must not
 be conflated.
+
+### ICP keyword and phrase taxonomy
+
+Keywords are evidence extractors, not independent decisions. Match them across
+the display name, bio, recent captions, pinned captions, Story Highlight
+titles, external-link slug, and landing-page title. Preserve the source and
+surrounding phrase for every match.
+
+Normalize lowercase, Unicode styling, punctuation, emoji separators, common
+abbreviations, singular and plural forms, and spelling variants. Translate
+supported non-English evidence into the same semantic groups while preserving
+the original text. The initial supported languages are English and Dutch
+because both appear in the confirmed ideal examples.
+
+#### Expertise and operator identity
+
+These terms indicate that the person operates an expertise-based business:
+
+```text
+coach, coaching, business coach, transformation coach, physique coach,
+performance coach, fitness coach, consultant, consulting, mentor, mentorship,
+strategist, educator, expert, advisor, teacher, polyglot, founder, agency,
+media agency, marketing agency, sales agency, client acquisition agency,
+personal brand agency, academy, school, university
+```
+
+Strong phrases include:
+
+```text
+I help, we help, I teach, I coach, I build, I run, founder of, coach for,
+consultant for, behind the brands, face behind, work with me, work with us
+```
+
+`Coach` or `consultant` alone is only identity evidence. It becomes strong
+commercial evidence when combined with a buyer, transformation, offer, CTA, or
+proof signal.
+
+#### Target buyer and audience
+
+These terms help identify a commercially relevant buyer:
+
+```text
+coaches, high ticket coaches, online coaches, consultants, online consultants,
+service providers, experts, educators, course creators, creators, founders,
+entrepreneurs, business owners, personal brands, agencies, ambitious men,
+men, guys, Christian men, professionals, language learners, students
+```
+
+Audience modifiers strengthen buyer clarity:
+
+```text
+high ticket, online, established, ambitious, premium, B2C, B2B, 25-45,
+six figure, seven figure
+```
+
+The classifier must extract the complete audience phrase. For example, `high
+ticket coaches and service providers` is stronger than three disconnected
+keyword hits.
+
+#### Transformation and outcome
+
+Commercial transformation language includes:
+
+```text
+build, grow, scale, launch, monetize, acquire clients, get clients,
+premium clients, enroll clients, book calls, sales calls, increase revenue,
+make sales, profitable, personal brand, audience growth, organic growth,
+client acquisition, lead generation, appointment setting, conversion,
+lose fat, build muscle, get jacked, drop vices, improve appearance,
+build confidence, self improvement, learn a language, speak a language
+```
+
+High-value phrases taken from or closely modeled on the confirmed ideal
+profiles include:
+
+```text
+build and scale your personal brand
+help high ticket coaches and service providers scale
+build profitable Instagram brands
+business coach for consultants
+improve their appearance to be more confident
+help Christian men get jacked and drop vices
+exclusive 1-1 language learning
+lose fat and build muscle
+```
+
+A result phrase is stronger when it joins an action to a concrete outcome.
+Generic uses of `grow`, `scale`, or `success` without a buyer or business
+context receive only weak evidence.
+
+#### Paid offer and delivery model
+
+Offer terms include:
+
+```text
+1:1 coaching, 1-1 coaching, one-to-one coaching, private coaching,
+group coaching, consulting, mentorship, mastermind, accelerator, program,
+challenge, course, free course, training, workshop, bootcamp, academy,
+university, school, community, membership, done for you, done with you,
+agency service, client acquisition, personal brand management
+```
+
+The following are important policy rules:
+
+- Explicit 1:1 or private coaching is strong offer evidence. It is not a weak
+  signal merely because it is not a scalable course.
+- A free course, blueprint, or training proves funnel intent but does not by
+  itself prove a paid offer.
+- A branded program name such as a challenge, university, accelerator, or
+  proprietary system strengthens offer maturity when the surrounding context
+  indicates delivery or transformation.
+- `Course`, `program`, or `coaching` mentioned only as someone else's product,
+  a past experience, or an unrelated topic does not count as the profile's
+  offer.
+
+#### Conversion and CTA
+
+Direct-response phrases include:
+
+```text
+DM me, DM us, DM for, send me a DM, message me, DM "[keyword]",
+comment "[keyword]", apply, apply now, apply below, book a call,
+book a strategy call, schedule a call, work with me, work with us,
+join now, enroll, start here, click below, link below, link in bio,
+get the blueprint, steal my blueprint, get the training,
+download, watch the training, request coaching
+```
+
+Intent levels:
+
+| Level | Examples | Meaning |
+|---:|---|---|
+| 0 | No next step | No conversion evidence |
+| 1 | `follow`, generic link | Audience CTA only |
+| 2 | `free guide`, `watch`, `download` | Lead-capture intent |
+| 3 | `DM SCALE`, `apply`, `book a call`, `1:1 coaching` | Direct sales intent |
+
+A direct keyword CTA is especially strong because it shows an operating DM
+funnel. Extract the action and keyword separately, such as action `DM` and
+keyword `RUTHLESS`, `SCALE`, `LAUNCH`, or `READY`.
+
+#### Proof, results, and authority
+
+Proof terms include:
+
+```text
+results, client results, client wins, student wins, wins, reviews,
+testimonials, testimonial, case study, case studies, success stories,
+transformations, before and after, helped, clients served, students,
+revenue, sales, collected, generated, managed, followers, views,
+my story, start here, featured, podcast, YouTube
+```
+
+Quantified proof patterns include:
+
+```text
+$4M in sales
+$50k/month
+six figures
+seven figures
+139 clients
+15,000,000+ followers
+25M-60M monthly views
+grew from [A] to [B]
+[number] client transformations
+```
+
+Proof strength is determined by context:
+
+- A proof word alone, such as a Highlight named `RESULTS`, is supporting
+  evidence.
+- A specific client outcome or quantified result is strong evidence.
+- Repeated proof across Highlights, captions, and a landing page is very strong
+  evidence.
+- The profile's own follower count is audience authority, not client-result
+  proof.
+- Unverified revenue claims still count as positioning evidence, but the
+  classifier records them as self-reported.
+
+#### Business sophistication and ICP relevance
+
+These terms indicate the commercial problems and infrastructure associated
+with the target buyer:
+
+```text
+high ticket, offer, premium offer, sales calls, closing, sales team,
+appointment setter, closer, webinar, VSL, masterclass, launch, funnel,
+flywheel, lead generation, client acquisition, booked calls, paid ads,
+organic growth, audience, personal brand, conversion, backend systems,
+retention, LTV, upsell, revenue, monetization
+```
+
+These terms strengthen fit only alongside evidence that the profile owns or
+sells an offer. Educational discussion of funnels or sales does not
+automatically prove a business.
+
+#### Partnership and agency signals
+
+Partnership-track positive terms include:
+
+```text
+agency, media, marketing, personal branding, brand engine, content agency,
+growth agency, sales agency, lead generation, client acquisition,
+appointment setting, paid ads, media buying, funnels, conversion,
+done for you, we help, our clients, client results, case studies,
+book a call, DM to scale, work with us
+```
+
+An agency receives strong evidence only when at least one of these bundles is
+present:
+
+1. Service plus buyer plus CTA.
+2. Service plus client proof.
+3. Explicit agency identity plus a concrete commercial outcome.
+
+An `agency` label without a service, buyer, outcome, CTA, or proof is
+insufficient for automatic qualification.
+
+#### Dutch equivalents
+
+Map the following Dutch evidence to the same semantic groups:
+
+```text
+ik help, wij helpen, coach, coaching, consultant, mentor, traject,
+programma, cursus, training, academie, ondernemers, coaches, consultants,
+mannen, klanten, premium klanten, klanten krijgen, klanten aantrekken,
+opschalen, groeien, omzet, verkopen, resultaat, resultaten, klantresultaten,
+reviews, testimonials, succesverhalen, transformaties, mijn verhaal,
+start hier, gratis cursus, gratis training, 1-op-1 coaching,
+privé coaching, boek een gesprek, plan een gesprek, meld je aan,
+stuur een DM, link in bio, vet verliezen, spiermassa opbouwen,
+zelfverbetering, zelfvertrouwen
+```
+
+Language must not lower confidence when the evidence can be translated
+reliably. Mixed-language profiles are evaluated using the combined meaning.
+
+#### Negative and exclusion context
+
+Likely non-ICP terms include:
+
+```text
+fan page, fan account, parody, meme page, memes, news, gossip, paparazzi,
+repost, quotes page, entertainment, official army, shop now, online store,
+worldwide shipping, discount code, ambassador, affiliate, restaurant,
+salon, contractor, transport, SaaS, software platform
+```
+
+These terms are contextual warnings, not blind exclusions. For example, a
+coach can discuss software, run an affiliate promotion, or use `shop` in a
+caption without becoming a SaaS or ecommerce profile. Automatic exclusion
+requires the account's core identity and monetization model to match the
+negative category.
+
+#### Cross-signal bundle rules
+
+Count semantic groups, not raw keyword frequency. Repeating `coach` ten times
+still produces one identity signal.
+
+Strong commercial evidence exists when at least one of these bundles is found:
+
+1. Operator identity plus named buyer plus transformation plus direct CTA.
+2. Named buyer plus paid offer plus direct CTA.
+3. Paid offer plus client proof plus direct CTA.
+4. Agency service plus B2B buyer plus client proof.
+5. Expertise identity plus branded program plus proof-oriented Highlights.
+
+Automatic qualification still follows the five-dimension score and confidence
+rules. A keyword bundle supplies auditable evidence for those dimensions; it
+does not bypass exclusions or deterministic validation.
 
 ## Step 2: Validate metadata quality
 
@@ -279,6 +552,22 @@ Automatically qualify when all conditions hold:
 - The track is `infopreneur` or `partnership`.
 - No universal exclusion applies.
 
+Automatically approve the lead for enrichment when all additional conditions
+hold:
+
+- Commercial-fit score is at least 8.5.
+- AI confidence is at least 0.85.
+- Data quality is `complete` or `partial` with all commercial dimensions
+  supported.
+- Offer evidence is at least 1.5.
+- Conversion intent is at least 1.5.
+- At least one valid strong commercial bundle is present.
+- No contradictory-evidence, follower-range, uncertain-track, or suspicious
+  proof flag applies.
+
+Automatic approval is the normal path for obvious ICP leads. It does not wait
+for a human to confirm a high-confidence decision.
+
 ### Manual review
 
 Send to review when any condition holds:
@@ -289,6 +578,7 @@ Send to review when any condition holds:
 - The AI confidence is below 0.75.
 - Evidence is contradictory, such as a strong CTA with no identifiable offer.
 - A follower-range flag applies to an otherwise strong lead.
+- The lead qualifies but does not meet every automatic-approval condition.
 
 ### Rejected
 
@@ -367,6 +657,19 @@ The classifier returns a versioned object with this logical shape:
     "proof": "$4M in sales before 30",
     "story_highlights": ["RESULTS", "CLIENTS", "START HERE"]
   },
+  "keyword_evidence": [
+    {
+      "group": "buyer",
+      "source": "bio",
+      "phrase": "high ticket coaches and service providers"
+    },
+    {
+      "group": "conversion",
+      "source": "bio",
+      "phrase": "DM SCALE"
+    }
+  ],
+  "commercial_bundles": ["buyer + offer + direct CTA"],
   "data_quality": "complete",
   "decision": "qualified",
   "decision_reason": "Clear buyer, transformation, offer, CTA, and quantified proof",
@@ -395,17 +698,18 @@ Reviewer actions are `approve`, `reject`, and `defer`. Reject requires a
 normalized reason. Reviewer changes are stored separately from the AI result
 so model accuracy can be measured without overwriting the original prediction.
 
-High-confidence profiles with commercial fit of at least 9.0 may be eligible
-for auto-approval after the validation period demonstrates acceptable
-precision. Auto-approval is not part of the initial rollout.
+Manual review is an exception queue, not a required stage for every qualified
+lead. High-confidence profiles that satisfy Step 6 are automatically approved
+after the shadow-validation gate is passed. Review capacity is reserved for
+borderline, incomplete, contradictory, or low-confidence profiles.
 
 ## Step 10: Enrichment handoff
 
 A lead is ready for enrichment when:
 
 - Qualification decision is `qualified`.
-- Manual decision is `approved`, unless a future validated auto-approval rule
-  applies.
+- Approval source is either `automatic` under the high-confidence rules or
+  `manual` after review.
 - No email is already available.
 - The lead is not currently assigned to an open enrichment batch.
 - The lead has not exceeded the configured enrichment retry limit.
@@ -446,8 +750,9 @@ independent final evaluation example.
 
 ### Offline acceptance criteria
 
-- All eight supplied positive examples classify as qualified or manual review,
-  never automatic rejection.
+- All eight supplied positive examples classify as qualified. With complete
+  commercial evidence captured, they should satisfy automatic approval rather
+  than require manual review.
 - Precision on automatic qualification is at least 90% against reviewer labels.
 - Recall on confirmed qualified leads improves relative to the current
   production classifier.
@@ -457,6 +762,8 @@ independent final evaluation example.
 - The same stored evidence produces the same deterministic threshold decision.
 - Every decision exposes dimension scores, evidence, confidence, and model
   version.
+- At least 80% of high-confidence qualified profiles bypass manual review after
+  the automatic-approval rollout.
 
 ### Shadow rollout
 
