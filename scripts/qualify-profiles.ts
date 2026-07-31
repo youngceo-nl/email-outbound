@@ -32,6 +32,7 @@ type Args = {
   inputs: string[];
   provider: LlmProvider;
   model: string;
+  challengerModel: string;
   out: string | null;
   concurrency: number;
 };
@@ -40,13 +41,15 @@ function parseArgs(argv: string[]): Args {
   const inputs: string[] = [];
   let provider: LlmProvider | null = null;
   let model: string | null = null;
+  let challengerModel: string | null = null;
   let out: string | null = null;
-  let concurrency = 3;
+  let concurrency = 2;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--provider") provider = argv[++i] as LlmProvider;
     else if (arg === "--model") model = argv[++i];
+    else if (arg === "--challenger-model") challengerModel = argv[++i];
     else if (arg === "--out") out = argv[++i];
     else if (arg === "--concurrency") concurrency = Number(argv[++i]) || 3;
     else if (arg === "--file") {
@@ -60,10 +63,21 @@ function parseArgs(argv: string[]): Args {
   const resolvedModel =
     model ??
     (resolvedProvider === "anthropic"
-      ? (process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6")
+      ? (process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5")
       : (process.env.OPENAI_MODEL ?? "gpt-4o"));
 
-  return { inputs, provider: resolvedProvider, model: resolvedModel, out, concurrency };
+  return {
+    inputs,
+    provider: resolvedProvider,
+    model: resolvedModel,
+    // The challenger only runs on high-impact decisions, so it can afford to be
+    // a stronger model than the per-lead extractor.
+    challengerModel:
+      challengerModel ??
+      (resolvedProvider === "anthropic" ? "claude-opus-5" : resolvedModel),
+    out,
+    concurrency,
+  };
 }
 
 async function main(): Promise<void> {
@@ -87,6 +101,11 @@ async function main(): Promise<void> {
   }
 
   const llm = createLlmClient({ provider: args.provider, model: args.model, apiKey });
+  const challengerLlm = createLlmClient({
+    provider: args.provider,
+    model: args.challengerModel,
+    apiKey,
+  });
   const externalConfig = { ...DEFAULT_EXTERNAL_CONFIG, scrapingBeeApiKey: scrapingBeeKey };
   const fetchPage = createPageFetcher(externalConfig);
 
@@ -96,7 +115,9 @@ async function main(): Promise<void> {
   }));
 
   console.log(
-    `\nQualifying ${usernames.length} profile(s) via ${args.provider}/${args.model}\n` +
+    `\nQualifying ${usernames.length} profile(s)\n` +
+      `  extractor:  ${args.provider}/${args.model}\n` +
+      `  challenger: ${args.provider}/${args.challengerModel}\n` +
       `${"=".repeat(78)}`,
   );
 
@@ -125,7 +146,7 @@ async function main(): Promise<void> {
           llm,
           external: externalConfig,
           youtube: { apiKey: process.env.YOUTUBE_API_KEY ?? null },
-          dependencies: { fetchPage, llm },
+          dependencies: { fetchPage, llm, challengerLlm },
         });
         results.push({ input: item.input, result, error: null });
         process.stderr.write(`  done: @${item.username} -> ${result.decision.decision}/${result.decision.mode}\n`);

@@ -493,6 +493,37 @@ export type CommercialExtraction = {
   conflicts: string[];
   data_quality: DataQuality;
   unknown_surfaces: string[];
+
+  /*
+   * Component-wise evidence for the agency exception. The extractor reports each
+   * component independently; deterministic code decides whether the exception
+   * passes. Optional so extractions from older prompt versions still validate.
+   */
+  independent_information_offer?: IndependentInformationOfferEvidence;
+  named_mechanisms?: NamedMechanism[];
+};
+
+export type IndependentInformationOfferEvidence = {
+  own_audience: SignalState;
+  own_transformation: SignalState;
+  own_cta_path: SignalState;
+  information_delivery: SignalState;
+  sufficient_prominence: SignalState;
+  evidence: EvidenceCitation[];
+};
+
+export type NamedMechanism = {
+  name: string;
+  kind:
+    | "method"
+    | "framework"
+    | "system"
+    | "program"
+    | "academy"
+    | "challenge"
+    | "mechanism"
+    | "other";
+  evidence: EvidenceCitation[];
 };
 
 // ---------------------------------------------------------------------------

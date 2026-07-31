@@ -145,6 +145,85 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// ---------------------------------------------------------------------------
+// Acquisition with controlled fallback
+// ---------------------------------------------------------------------------
+
+export const MINIMUM_HTML_LENGTH = 500;
+
+/*
+ * A shell that ships no readable copy means the commercial content is behind
+ * JavaScript. Detected by stripping tags and measuring what a reader would see,
+ * not by looking for framework names — plenty of SSR'd Next.js pages are
+ * perfectly readable.
+ */
+export function looksLikeJavascriptShell(html: string): boolean {
+  const visible = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return visible.length < 400;
+}
+
+export function containsBotChallenge(html: string): boolean {
+  return /(just a moment|checking your browser|cf-browser-verification|__cf_chl|enable javascript and cookies|captcha|are you a robot|access denied)/i.test(
+    html.slice(0, 4000),
+  );
+}
+
+export function pageIsUsable(page: FetchedPage): boolean {
+  if (page.html.length < MINIMUM_HTML_LENGTH) return false;
+  if (containsBotChallenge(page.html)) return false;
+  if (looksLikeJavascriptShell(page.html)) return false;
+  return true;
+}
+
+/*
+ * ScrapingBee costs credits, so it runs only when the free fetch demonstrably
+ * failed to deliver readable HTML. It must NEVER be used merely because the page
+ * contained no coaching offer — "we read the page and it had no offer" is a
+ * finding, not an acquisition failure, and paying to re-read it changes nothing.
+ */
+export function shouldUseScrapingBee(outcome: PageFetchOutcome): boolean {
+  if (!outcome.ok) {
+    // A hard 404 is a real answer; a block or transport failure is not.
+    return outcome.failure.kind !== "http_error" || /40[34]|429|5\d\d/.test(outcome.failure.detail);
+  }
+  return !pageIsUsable(outcome.page);
+}
+
+export type AcquirePage = (url: string) => Promise<PageFetchOutcome>;
+
+/** Free HTTP first, ScrapingBee only on demonstrable acquisition failure, capped. */
+export function createAcquirePage(config: {
+  scrapingBeeApiKey: string | null;
+  maxScrapingBeeCalls?: number;
+}): AcquirePage {
+  let scrapingBeeCallsUsed = 0;
+  const budget = config.maxScrapingBeeCalls ?? 2;
+
+  return async (url: string) => {
+    const free = await freeFetchPage(url);
+    if (free.ok && pageIsUsable(free.page)) return free;
+
+    if (!config.scrapingBeeApiKey) return free;
+    if (!shouldUseScrapingBee(free)) return free;
+    if (scrapingBeeCallsUsed >= budget) return free;
+
+    scrapingBeeCallsUsed += 1;
+    const rendered = await scrapingBeeFetchPage({
+      apiKey: config.scrapingBeeApiKey,
+      url,
+      renderJs: true,
+    });
+    // Falling back to the free result keeps whatever partial evidence we had
+    // rather than discarding it because the paid attempt also failed.
+    return rendered.ok && pageIsUsable(rendered.page) ? rendered : free;
+  };
+}
+
 export function canonicalizeUrl(raw: string): string | null {
   try {
     const url = new URL(raw);

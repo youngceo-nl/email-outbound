@@ -88,10 +88,46 @@ export function applyHardBusinessModelGate(extraction: CommercialExtraction): Ha
   };
 }
 
+/*
+ * The agency exception. The extractor reports each component of the separate
+ * information funnel independently; this function decides whether the exception
+ * passes. All five components must be `present` — a funnel missing its own
+ * audience, outcome, CTA path, information delivery, or commercial prominence is
+ * a bonus attached to the service, not a business that stands on its own.
+ */
 export function findIndependentInformationFunnel(extraction: CommercialExtraction): {
   verified: boolean;
   reason: string;
 } {
+  const components = extraction.independent_information_offer;
+  if (components) {
+    const required = [
+      ["own_audience", components.own_audience],
+      ["own_transformation", components.own_transformation],
+      ["own_cta_path", components.own_cta_path],
+      ["information_delivery", components.information_delivery],
+      ["sufficient_prominence", components.sufficient_prominence],
+    ] as const;
+
+    const failing = required.filter(([, state]) => state !== "present");
+    if (failing.length > 0) {
+      return {
+        verified: false,
+        reason: `independent funnel components not established: ${failing
+          .map(([name, state]) => `${name}=${state}`)
+          .join(", ")}`,
+      };
+    }
+    if (components.evidence.length === 0) {
+      return { verified: false, reason: "independent funnel asserted without cited evidence" };
+    }
+    return {
+      verified: true,
+      reason: "all five independent information-funnel components are present and cited",
+    };
+  }
+
+  // Fallback for extractions that predate the component-wise contract.
   const candidates = informationOffers(extraction.offers);
   if (candidates.length === 0) {
     return { verified: false, reason: "no offer delivers knowledge or instruction to the visitor" };

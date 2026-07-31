@@ -47,7 +47,14 @@ export type QualificationRunResult = {
 export type QualificationDependencies = {
   fetchPage: PageFetcher;
   collectYouTube: typeof collectYouTubeEvidence;
+  /** Primary extractor — Claude Haiku 4.5 in production. */
   llm: LlmClient;
+  /*
+   * Adversarial verifier. Deliberately a separate, stronger model: it only runs
+   * on high-impact decisions, so the extra cost per lead is bounded while the
+   * decisions that matter most get a second, more capable opinion.
+   */
+  challengerLlm: LlmClient;
   now: () => string;
   uuid: () => string;
 };
@@ -55,6 +62,7 @@ export type QualificationDependencies = {
 export type RunOptions = {
   instagram: InstagramEvidence;
   llm: LlmClient;
+  challengerLlm?: LlmClient;
   leadId?: string | null;
   external?: Partial<ExternalCollectorConfig>;
   youtube?: Partial<YouTubeConfig>;
@@ -74,6 +82,8 @@ export async function runCommercialQualification(
     fetchPage: opts.dependencies?.fetchPage ?? createPageFetcher(externalConfig),
     collectYouTube: opts.dependencies?.collectYouTube ?? collectYouTubeEvidence,
     llm: opts.dependencies?.llm ?? opts.llm,
+    challengerLlm:
+      opts.dependencies?.challengerLlm ?? opts.challengerLlm ?? opts.dependencies?.llm ?? opts.llm,
     now: opts.dependencies?.now ?? (() => new Date().toISOString()),
     uuid: opts.dependencies?.uuid ?? randomUUID,
   };
@@ -185,7 +195,7 @@ export async function runCommercialQualification(
     challenger = await runChallenger({
       snapshot,
       extraction: extraction.extraction,
-      llm: deps.llm,
+      llm: deps.challengerLlm,
     });
     challengerMs = Date.now() - challengerStart;
   }

@@ -87,29 +87,51 @@ function scriptedLlm(overrides: Record<string, unknown> = {}): LlmClient & { cal
           reason: "clear coaching funnel",
         }
       : {
-          extraction_prompt_version: "personal-brand-evidence-v1",
-          evidence_snapshot_id: "will-be-overwritten",
-          human_personal_brand: { state: "present", strength: "strong", evidence: cite },
+          personal_brand: { state: "present", strength: "strong", evidence: cite },
           audience: { label: "explicit", value: "consultants", evidence: cite },
           transformation: { state: "present", strength: "strong", label: "explicit_result", outcome: "premium clients", evidence: cite },
           information_funnel: { state: "present", strength: "credible", label: "visible_offer", visitor_receives: ["coaching"], asset_or_offer: "1:1 coaching", evidence: cite },
-          cta: { state: "present", strength: "strong", label: "direct_sales_action", action: "apply", token_or_asset: null, evidence: cite },
-          proof: { state: "unknown", strength: "absent", label: "absent", claims: [], evidence: [] },
-          authority: { state: "present", strength: "credible", label: "credible", types: ["specialization"], evidence: cite },
-          business_models: [{ type: "information_education", prominence: "primary", evidence: cite }],
-          offers: [],
-          proof_attribution: [],
+          conversion_cta: { state: "present", strength: "strong", label: "direct_sales_action", action: "apply", token_or_asset: null, evidence: cite },
           primary_visitor_outcome: "coaching",
-          primary_cta: "apply",
-          ultimate_cta: "apply for coaching",
-          cta_chain_resolved: true,
-          acquisition_sufficiency: "sufficient",
-          agency_evidence_bundle: { service_delivery: [], team_performance: [], service_cta: [], reliability: "absent" },
-          agency_service_evidence: [],
-          exclusion_evidence: [],
+          proof: { state: "unknown", strength: "absent", label: "absent", evidence: [] },
+          authority: { state: "present", strength: "credible", label: "credible", types: ["specialization"], evidence: cite },
+          named_mechanisms: [],
+          offer_inventory: [
+            {
+              offer_id: "offer_1",
+              name: "1:1 coaching",
+              type: "coaching",
+              prominence: "primary",
+              audience: "consultants",
+              delivery: "private coaching",
+              visitor_receives: ["coaching"],
+              customer_implementation_role: "implements_with_guidance",
+              price: null,
+              cta: "apply for coaching",
+              evidence: cite,
+            },
+          ],
+          proof_inventory: [],
+          primary_offer: { offer_id: "offer_1", rationale: "only offer, primary bio CTA" },
+          primary_offer_delivery: "information",
+          done_for_you_service_evidence: { service_delivery: [], team_performance: [], service_cta: [], reliability: "absent" },
+          independent_information_offer_evidence: {
+            own_audience: "unknown",
+            own_transformation: "unknown",
+            own_cta_path: "unknown",
+            information_delivery: "unknown",
+            sufficient_prominence: "unknown",
+            evidence: [],
+          },
           conflicts: [],
-          data_quality: "complete",
-          unknown_surfaces: [],
+          unknowns: [],
+          acquisition_observations: {
+            cta_chain_resolved: true,
+            acquisition_sufficiency: "sufficient",
+            data_quality: "complete",
+            unknown_surfaces: [],
+          },
+          citations: cite,
           ...overrides,
         };
 
@@ -147,7 +169,10 @@ test("runs acquisition, extraction, challenger, and decision in order", async ()
   assert.equal(result.decision.mode, "auto_approved");
 
   // The snapshot id is asserted by us, never chosen by the model.
-  assert.equal(result.extraction?.ok && result.extraction.extraction.evidence_snapshot_id, result.snapshot?.snapshot_id);
+  assert.equal(
+    result.extraction?.ok ? result.extraction.extraction.evidence_snapshot_id : null,
+    result.snapshot?.snapshot_id,
+  );
 });
 
 test("a universal exclusion short-circuits before any model call", async () => {
@@ -197,7 +222,7 @@ test("invalid model output routes to review rather than rejecting the lead", asy
 
 test("an extraction citing a nonexistent source is rejected as invalid", async () => {
   const inventing = scriptedLlm({
-    cta: {
+    conversion_cta: {
       state: "present",
       strength: "strong",
       label: "direct_sales_action",

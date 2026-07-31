@@ -167,14 +167,14 @@ For each dimension, return one label and evidence. Do not return points.
   explicit_result
 - information_funnel.label: none, weak_education, indirect_funnel,
   visible_offer, explicit_offer
-- cta.label: none, audience_only, information_action, commercial_action,
+- conversion_cta.label: none, audience_only, information_action, commercial_action,
   direct_sales_action
 - proof.label: absent, weak, credible, strong
 - authority.label: absent, weak, credible, strong
 
 SIGNAL STATE AND STRENGTH
-For human_personal_brand, transformation, information_funnel, cta, proof, and
-authority, return one state and one strength:
+For personal_brand, transformation, information_funnel, conversion_cta, proof,
+and authority, return one state and one strength:
 - state: present | absent | unknown | conflicting
   - present: cited evidence supports the signal
   - absent: the relevant surface WAS captured and no supporting evidence exists
@@ -225,38 +225,43 @@ evidence. Use null or an empty array when evidence is unavailable. Never invent
 profile facts.
 
 RESPONSE CONTRACT
-Return exactly these keys, with exactly these names. The citation array on every
-signal is named "evidence" — not "citations". Extra keys are rejected.
+The response shape is enforced by a strict JSON Schema. Field names are exact.
+The citation array on every signal is named "evidence"; the flat index at the end
+is named "citations".
 
-{
-  "human_personal_brand": { "state": "...", "strength": "...", "evidence": [] },
-  "audience": { "label": "...", "value": "string or null", "evidence": [] },
-  "transformation": { "state": "...", "strength": "...", "label": "...", "outcome": "string or null", "evidence": [] },
-  "information_funnel": { "state": "...", "strength": "...", "label": "...", "visitor_receives": [], "asset_or_offer": "string or null", "evidence": [] },
-  "cta": { "state": "...", "strength": "...", "label": "...", "action": "string or null", "token_or_asset": "string or null", "evidence": [] },
-  "proof": { "state": "...", "strength": "...", "label": "...", "claims": [], "evidence": [] },
-  "authority": { "state": "...", "strength": "...", "label": "...", "types": [], "evidence": [] },
-  "business_models": [ { "type": "...", "prominence": "...", "evidence": [] } ],
-  "offers": [ { "offer_id": "...", "name": null, "type": "...", "prominence": "...", "audience": null, "delivery": null, "visitor_receives": [], "customer_implementation_role": "...", "price": null, "cta": null, "evidence": [] } ],
-  "proof_attribution": [ { "proof_id": "...", "claim": "...", "beneficiary": "...", "result_type": "...", "value": null, "currency": null, "attributed_offer_id": null, "producing_model": null, "self_reported": true, "evidence": [] } ],
-  "primary_visitor_outcome": "... or null",
-  "primary_cta": "string or null",
-  "ultimate_cta": "string or null",
-  "cta_chain_resolved": true,
-  "acquisition_sufficiency": "sufficient | partial | insufficient",
-  "agency_evidence_bundle": { "service_delivery": [], "team_performance": [], "service_cta": [], "reliability": "reliable | incomplete | absent" },
-  "agency_service_evidence": [],
-  "exclusion_evidence": [],
-  "conflicts": [],
-  "data_quality": "complete | partial | unreliable",
-  "unknown_surfaces": []
-}
+Top-level keys: personal_brand, audience, transformation, information_funnel,
+conversion_cta, primary_visitor_outcome, proof, authority, named_mechanisms,
+offer_inventory, proof_inventory, primary_offer, primary_offer_delivery,
+done_for_you_service_evidence, independent_information_offer_evidence,
+conflicts, unknowns, acquisition_observations, citations.
 
-Each entry of every "evidence" array is:
+Each citation is:
 { "source_type": "...", "source_id": "...", "url": null, "field": "...", "phrase": "..." }
 
-"proof.claims" and "proof_attribution" entries use the proof object shape shown
-above, including the required "beneficiary" field.`;
+KEY FIELD NOTES
+- primary_visitor_outcome: what the visitor ULTIMATELY receives after the CTA
+  chain resolves — not the first thing they click.
+- offer_inventory: EVERY commercially relevant offer, each judged independently.
+  Do not assume the first or highest-priced offer is primary.
+- primary_offer: which offer_inventory entry is primary, plus your rationale.
+- primary_offer_delivery: how that primary offer is delivered.
+  done_for_you_service means a team performs the work for the customer.
+- proof_inventory: every proof claim with its beneficiary. Use "unknown" rather
+  than guessing who a result belongs to. Agency-client results are
+  beneficiary "agency_client" and never support an information offer.
+- done_for_you_service_evidence: the three-component service test. Mark
+  reliability "reliable" only when at least two components corroborate and one
+  is explicit about done-for-you delivery. The isolated word "agency" is never
+  enough.
+- independent_information_offer_evidence: only meaningful when an agency service
+  is also present. Report each of the five components independently. Do NOT
+  decide whether the exception passes — application code does that.
+- named_mechanisms: named methods, frameworks, systems, programs, academies, or
+  challenges the person owns.
+- unknowns: anything you could not establish. Unknown is never absence.
+
+Do not return a track, score, confidence, recommendation, approval flag, or
+final decision. Application code derives those values after validation.`;
 
 export const CHALLENGER_SYSTEM_PROMPT = `You are the adversarial evidence verifier for an Instagram lead. Inspect the
 same evidence independently. Test whether the core gate fails or whether the
