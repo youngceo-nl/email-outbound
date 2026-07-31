@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { computeStatus, buildKpiRow, computeTaskCompletion, type KpiRow } from "./kpi";
+import { computeStatus, buildKpiRow, computeTaskCompletion, computePositiveReplyRate, type KpiRow } from "./kpi";
 
 describe("computeStatus", () => {
   it("is unknown when actual is null", () => {
@@ -71,5 +71,15 @@ describe("computeTaskCompletion", () => {
     const result = computeTaskCompletion([row("unknown"), row("unknown")]);
     assert.equal(result.actual, null);
     assert.equal(result.status, "unknown");
+  });
+});
+
+describe("computePositiveReplyRate", () => {
+  it("divides positive replies by emails sent, as a percentage", () => {
+    assert.equal(computePositiveReplyRate(15, 100), 15);
+  });
+
+  it("is null when no emails were sent today, not a misleading 0%", () => {
+    assert.equal(computePositiveReplyRate(0, 0), null);
   });
 });
