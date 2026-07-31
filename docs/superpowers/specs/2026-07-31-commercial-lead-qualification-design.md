@@ -173,11 +173,15 @@ DM me
 Comment
 Blueprint
 Free training
+Learn from me
+Helped [number] people
 ```
 
 It must also recognize:
 
 - Revenue, client, student, transformation, or audience proof.
+- Quantified teaching or impact claims such as `helped 500 people`, `coached
+  200 founders`, or `trained 1,000 students`.
 - A named mechanism, framework, method, system, challenge, academy, university,
   course, roadmap, or program.
 - Equivalent language in captions, Story Highlights, link labels, pinned posts,
@@ -240,6 +244,7 @@ open a link hub
 request private instruction
 book a call
 join a program or community
+learn from me
 ```
 
 The core distinction is:
@@ -253,6 +258,12 @@ information operator: DM, apply, book, download, watch, learn, request, or join
 information conversion path by itself. A YouTube link or link hub counts when
 the surrounding profile establishes a human expert and informational
 transformation.
+
+`Learn from me` is stronger than `follow me` because it explicitly positions
+the person as the teacher and the visitor as a learner. It supports expert
+identity and information-funnel intent. It becomes strong conversion evidence
+when paired with a course, blueprint, roadmap, YouTube destination, coaching
+offer, application, or link hub.
 
 #### Proof and authority
 
@@ -277,6 +288,9 @@ Examples include:
 $4M in sales before 30
 139 clients
 15,000,000+ followers
+helped 500 people
+coached 200 founders
+trained 1,000 students
 client wins
 student wins
 testimonials
@@ -292,6 +306,20 @@ information offer. Agency client results do not prove an information business.
 Proof strength increases when evidence is specific, quantified, repeated, or
 visible across multiple surfaces. Self-reported proof remains useful
 positioning evidence but must be labeled as self-reported.
+
+The AI must recognize the semantic pattern, not only the verb `helped`:
+
+```text
+helped | coached | trained | taught | mentored | served
+    + number or quantity
+    + people | clients | students | founders | coaches | consultants | men
+```
+
+Extract the action, quantity, and audience separately. `Helped people` without
+a quantity is general authority evidence. `Helped 500 coaches get clients` is
+strong proof because it combines scale, buyer, and outcome. Do not count a
+number when it refers to followers, views, revenue, or years unless it is
+classified under the corresponding proof type.
 
 ### ICP keyword and phrase taxonomy
 
@@ -321,7 +349,8 @@ Strong phrases include:
 
 ```text
 I help, we help, I teach, I coach, I build, I run, founder of, coach for,
-consultant for, behind the brands, face behind, work with me, work with us
+consultant for, behind the brands, face behind, learn from me, work with me,
+work with us
 ```
 
 `Coach` or `consultant` alone is only identity evidence. It becomes strong
@@ -421,7 +450,7 @@ join now, enroll, start here, click below, link below, link in bio,
 get the blueprint, steal my blueprint, get the training,
 get the roadmap, get the guide, free course, free training, download,
 watch the training, watch on YouTube, subscribe on YouTube, request coaching,
-application form, fill out the application
+application form, fill out the application, learn from me
 ```
 
 Intent levels:
@@ -467,7 +496,8 @@ Proof terms include:
 results, client results, client wins, student wins, wins, reviews,
 testimonials, testimonial, case study, case studies, success stories,
 transformations, before and after, helped, clients served, students,
-revenue, sales, collected, generated, managed, followers, views,
+coached, trained, taught, mentored, people helped, revenue, sales, collected,
+generated, managed, followers, views,
 my story, start here, featured, podcast, YouTube
 ```
 
@@ -483,6 +513,9 @@ seven figures
 25M-60M monthly views
 grew from [A] to [B]
 [number] client transformations
+helped [number] people
+coached [number] clients
+trained [number] students
 ```
 
 Proof strength is determined by context:
@@ -564,7 +597,8 @@ reviews, testimonials, succesverhalen, transformaties, mijn verhaal,
 start hier, gratis cursus, gratis training, 1-op-1 coaching,
 privé coaching, boek een gesprek, plan een gesprek, meld je aan,
 stuur een DM, link in bio, vet verliezen, spiermassa opbouwen,
-zelfverbetering, zelfvertrouwen
+zelfverbetering, zelfvertrouwen, leer van mij, mensen geholpen,
+klanten geholpen, studenten geholpen
 ```
 
 Language must not lower confidence when the evidence can be translated
