@@ -18,13 +18,16 @@ Universal exclusions
     +-- definite exclusion -------> rejected
     |
     v
-Personal-brand information classification
+AI evidence extraction with source citations
     |
     v
-Four-pillar gate: Proof + Authority + Transformation + CTA
+Deterministic track classification
     |
-    +-- pillar unknown ------------> data retry / targeted review
-    +-- pillar reliably absent ----> not auto-approved
+    v
+Core gate: information funnel + CTA + one supporting signal
+    |
+    +-- core signal unknown -------> data retry / targeted review
+    +-- core signal absent --------> not auto-approved
     |
     v
 Commercial-fit score
@@ -36,7 +39,7 @@ Commercial-fit score
     v
 Automatic approval check
     |
-    +-- high confidence ----------> enrichment-ready
+    +-- high certainty -----------> enrichment-ready
     +-- ambiguous ----------------> targeted manual review
     |
     v
@@ -50,9 +53,9 @@ Priority score and enrichment
 | 1. Target and principles | Define the ICP and non-negotiable rules | Shared qualification policy |
 | 2. Evidence and signals | Capture and interpret profile, content, Highlight, link, CTA, transformation, and proof evidence | Versioned evidence snapshot |
 | 3. Data quality and exclusions | Separate missing data from reliable disqualification | Retry, proceed, or deterministic reject |
-| 4. AI qualification | Classify the profile, score five dimensions, and apply decision thresholds | Qualified, review, or rejected |
+| 4. Qualification and decisioning | Convert extracted evidence into track, signal states, scores, and deterministic outcomes | Qualified, review, or rejected |
 | 5. Priority | Rank qualified leads without using activity as a qualification gate | Priority score |
-| 6. AI prompts and contract | Run the enrichment model safely and validate its structured output | Validated AI result |
+| 6. AI extraction and contracts | Extract replayable facts, verify high-certainty candidates, and validate structured output | Versioned evidence record |
 | 7. Review and enrichment | Auto-approve clear leads and route exceptions to people | Enrichment-ready lead |
 | 8. Migration and measurement | Reprocess historical data and prove accuracy before rollout | Validated production release |
 
@@ -91,26 +94,30 @@ see why a lead qualified, entered review, or was rejected.
 7. The same evidence should produce the same decision regardless of which
    scrape or scoring entry point processed the lead.
 
-## Four-pillar qualification rule
+## Core qualification rule
 
-After confirming that the account is a human personal brand with an
-information funnel, qualification depends on four independent pillars:
+After confirming that the account is a human personal brand, automatic
+qualification requires a visible information funnel and CTA. Transformation,
+Proof, and Authority are independent supporting signals:
 
-| Pillar | Required meaning | Typical evidence |
+| Signal | Role | Typical evidence |
 |---|---|---|
-| Proof | Evidence that the person or their customers achieved results | Amount generated, number of people or students helped, testimonials, client wins, student wins, Results Highlights |
-| Authority | Evidence that the person is credible enough to teach the subject | Specialized expertise, demonstrated skill, personal results, named methodology, education brand, relevant audience, consistent expert content |
-| Transformation | A recognizable change offered to a defined person | `I help [ideal client] achieve [dream outcome]` or a semantic equivalent |
-| CTA | A visible next action that advances the visitor into the information funnel | Book, watch, join, apply, DM, comment, claim, download, start, or request |
+| Information funnel | Required evidence that the visitor can receive information, education, coaching, or community access | Course, coaching, blueprint, training, webinar, membership, educational YouTube, application, or education-focused link hub |
+| CTA | Required visible action that advances the visitor into that funnel | Book, watch, join, apply, DM, comment, claim, download, start, or request |
+| Transformation | Supporting recognizable change offered to a defined person | `I help [ideal client] achieve [dream outcome]` or a semantic equivalent |
+| Proof | Supporting evidence that the person or their customers achieved results | Amount generated, number of people or students helped, testimonials, client wins, student wins, Results Highlights |
+| Authority | Supporting evidence that the person is credible enough to teach the subject | Specialized expertise, demonstrated skill, personal results, named methodology, education brand, relevant audience, consistent expert content |
 
-The four pillars are not interchangeable. Strong authority does not replace
-missing proof, and a strong CTA does not replace a missing transformation.
-High-confidence automatic qualification requires evidence for all four.
+Information funnel and CTA are non-negotiable for automatic qualification.
+At least one of Transformation, Proof, or Authority must also be present.
+Supporting signals improve fit and priority, but no individual supporting
+signal is mandatory. Missing Proof alone must not send an otherwise clear
+information personal brand to manual review.
 
-When one pillar is unavailable because the scraper did not capture the
-relevant surface, the profile enters targeted review or data retry. When a
-pillar was reliably inspected and is genuinely absent, the profile does not
-receive automatic approval.
+When the information funnel, CTA, primary visitor outcome, or personal-brand
+identity is unavailable, the profile enters targeted review or data retry.
+Unknown supporting signals do not block approval when another supporting
+signal is present and the core evidence is complete.
 
 # Chapter 2: Evidence collection and signal recognition
 
@@ -130,6 +137,87 @@ The scorer receives the following normalized evidence:
 
 The scorer must preserve the evidence timestamp. Social profile data changes,
 so a decision is only reproducible when its input snapshot is identifiable.
+
+### Required enrichment fields
+
+The enrichment layer must persist capture state separately from captured
+values. A null value without capture state is ambiguous and cannot support an
+automatic decision.
+
+| Field | Type | Requirement |
+|---|---|---|
+| `story_highlight_titles` | nullable text array | Normalized visible titles |
+| `story_highlights_capture_status` | enum | `captured`, `unavailable`, `failed`, or `not_attempted` |
+| `story_highlights_captured_at` | nullable timestamp | Snapshot time |
+| `external_final_url` | nullable text | URL after redirects |
+| `external_destination_type` | nullable enum | `application`, `booking`, `lead_magnet`, `education`, `youtube`, `link_hub`, `agency_service`, `store`, `unknown`, or `none` |
+| `external_visible_labels` | nullable text array | Link-hub or landing-page CTA labels |
+| `external_destination_summary` | nullable text | Evidence-based page summary |
+| `external_destinations` | nullable JSON array | Every inspected destination with source URL, final URL, visible label, page title, type, visitor outcomes, relevance, selection reason, capture state, and timestamp |
+| `external_capture_status` | enum | `captured`, `unavailable`, `failed`, or `not_attempted` |
+| `external_captured_at` | nullable timestamp | Snapshot time |
+| `pinned_posts` | nullable JSON array | Captions and available metrics for confirmed pinned posts |
+| `pinned_posts_capture_status` | enum | `captured`, `unavailable`, `failed`, or `not_attempted` |
+
+`captured` with an empty array means the surface was inspected and no values
+were visible. `failed`, `unavailable`, and `not_attempted` mean unknown, not
+absent. Automatic rejection cannot rely on unknown evidence.
+
+The enrichment sequence is:
+
+1. Capture the Instagram profile, recent posts, pinned posts, and Highlight
+   titles.
+2. Resolve and classify the external destination.
+3. If the destination is a link hub, capture its visible destination labels
+   and classify the relevant child links.
+4. Store the immutable evidence snapshot before AI extraction.
+5. Reference the snapshot ID from every extraction and score record.
+
+Each inspected child destination is stored independently:
+
+```json
+{
+  "source_url": "https://link.me/example",
+  "final_url": "https://whop.com/example",
+  "visible_label": "Trade Live With Me Daily",
+  "page_title": "Trading Community",
+  "destination_type": "community",
+  "visitor_receives": ["education", "live_instruction"],
+  "commercial_relevance": "primary",
+  "selection_reason": "paid educational offer",
+  "capture_status": "captured",
+  "captured_at": "timestamp"
+}
+```
+
+### Link-hub child selection
+
+Prioritize child links whose visible label semantically expresses `apply`,
+`book`, `coaching`, `mentorship`, `program`, `academy`, `community`, `free
+training`, `free course`, `webinar`, `blueprint`, `roadmap`, `learn`, `watch`,
+`join`, `VIP`, `inner circle`, `work with me`, or `trade live`.
+
+Deprioritize social profiles, privacy policies, terms, contact pages, generic
+homepages, broker links, discount codes, and affiliate products. These links
+remain evidence when they could affect the business-model conclusion.
+
+Inspect at most three commercially relevant child destinations by default.
+Continue beyond three only when the primary business model, visitor outcome,
+or an exclusion remains unresolved. Store the rank and selection reason so the
+inspection is reproducible.
+
+Stop external inspection when all conditions hold:
+
+- Human personal-brand identity is confirmed.
+- An information funnel and CTA are confirmed.
+- At least one of Transformation, Proof, or Authority is confirmed.
+- The primary visitor outcome is known.
+- No unresolved exclusion or primary-business-model conflict remains.
+
+Continue inspection when `work with me` is unexplained, the only destination
+is a generic link hub, agency and education signals coexist, the only visible
+offer is affiliate-based, the CTA leads to employment or recruitment, or the
+primary visitor outcome is unknown.
 
 ### Story Highlight evidence
 
@@ -177,7 +265,7 @@ capture timestamp to the backfill result. A null collection means not captured;
 an empty collection means captured and none were visible. These states must not
 be conflated.
 
-### Primary AI recognition model
+### Primary AI evidence model
 
 Before assigning numeric scores, the AI must explicitly answer five semantic
 questions:
@@ -189,10 +277,11 @@ questions:
 5. What visible path moves a visitor from content toward information,
    application, coaching, or another conversion step?
 
-The human personal brand is a prerequisite. Proof, Authority, Transformation,
-and CTA are the four required qualification pillars. Keywords help the AI
-locate evidence, but the AI must interpret complete phrases, context, and
-equivalent language rather than count exact matches.
+The human personal brand is a prerequisite. Information funnel and CTA are
+required core signals. At least one of Proof, Authority, or Transformation is
+required as supporting evidence. Keywords help the AI locate evidence, but the
+AI must interpret complete phrases, context, and equivalent language rather
+than count exact matches.
 
 #### High-value phrases and concepts
 
@@ -420,7 +509,7 @@ high ticket, online, established, ambitious, premium, B2C, B2B, 25-45,
 six figure, seven figure
 ```
 
-The classifier must extract the complete audience phrase. For example, `high
+The extractor must capture the complete audience phrase. For example, `high
 ticket coaches and service providers` is stronger than three disconnected
 keyword hits.
 
@@ -553,6 +642,21 @@ creator. When a link hub is available, inspect its visible destination labels
 for coaching, education, blueprint, roadmap, application, results, or agency
 service evidence.
 
+Classify what the visitor receives using one or more of these values:
+
+```text
+education, coaching, information_product, community, live_instruction,
+membership, event, employment_opportunity, recruiting_service,
+done_for_you_service, managed_trading, signals_service, affiliate_offer,
+commerce_product, software, entertainment, unknown
+```
+
+The extractor returns all evidenced business models with `primary`,
+`secondary`, or `incidental` prominence. Deterministic code derives the track
+from the primary model. A secondary affiliate, employment, or commerce link
+does not override a clearly primary information funnel. An occasional
+educational post does not override a primary done-for-you service.
+
 #### Proof, results, and authority
 
 Proof terms include:
@@ -593,7 +697,7 @@ Proof strength is determined by context:
 - The profile's own follower count is audience authority, not client-result
   proof.
 - Unverified revenue claims still count as positioning evidence, but the
-  classifier records them as self-reported.
+  extractor records them as self-reported.
 
 #### Business sophistication and ICP relevance
 
@@ -666,7 +770,7 @@ zelfverbetering, zelfvertrouwen, leer van mij, mensen geholpen,
 klanten geholpen, studenten geholpen
 ```
 
-Language must not lower confidence when the evidence can be translated
+Language must not lower certainty when the evidence can be translated
 reliably. Mixed-language profiles are evaluated using the combined meaning.
 
 #### Negative and exclusion context
@@ -706,7 +810,7 @@ Strong commercial evidence exists when at least one of these bundles is found:
 No bundle qualifies when the core offer is agency delivery, done-for-you
 services, ecommerce, SaaS, or entertainment.
 
-Automatic qualification still follows the five-dimension score and confidence
+Automatic qualification still follows the five-dimension score and certainty
 rules. A keyword bundle supplies auditable evidence for those dimensions; it
 does not bypass exclusions or deterministic validation.
 
@@ -769,11 +873,47 @@ Each exclusion stores a normalized reason and the exact evidence that caused
 it. A keyword match alone is insufficient when the surrounding context changes
 its meaning.
 
-# Chapter 4: AI qualification and decisioning
+# Chapter 4: Evidence extraction and deterministic decisioning
+
+## Extraction and scoring boundary
+
+AI extracts semantic facts and evidence. Application code owns numeric scoring,
+thresholds, track rules, core-signal requirements, and the final decision.
+
+```text
+Immutable evidence snapshot
+    |
+    v
+AI extraction
+    -> normalized facts
+    -> signal evidence
+    -> source citations
+    -> conflicts and unknowns
+    |
+    v
+Schema validation
+    |
+    v
+Pure deterministic scorer
+    -> track
+    -> signal states
+    -> component scores
+    -> certainty class
+    -> qualified / review / rejected
+```
+
+The AI does not emit numeric fit scores, confidence percentages, approval
+eligibility, or a final lead decision. This separation makes evidence reusable:
+a new scorecard can replay every stored extraction without another model call.
+
+Cache extraction by `(lead_id, evidence_snapshot_id,
+extraction_prompt_version, model)`. Store score results separately by
+`(lead_id, extraction_id, scorecard_version)`.
 
 ## Step 4: Classify the commercial track
 
-The AI assigns one primary track:
+The deterministic scorer assigns one primary track from the extracted business
+model, visitor outcome, funnel evidence, and conflict flags:
 
 - `information_personal_brand`: human expert or creator with coaching,
   education, an information product, or an information funnel.
@@ -782,13 +922,18 @@ The AI assigns one primary track:
 - `commerce`: physical or digital product seller centered on checkout rather
   than expertise.
 - `saas`: software product or platform.
+- `affiliate`: profile whose primary conversion path earns referral or broker
+  commission without a distinct information offer.
+- `employment`: profile whose primary CTA recruits applicants, contractors, or
+  sales-team members rather than information customers.
 - `non_commercial`: creator or personal account without meaningful information
   or coaching intent.
 - `uncertain`: insufficient, mixed, or contradictory evidence.
 
 Track classification and qualification are separate. Only
 `information_personal_brand` can qualify automatically. `agency_service`,
-`commerce`, `saas`, and `non_commercial` are rejected when confidence is high.
+`commerce`, `saas`, `affiliate`, `employment`, and `non_commercial` are
+rejected when evidence certainty is high.
 An agency founder with a plausible separate education funnel is `uncertain`
 until the distinct information offer is verified.
 
@@ -797,8 +942,14 @@ information-funnel signals exist. They enter manual review.
 
 ## Step 5: Score commercial fit
 
-Score five dimensions from 0 to 2 in increments of 0.5. Each dimension must
-include a short evidence citation copied or paraphrased from the profile.
+The extractor returns anchored labels and cited evidence. The backend maps the
+labels to points using the versioned tables below. The model never chooses the
+number directly.
+
+Score five dimensions from 0 to 2 in increments of 0.5. Each non-zero label
+must include a short evidence citation copied or faithfully normalized from the
+source. The scorecard configuration stores the label-to-point mapping and
+thresholds outside application code so historical extractions can be replayed.
 
 ### Buyer clarity
 
@@ -864,8 +1015,9 @@ Calculate this dimension from two independent subscores:
 | `authority_strength` | 0 to 1 | Specialized expertise, demonstrated personal outcome, named method, education brand, relevant audience, or consistent expert content |
 
 `proof_maturity` is the exact sum of `proof_strength` and
-`authority_strength`. Automatic qualification requires each subscore to be at
-least 0.5. One subscore cannot compensate for zero evidence in the other.
+`authority_strength`. Neither subscore is individually mandatory. Missing
+Proof or Authority lowers fit and priority but does not block qualification
+when the core gate and another supporting signal pass.
 
 Proof-oriented Story Highlights such as `RESULTS`, `CLIENTS`, `REVIEWS`,
 `WINS`, and `TESTIMONIALS` count as supporting evidence under the caps defined
@@ -884,41 +1036,58 @@ Automatically qualify when all conditions hold:
 
 - Commercial-fit score is at least 8.0.
 - Information offer and funnel evidence is at least 1.0.
-- At least one of buyer clarity or transformation clarity is at least 1.5.
-- Proof strength is at least 0.5.
-- Authority strength is at least 0.5.
-- A recognizable transformation is present.
 - A visible CTA is present.
+- At least one of Transformation, Proof, or Authority is `present`.
+- The primary visitor outcome is information, education, coaching, community,
+  live instruction, membership, or an educational event.
 - The track is `information_personal_brand`.
 - No universal exclusion applies.
 
 Automatically approve the lead for enrichment when all additional conditions
 hold:
 
-- Commercial-fit score is at least 8.5.
-- AI confidence is at least 0.85.
+- Commercial-fit score is at least 8.0.
+- Deterministic evidence certainty is `high`.
 - Data quality is `complete` or `partial` with all commercial dimensions
   supported.
 - Information offer and funnel evidence is at least 1.0. This allows a verified
   YouTube or link-hub education funnel to qualify without a visible paid offer.
 - Conversion intent is at least 1.0.
-- Proof, Authority, Transformation, and CTA recognition are all `true`.
+- Information funnel and CTA states are `present`.
+- At least one of Transformation, Proof, or Authority is `present`.
 - At least one valid strong commercial bundle is present.
 - No contradictory-evidence, follower-range, uncertain-track, or suspicious
   proof flag applies.
+- The challenger verification agrees that the profile is an information
+  personal brand and that the core gate passes.
 
 Automatic approval is the normal path for obvious ICP leads. It does not wait
-for a human to confirm a high-confidence decision.
+for a human to confirm a high-certainty decision.
+
+### Evidence certainty
+
+Certainty is derived by application code. It is not a probability emitted by
+the model.
+
+- `high`: the Instagram bio and relevant external destinations were captured;
+  human identity, information funnel, CTA, and at least one supporting signal
+  have cited evidence; the primary visitor outcome is known; the track is
+  `information_personal_brand`; no primary-model conflict applies; and the
+  challenger agrees. Other supporting signals may remain unknown.
+- `medium`: commercial evidence is clear but one noncritical surface is
+  unknown, the challenger has not run, or a minor ambiguity remains.
+- `low`: a core signal is unknown or conflicting, evidence is unreliable,
+  the track is mixed or uncertain, or the challenger disagrees.
 
 ### Manual review
 
 Send to review when any condition holds:
 
 - Commercial-fit score is 6.0 to 7.5.
-- Commercial-fit score is at least 8.0 but a required dimension is missing.
+- Commercial-fit score is at least 8.0 but a core-gate condition is missing.
 - The track is `uncertain` and credible personal-brand information signals
   exist.
-- The AI confidence is below 0.75.
+- Evidence certainty is `medium` or `low`.
 - Evidence is contradictory, such as a strong CTA with no identifiable offer.
 - A follower-range flag applies to an otherwise strong lead.
 - The lead qualifies but does not meet every automatic-approval condition.
@@ -928,9 +1097,10 @@ Send to review when any condition holds:
 Reject when either condition holds:
 
 - A reliable universal exclusion applies.
-- Commercial-fit score is at most 5.5 and AI confidence is at least 0.75.
+- Commercial-fit score is at most 5.5, evidence certainty is `high`, and all
+  evidence needed for the rejection reason was captured.
 
-Low-confidence low scores enter review instead of rejection. Every rejected
+Low-certainty low scores enter review instead of rejection. Every rejected
 lead stores both the normalized reason and the commercial dimension scores.
 
 # Chapter 5: Priority scoring
@@ -977,33 +1147,45 @@ Likes must never independently reject a lead. A profile with low follower-like
 engagement can remain high priority when it has healthy view reach and strong
 commercial evidence.
 
+### Business maturity priority
+
+Among already qualified leads, rank commercial maturity using evidence such as
+amount generated, people or students helped, testimonial depth, a booking or
+application path, audience scale, consistent expert publishing, and a visible
+paid or free information offer. Maturity affects processing order only. It
+cannot replace a missing core signal or turn an agency into an ICP lead, and a
+visible price is never required.
+
 # Chapter 6: AI prompts and response contract
 
 ## Prompt execution sequence
 
 1. Run the metadata-quality and universal-exclusion checks before calling AI.
 2. Serialize the complete evidence snapshot into the primary user prompt.
-3. Call the primary qualification prompt with low temperature, preferably 0 to
+3. Call the primary extraction prompt with low temperature, preferably 0 to
    0.2, and strict JSON-schema output.
-4. Validate the response shape, enum values, score increments, evidence, and
-   score sum in application code.
-5. Recalculate the decision and automatic-approval eligibility in application
-   code. Do not trust the model to enforce its own thresholds.
-6. If the track is `uncertain` or agency and information evidence are mixed,
-   call the adjudication prompt once.
-7. Persist the evidence snapshot ID, prompt version, model, raw validated
-   response, final backend decision, and any review flags.
+4. Validate the extraction schema, enum values, citations, and evidence-source
+   availability in application code.
+5. Map anchored labels to points and calculate track, signal states, score,
+   review flags, and provisional decision with the versioned scorecard.
+6. Call the challenger once for every would-be automatic approval and for any
+   mixed, uncertain, or conflicting business-model evidence.
+7. Derive evidence certainty and the final decision, then persist the snapshot
+   ID, prompt and scorecard versions, model, extraction, challenger result,
+   backend decision, reasons, and review flags.
 8. Retry malformed output once. A second failure enters the scoring-error queue
    and never becomes an automatic rejection.
 
-## Primary qualification system prompt
+## Primary evidence-extraction system prompt
 
 Use this prompt as the system instruction for the AI enrichment qualification
 call. The application supplies the profile evidence through the user prompt
 template in the next section.
 
 ```text
-You qualify Instagram profiles for an outreach system.
+You extract qualification evidence from Instagram profiles for an outreach
+system. You return normalized facts and source citations. You do not score,
+approve, reject, or estimate confidence.
 
 TARGET ICP
 The target is a human-led personal brand that teaches, distributes, or sells
@@ -1040,13 +1222,14 @@ Answer these questions before scoring:
 5. What visitor action creates a conversion path?
 6. What proof shows results for the person, clients, or students?
 7. What authority makes the person credible enough to teach this subject?
-8. Is the core model information, agency service, commerce, SaaS,
-   non-commercial content, or uncertain?
+8. Is the core model information, agency service, commerce, SaaS, affiliate,
+   employment, non-commercial content, or uncertain?
 
-FOUR-PILLAR GATE
-Evaluate Proof, Authority, Transformation, and CTA independently. Do not merge
-Proof and Authority. Do not allow a strong pillar to replace a missing pillar.
-Automatic qualification requires evidence for all four.
+CORE GATE
+Evaluate Information Funnel, CTA, Transformation, Proof, and Authority
+independently. Information Funnel and CTA are required. At least one of
+Transformation, Proof, or Authority must be present. Do not merge Proof and
+Authority. Missing Proof alone does not block automatic qualification.
 
 SEMANTIC INTERPRETATION
 Interpret meaning, equivalent wording, grammar, and translated language.
@@ -1108,66 +1291,59 @@ Missing likes, views, posts, captions, Highlights, or link details do not prove
 the signal is absent. Mark unavailable evidence as unknown. Do not reject a
 profile because activity data is missing.
 
-SCORING
-Score these four dimensions from 0 to 2 in increments of 0.5:
-- buyer_clarity
-- transformation_clarity
-- information_funnel_evidence
-- conversion_intent
+ANCHORED EXTRACTION LABELS
+For each dimension, return one label and evidence. Do not return points.
 
-Score these independent subscores from 0 to 1 in increments of 0.25:
-- proof_strength
-- authority_strength
+- buyer_clarity: none, broad, inferred, specific, explicit
+- transformation_clarity: none, inspirational, expertise_only, implied_result,
+  explicit_result
+- information_funnel_evidence: none, weak_education, indirect_funnel,
+  visible_offer, explicit_offer
+- conversion_intent: none, audience_only, information_action, commercial_action,
+  direct_sales_action
+- proof_strength: absent, weak, credible, strong
+- authority_strength: absent, weak, credible, strong
 
-proof_maturity is proof_strength + authority_strength and ranges from 0 to 2.
-commercial_fit is buyer_clarity + transformation_clarity +
-information_funnel_evidence + conversion_intent + proof_maturity. It ranges
-from 0 to 10. Do not add proof_strength or authority_strength a second time.
+SIGNAL STATE AND STRENGTH
+For Information Funnel, CTA, Proof, Authority, and Transformation, return one
+state and one strength label:
+- present: cited evidence supports the signal
+- absent: the relevant surface was captured and no supporting evidence exists
+- unknown: required evidence was not captured or could not be inspected
+- conflicting: cited evidence supports incompatible interpretations
+- strength: absent, weak, credible, or strong
 
-TRACK
-Return exactly one:
-- information_personal_brand
-- agency_service
-- commerce
-- saas
-- non_commercial
-- uncertain
+BUSINESS MODEL FACTS
+Return every evidenced business model with `primary`, `secondary`, or
+`incidental` prominence. Return one or more visitor outcomes from:
+- education, coaching, information_product, community, live_instruction
+- membership, event, employment_opportunity, recruiting_service
+- done_for_you_service, managed_trading, signals_service, affiliate_offer
+- commerce_product, software, entertainment, unknown
 
-CONFIDENCE
-Return confidence from 0 to 1 based on evidence completeness and consistency,
-not on how much you like the profile.
-- 0.90 to 1.00: direct and consistent evidence across multiple fields
-- 0.75 to 0.89: clear evidence with a minor gap
-- 0.50 to 0.74: meaningful ambiguity or missing core evidence
-- below 0.50: insufficient or contradictory evidence
+Identify exactly one `primary_visitor_outcome` when evidence permits. Do not
+allow a secondary affiliate or employment link to override a clearly primary
+information funnel.
 
-RECOMMENDED DECISION
-- qualified: commercial_fit is at least 8.0, information funnel is at least
-  1.0, buyer or transformation is at least 1.5, track is
-  information_personal_brand, Proof, Authority, Transformation, and CTA are
-  all present, proof_strength and authority_strength are each at least 0.5,
-  and no exclusion applies
-- review: commercial_fit is 6.0 to 7.5, confidence is low, or the model is mixed
-- rejected: a reliable exclusion applies, or commercial_fit is at most 5.5
-  with confidence of at least 0.75
-
-The backend makes the final deterministic decision. Your recommendation must
-still follow these rules.
+Do not return a track, score, confidence, recommendation, approval flag, or
+final decision. Application code derives those values after validation.
 
 OUTPUT
 Return only valid JSON matching the required response contract. Do not return
-markdown, commentary, or fields outside the schema. Every positive score must
-have evidence. Use null or an empty array when evidence is unavailable. Never
-invent profile facts.
+markdown, commentary, or fields outside the schema. Every positive state,
+non-absent strength label, and business-model conclusion must have cited
+evidence. Use null or an empty array when evidence is unavailable. Never invent
+profile facts.
 ```
 
-## Primary qualification user prompt template
+## Primary evidence-extraction user prompt template
 
 All placeholders are populated by the enrichment layer. Use JSON serialization
 for arrays and nested objects so profile content cannot break the template.
 
 ```text
-Qualify this Instagram profile using the system rules.
+Extract qualification evidence from this Instagram profile using the system
+rules. Do not score or decide the lead.
 
 EVIDENCE SNAPSHOT
 captured_at: {{captured_at}}
@@ -1193,6 +1369,7 @@ destination_type: {{external_destination_type}}
 page_title: {{external_page_title}}
 visible_labels_json: {{external_visible_labels_json}}
 destination_summary: {{external_destination_summary}}
+inspected_destinations_json: {{external_destinations_json}}
 
 PINNED POSTS
 {{pinned_posts_json}}
@@ -1211,16 +1388,20 @@ days_since_latest_post: {{days_since_latest_post}}
 Return the required JSON only.
 ```
 
-## Mixed-model adjudication prompt
+## Challenger verification prompt
 
-Use this second prompt only when the first pass returns `uncertain`, detects
-both agency and information evidence, or adds an `agency_information_mixed`
-review flag. Supply the first-pass JSON together with the same evidence
-snapshot.
+Use this second prompt when the deterministic scorer would automatically
+approve a lead, when agency and information evidence are mixed, or when the
+primary extraction contains conflicting evidence. Supply the primary
+extraction together with the same evidence snapshot. This targeted second pass
+limits cost while preventing one optimistic extraction from approving a lead.
 
 ```text
-You are adjudicating whether a human-led Instagram profile is primarily an
-information personal brand or a done-for-you agency/service business.
+You are the adversarial evidence verifier for an Instagram lead. Inspect the
+same evidence independently. Test whether the core gate fails or whether the
+profile is primarily a done-for-you agency/service business, affiliate funnel,
+employment opportunity, commerce business, or another excluded model. Do not
+reject by default and do not invent missing facts.
 
 TARGET
 The target teaches or distributes expertise through coaching, mentorship,
@@ -1234,142 +1415,237 @@ client service.
 
 DECISION TESTS
 1. What is the primary CTA asking the visitor to do?
-2. What would the visitor receive after converting: knowledge and education,
-   or work performed by a service team?
+2. What would the visitor primarily receive after converting?
 3. Do coaching or education assets exist independently from the agency?
 4. Does the proof relate to students and learners, or agency clients?
 5. Would the information funnel still exist if the agency service were removed?
+6. Are the information funnel and CTA each supported by cited evidence?
+7. Is at least one of Transformation, Proof, or Authority supported?
+8. Is a secondary affiliate, employment, or commerce link being mistaken for
+   the primary business model?
 
-Return information_personal_brand only when the evidence demonstrates a
-distinct education or coaching path. Return agency_service when the visitor is
-primarily being asked to hire a person or team to perform services. Return
-uncertain when neither conclusion has enough evidence.
+Do not infer an information product from generic business-advice content. Mark
+evidence as unknown when the relevant surface was not captured.
 
-Do not infer an information product from generic business-advice content.
 Return only JSON:
 {
-  "adjudicated_track": "information_personal_brand | agency_service | uncertain",
+  "business_model_conclusion": "information_personal_brand | agency_service | uncertain",
   "primary_cta": "string or null",
-  "visitor_receives": "education | coaching | done_for_you_service | unknown",
+  "visitor_receives": ["education | coaching | information_product | community | live_instruction | membership | event | employment_opportunity | recruiting_service | done_for_you_service | managed_trading | signals_service | affiliate_offer | commerce_product | software | entertainment | unknown"],
+  "core_gate_passes": true,
   "distinct_information_funnel": true,
+  "signal_states": {
+    "information_funnel": "present | absent | unknown | conflicting",
+    "proof": "present | absent | unknown | conflicting",
+    "authority": "present | absent | unknown | conflicting",
+    "transformation": "present | absent | unknown | conflicting",
+    "cta": "present | absent | unknown | conflicting"
+  },
   "evidence": [
-    { "source": "bio | highlight | link | pinned_post | recent_post", "phrase": "string" }
+    { "source_type": "bio | highlight | external_page | pinned_post | recent_post", "source_id": "string", "url": "string or null", "field": "string", "phrase": "string" }
   ],
-  "confidence": 0.0,
   "reason": "short evidence-based explanation"
 }
 ```
 
 ## Step 8: Produce a structured AI response
 
-The classifier returns a versioned object with this logical shape:
+The extractor returns versioned facts and evidence, without a score or
+decision:
 
 ```json
 {
-  "model_version": "personal-brand-info-v1",
+  "extraction_prompt_version": "personal-brand-evidence-v1",
+  "evidence_snapshot_id": "uuid",
+  "human_personal_brand": {
+    "state": "present",
+    "evidence": [
+      { "source_type": "display_name", "source_id": "profile", "url": null, "field": "display_name", "phrase": "Men's Transformation Coach" }
+    ]
+  },
+  "audience": {
+    "label": "explicit",
+    "value": "Christian men",
+    "evidence": [
+      { "source_type": "bio", "source_id": "profile", "url": null, "field": "bio", "phrase": "I help Christian men" }
+    ]
+  },
+  "transformation": {
+    "state": "present",
+    "label": "explicit_result",
+    "outcome": "get jacked and drop vices",
+    "evidence": [
+      { "source_type": "bio", "source_id": "profile", "url": null, "field": "bio", "phrase": "get jacked and drop vices" }
+    ]
+  },
+  "information_funnel": {
+    "state": "present",
+    "label": "visible_offer",
+    "visitor_receives": ["coaching"],
+    "asset_or_offer": "1:1 transformation coaching",
+    "evidence": [
+      { "source_type": "bio", "source_id": "profile", "url": null, "field": "bio", "phrase": "1:1 coaching" }
+    ]
+  },
+  "cta": {
+    "state": "present",
+    "label": "direct_sales_action",
+    "action": "dm_keyword",
+    "token_or_asset": "[keyword]",
+    "evidence": [
+      { "source_type": "bio", "source_id": "profile", "url": null, "field": "bio", "phrase": "DM [keyword]" }
+    ]
+  },
+  "proof": {
+    "state": "unknown",
+    "label": "absent",
+    "claims": [],
+    "evidence": []
+  },
+  "authority": {
+    "state": "present",
+    "label": "credible",
+    "types": ["specialization", "consistent_expert_content"],
+    "evidence": [
+      { "source_type": "display_name", "source_id": "profile", "url": null, "field": "display_name", "phrase": "Men's Transformation Coach" }
+    ]
+  },
+  "business_models": [
+    {
+      "type": "information_education",
+      "prominence": "primary",
+      "evidence": [
+        { "source_type": "bio", "source_id": "profile", "url": null, "field": "bio", "phrase": "1:1 coaching" }
+      ]
+    }
+  ],
+  "primary_visitor_outcome": "coaching",
+  "agency_service_evidence": [],
+  "exclusion_evidence": [],
+  "conflicts": [],
+  "data_quality": "complete",
+  "unknown_surfaces": []
+}
+```
+
+The deterministic scorer produces a separate record:
+
+```json
+{
+  "scorecard_version": "personal-brand-score-v1",
+  "extraction_id": "uuid",
   "track": "information_personal_brand",
-  "confidence": 0.91,
-  "recognition": {
-    "human_personal_brand": true,
-    "proof_present": true,
-    "authority_present": true,
-    "recognizable_transformation": true,
-    "visible_cta": true
+  "signal_states": {
+    "information_funnel": "present",
+    "proof": "unknown",
+    "authority": "present",
+    "transformation": "present",
+    "cta": "present"
   },
   "scores": {
     "buyer_clarity": 2,
     "transformation_clarity": 2,
-    "information_funnel_evidence": 2,
+    "information_funnel_evidence": 1.5,
     "conversion_intent": 2,
-    "proof_strength": 0.75,
+    "proof_strength": 0,
     "authority_strength": 0.75,
-    "proof_maturity": 1.5,
-    "commercial_fit": 9.5
+    "proof_maturity": 0.75,
+    "commercial_fit": 8.25
   },
-  "evidence": {
-    "buyer": "Christian men",
-    "transformation": "get jacked and drop vices",
-    "offer": "1:1 transformation coaching",
-    "conversion": "DM [keyword]",
-    "proof": "client results",
-    "story_highlights": ["CLIENT WINS", "CLIENT RESULTS", "MY STORY"]
-  },
-  "keyword_evidence": [
-    {
-      "group": "buyer",
-      "source": "bio",
-      "phrase": "Christian men"
-    },
-    {
-      "group": "conversion",
-      "source": "bio",
-      "phrase": "DM [keyword]"
-    }
-  ],
-  "commercial_bundles": ["personal expert + buyer + transformation + coaching + direct CTA"],
-  "data_quality": "complete",
-  "recommended_decision": "qualified",
+  "certainty": "high",
+  "challenger_agreement": true,
+  "decision": "qualified",
   "automatic_approval_eligible": true,
-  "decision_reason": "Clear personal brand, audience, transformation, coaching offer, CTA, and proof",
-  "review_flags": []
+  "decision_reasons": ["core_gate_passes", "information_personal_brand"],
+  "review_flags": ["proof_unverified"]
 }
 ```
 
-Required enum values:
+Required enum values include:
 
 - `track`: `information_personal_brand`, `agency_service`, `commerce`, `saas`,
-  `non_commercial`, or `uncertain`.
-- `recommended_decision`: `qualified`, `review`, or `rejected`.
+  `affiliate`, `employment`, `non_commercial`, or `uncertain`.
+- `business_models[].prominence`: `primary`, `secondary`, or `incidental`.
+- Visitor outcome: `education`, `coaching`, `information_product`, `community`,
+  `live_instruction`, `membership`, `event`, `employment_opportunity`,
+  `recruiting_service`, `done_for_you_service`, `managed_trading`,
+  `signals_service`, `affiliate_offer`, `commerce_product`, `software`,
+  `entertainment`, or `unknown`.
+- `decision`: `qualified`, `review`, or `rejected`.
+- `certainty`: `high`, `medium`, or `low`.
+- Evidence and signal state: `present`, `absent`, `unknown`, or `conflicting`.
 - `data_quality`: `complete`, `partial`, or `unreliable`.
-- `keyword_evidence[].group`: `identity`, `buyer`, `transformation`,
-  `information_funnel`, `conversion`, `proof`, `authority`, `agency`, or
-  `exclusion`.
-- `keyword_evidence[].source`: `display_name`, `bio`, `highlight`, `link`,
-  `pinned_post`, or `recent_post`.
+- Evidence `source_type`: `display_name`, `bio`, `highlight`, `external_page`,
+  `pinned_post`, or `recent_post`. Every citation also includes `source_id`,
+  `url` when applicable, `field`, and `phrase`.
 - `review_flags`: zero or more of `agency_information_mixed`,
   `missing_core_evidence`, `contradictory_evidence`, `unreliable_data`,
-  `uncertain_track`, `suspicious_proof`, or `follower_range`.
+  `uncertain_track`, `suspicious_proof`, `proof_unverified`,
+  `authority_unverified`, or
+  `follower_range`. `proof_unverified` and `authority_unverified` are
+  non-blocking when the core gate passes and another supporting signal is
+  present.
 
-`automatic_approval_eligible` is a model recommendation. The backend
-recalculates it from the validated scores, confidence, track, data quality,
-bundle evidence, and review flags before changing lead state.
+The backend validates extraction labels, signal evidence, required fields,
+permitted enum values, score mappings, score totals, certainty rules, and
+decision rules. Invalid AI output is retried once. A second invalid response
+enters a scoring-error queue rather than being treated as rejection.
 
-The backend validates the personal-brand prerequisite, four pillar answers,
-score ranges, required
-fields, permitted enum values, score totals, and decision rules. Invalid AI
-output is retried once. A second invalid response enters a scoring-error queue
-rather than being treated as rejection.
+Citation validation confirms that the source was captured, `source_id` exists
+in the evidence snapshot, and the phrase exists in or faithfully normalizes
+the cited field. A Highlight title is evidence about the title only and cannot
+be represented as inspected Highlight content. Unsupported positive states,
+strength labels, and business-model conclusions invalidate the extraction.
 
 # Chapter 7: Review and enrichment operations
 
 ## Step 9: Manual review
 
-The review queue sorts by commercial-fit score, then confidence, then priority
-score. The reviewer sees:
+The review queue sorts by review urgency, commercial-fit score, evidence
+certainty, and priority score. The reviewer sees:
 
 - Bio, display name, external link, and recent content preview.
 - The five dimension scores and supporting evidence.
 - Captured Story Highlight titles grouped as Proof, Offer, Funnel, and
   Authority signals.
 - Data-quality state and missing metrics.
-- AI decision and confidence.
+- Backend decision, evidence certainty, and decision reasons.
+- Primary extraction and challenger disagreements.
 - Any follower, track, or contradictory-evidence flags.
 
-Reviewer actions are `approve`, `reject`, and `defer`. Reject requires a
-normalized reason. Reviewer changes are stored separately from the AI result
-so model accuracy can be measured without overwriting the original prediction.
+Reviewer actions are `approve`, `reject`, and `defer`. Reject and defer require
+one primary normalized reason and may include secondary reasons:
+
+- `not_personal_brand`
+- `agency_service`
+- `no_information_funnel`
+- `proof_absent`
+- `authority_absent`
+- `transformation_absent`
+- `cta_absent`
+- `mixed_business_model`
+- `non_commercial_creator`
+- `commerce`
+- `saas`
+- `unreliable_data`
+- `cannot_determine`
+
+Operational reasons such as `already_known`, `suppressed`, and
+`enrichment_ineligible` are stored separately from ICP reasons. Reviewer
+changes are stored separately from extraction and backend results so accuracy
+can be measured without overwriting the original prediction.
 
 Manual review is an exception queue, not a required stage for every qualified
-lead. High-confidence profiles that satisfy Step 6 are automatically approved
+lead. High-certainty profiles that satisfy Step 6 are automatically approved
 after the shadow-validation gate is passed. Review capacity is reserved for
-borderline, incomplete, contradictory, or low-confidence profiles.
+borderline, incomplete, contradictory, or low-certainty profiles.
 
 ## Step 10: Enrichment handoff
 
 A lead is ready for enrichment when:
 
 - Qualification decision is `qualified`.
-- Approval source is either `automatic` under the high-confidence rules or
+- Approval source is either `automatic` under the high-certainty rules or
   `manual` after review.
 - No email is already available.
 - The lead is not currently assigned to an open enrichment batch.
@@ -1406,10 +1682,18 @@ Create a versioned labeled set containing:
   information ICP. Personal information brands are positive examples. Any
   profile whose core model is agency delivery is a negative or mixed example
   unless a separate information funnel is verified.
-- At least 50 additional manually approved qualified leads.
+- At least 100 additional manually approved qualified leads.
 - At least 100 manually confirmed bad leads covering each major rejection
   reason.
 - Borderline cases that previously caused reviewer disagreement.
+- Hard negatives that superficially contain several positive signals, including agency
+  founders with client proof, creators with generic CTAs, ecommerce educators,
+  and profiles whose proof concerns done-for-you delivery.
+
+Split examples by operator and destination domain into development,
+validation, and sealed test sets. Near-duplicate accounts or funnels must not
+cross sets. Resolve disputed labels through a second reviewer and record both
+the disagreement and final consensus.
 
 No profile used to tune prompt wording or thresholds should be counted as an
 independent final evaluation example.
@@ -1428,18 +1712,51 @@ independent final evaluation example.
 - Story Highlights can strengthen offer, conversion, and proof evidence, but
   missing Highlight data never lowers a score or causes rejection.
 - The same stored evidence produces the same deterministic threshold decision.
-- Every decision exposes dimension scores, evidence, confidence, and model
-  version.
-- Every automatic qualification identifies a human personal brand, a
-  recognizable transformation, a visible CTA, credible proof, and credible
-  authority, with cited evidence for every pillar.
-- At least 80% of high-confidence qualified profiles bypass manual review after
+- Every decision exposes dimension scores, cited evidence, evidence certainty,
+  extraction prompt version, model version, and scorecard version.
+- Every automatic qualification identifies a human personal brand, information
+  funnel, visible CTA, known primary visitor outcome, and at least one of
+  Transformation, Proof, or Authority, with cited evidence for every positive
+  state.
+- At least 80% of high-certainty qualified profiles bypass manual review after
   the automatic-approval rollout.
+
+### Threshold calibration
+
+All numeric thresholds in this document are initial hypotheses. Store them in
+a versioned scorecard so they can be evaluated and changed without editing the
+extraction prompt. Select thresholds on the validation set, then report final
+precision and recall once on the sealed test set. Do not tune against the
+sealed results.
+
+Recalibrate only after at least 200 new independently reviewed profiles, a
+material source-mix change, or a demonstrated performance drop. Optimize for
+high automatic-approval precision and qualified-lead recall while keeping the
+exception queue within available review capacity. Never optimize for approval
+rate alone.
+
+### Blind audit sample
+
+Exception review alone cannot reveal false rejects. Each week, draw a
+configurable, stratified blind sample from production decisions. Hide the
+score, certainty, model output, and system decision until the reviewer submits
+a label. The sample should contain:
+
+- 40% automatically approved leads.
+- 20% manually reviewed leads.
+- 25% near-boundary automatic rejects.
+- 15% deep automatic rejects.
+
+Cap the sample to available reviewer capacity, but preserve every stratum.
+Repeat a small subset later with identity and prior labels hidden to measure
+reviewer self-consistency. Use the audit to estimate precision, false-negative
+rate, reason-level error, and reviewer agreement.
 
 ### Shadow rollout
 
 Run the new classifier alongside the existing system without changing lead
-status. Compare both decisions against manual review for at least 200 profiles.
+status. Compare both decisions against blinded manual review for at least 200
+profiles.
 Report disagreement by reason, track, seed, follower band, and data-quality
 state.
 
@@ -1464,6 +1781,8 @@ increasing the qualified count. Track:
 - Automatic qualification precision.
 - Qualified-lead recall on reviewer-confirmed examples.
 - Manual-review approval rate.
+- Automatic-reject false-negative rate from the blind audit.
+- Reviewer agreement and repeated-label consistency.
 - Median time from backfill to review decision.
 - Percentage of qualified leads ready for enrichment.
 - Email discovery rate by commercial-fit band.
