@@ -18,6 +18,14 @@ Universal exclusions
     +-- definite exclusion -------> rejected
     |
     v
+Commercial evidence acquisition
+    -> Instagram surfaces
+    -> external destinations
+    -> YouTube evidence
+    -> recursive CTA chain
+    -> offer inventory
+    |
+    v
 AI evidence extraction with source citations
     |
     v
@@ -57,7 +65,7 @@ Priority score and enrichment
 | Chapter | System responsibility | Output |
 |---|---|---|
 | 1. Target and principles | Define the ICP and non-negotiable rules | Shared qualification policy |
-| 2. Evidence and signals | Capture and interpret profile, content, Highlight, link, CTA, transformation, and proof evidence | Versioned evidence snapshot |
+| 2. Evidence acquisition and signals | Capture Instagram, external pages, YouTube, CTA chains, offers, and proof attribution | Versioned evidence snapshot |
 | 3. Data quality and exclusions | Separate missing data from reliable disqualification | Retry, proceed, or deterministic reject |
 | 4. Qualification and decisioning | Convert extracted evidence into track, signal states, scores, and deterministic outcomes | Qualified, review, or rejected |
 | 5. Priority | Rank qualified leads without using activity as a qualification gate | Priority score |
@@ -127,6 +135,39 @@ signal is present and the core evidence is complete.
 
 # Chapter 2: Evidence collection and signal recognition
 
+## Acquisition architecture
+
+Use a deterministic collector to fetch, normalize, and store evidence before
+the AI interprets it. The AI must not browse independently during normal batch
+qualification.
+
+```text
+Deterministic evidence collector
+    -> Instagram profile and content
+    -> redirect and canonical URL resolver
+    -> page and link-hub extractor
+    -> YouTube channel and video extractor
+    -> bounded CTA-chain crawler
+    -> immutable evidence snapshot
+    |
+    v
+AI semantic evidence extraction
+    -> audiences and transformations
+    -> offer inventory
+    -> visitor outcomes
+    -> business models and prominence
+    -> proof attribution
+    -> conflicts and unknowns
+    |
+    v
+Deterministic eligibility and scoring
+```
+
+This separation keeps acquisition reproducible, permits cached evidence to be
+replayed, and prevents model judgment from silently changing what was
+inspected. Browser-agent enrichment is reserved for a diagnostic fallback, not
+the default production path.
+
 ## Step 1: Collect the qualification evidence
 
 The scorer receives the following normalized evidence:
@@ -139,6 +180,14 @@ The scorer receives the following normalized evidence:
 - Profile highlights or labels when available, especially `results`,
   `testimonials`, `client wins`, `start here`, `my story`, and `apply`.
 - Link-in-bio destination type and visible landing-page title when available.
+- Instagram metadata description as a fallback for bio and profile counts,
+  with the extraction method recorded.
+- Every inspected external page's canonical URL, title, headings, offer copy,
+  CTA labels, CTA URLs, product names, prices when visible, and page summary.
+- YouTube channel description, recent video titles, relevant video
+  descriptions, and outbound CTA links when YouTube is part of the funnel.
+- The ordered CTA chain from Instagram to the ultimate conversion outcome.
+- A normalized inventory of every commercially relevant offer and proof claim.
 - Previously extracted email and contact details.
 
 The scorer must preserve the evidence timestamp. Social profile data changes,
@@ -155,11 +204,21 @@ automatic decision.
 | `story_highlight_titles` | nullable text array | Normalized visible titles |
 | `story_highlights_capture_status` | enum | `captured`, `unavailable`, `failed`, or `not_attempted` |
 | `story_highlights_captured_at` | nullable timestamp | Snapshot time |
+| `instagram_meta_description` | nullable text | Metadata fallback for the complete public bio and counts |
+| `instagram_profile_extraction_method` | enum | `visible_dom`, `metadata_fallback`, `provider`, or `combined` |
 | `external_final_url` | nullable text | URL after redirects |
 | `external_destination_type` | nullable enum | `application`, `booking`, `lead_magnet`, `education`, `youtube`, `link_hub`, `agency_service`, `store`, `unknown`, or `none` |
 | `external_visible_labels` | nullable text array | Link-hub or landing-page CTA labels |
 | `external_destination_summary` | nullable text | Evidence-based page summary |
 | `external_destinations` | nullable JSON array | Every inspected destination with source URL, final URL, visible label, page title, type, visitor outcomes, relevance, selection reason, capture state, and timestamp |
+| `youtube_channels` | nullable JSON array | Channel URL, name, handle, description, counts when visible, recent video inventory, capture state, and timestamp |
+| `youtube_videos` | nullable JSON array | Video URL, title, description, publication time, outbound links, selection reason, capture state, and timestamp |
+| `cta_chain` | nullable JSON array | Ordered visitor journey with source, action, destination, outcome, hop number, and evidence |
+| `ultimate_cta` | nullable text | Final commercial action after intermediate content |
+| `primary_visitor_outcome` | nullable enum | What the visitor ultimately receives |
+| `offer_inventory` | nullable JSON array | Every relevant offer with type, audience, delivery, prominence, price, CTA, and evidence |
+| `proof_inventory` | nullable JSON array | Every proof claim with result type, value, beneficiary, producing offer or model, and evidence |
+| `acquisition_stop_reason` | nullable enum | Why evidence collection stopped |
 | `external_capture_status` | enum | `captured`, `unavailable`, `failed`, or `not_attempted` |
 | `external_captured_at` | nullable timestamp | Snapshot time |
 | `pinned_posts` | nullable JSON array | Captions and available metrics for confirmed pinned posts |
@@ -224,6 +283,212 @@ Continue inspection when `work with me` is unexplained, the only destination
 is a generic link hub, agency and education signals coexist, the only visible
 offer is affiliate-based, the CTA leads to employment or recruitment, or the
 primary visitor outcome is unknown.
+
+### Commercial page extraction
+
+For every selected external destination, capture:
+
+- Source URL, redirect sequence, final URL, and canonical URL.
+- Page title, metadata description, primary headings, and commercially relevant
+  paragraphs.
+- Visible CTA labels and resolved CTA destinations.
+- Offer names, delivery descriptions, audience statements, prices, billing
+  period, application requirements, and capacity limits when visible.
+- Proof sections, testimonials, ratings, member counts, customer names, and
+  quantified outcomes.
+- Team-delivery language and customer-implementation language.
+- Page capture method, capture state, timestamp, and content hash.
+
+Prefer structured HTML and metadata extraction. Use a JavaScript-rendered page
+collector when the commercial content is unavailable in the initial response.
+Do not treat navigation, privacy text, legal disclaimers, or repeated footer
+content as primary offer evidence unless it resolves a business-model fact.
+
+### Associated brand and company resolution
+
+Capture businesses explicitly associated with the person through a bio
+mention, literal domain, linked company account, YouTube description, or offer
+page. Inspect an associated company site when it can determine whether the
+person sells education or services.
+
+Only resolve a company website from direct evidence such as a literal domain,
+an outbound link, or a verified association on a captured page. Do not browse
+guessed domains based only on a company name. Store the association source and
+the reason the company destination was inspected.
+
+### YouTube evidence acquisition
+
+When Instagram, a link hub, or a landing page points to YouTube, capture:
+
+- Channel URL, canonical channel ID, name, handle, description, subscriber
+  count, and video count when public.
+- Titles, URLs, publication times, and visible view counts for up to the 12 most
+  recent videos.
+- Full available description and outbound links for up to three commercially
+  relevant videos by default.
+- Channel-header outbound links when available.
+- Relevant masterclass, course, case-study, webinar, agency, consulting,
+  mentorship, and service language.
+
+Prioritize videos whose titles or descriptions mention `course`, `training`,
+`masterclass`, `webinar`, `case study`, `work with me`, `consulting`, `agency`,
+`coaching`, `mentorship`, `community`, `inner circle`, `apply`, or `book`.
+Always inspect at least one recent video description when YouTube is the
+Instagram profile's primary CTA. Continue beyond three only when the ultimate
+CTA or primary business model remains unresolved.
+
+A YouTube channel is an evidence surface, not automatically an information
+funnel. Follow description links and calls to action. Educational content that
+ultimately sells done-for-you services remains an agency funnel.
+
+### Recursive CTA-chain tracing
+
+Represent the ordered visitor journey explicitly:
+
+```json
+{
+  "cta_chain": [
+    {
+      "hop": 0,
+      "source_type": "instagram_profile",
+      "source_id": "profile",
+      "action": "watch_on_youtube",
+      "destination_url": "https://youtube.com/watch?v=example",
+      "evidence": "Sauce is on YouTube"
+    },
+    {
+      "hop": 1,
+      "source_type": "youtube_video",
+      "source_id": "video_example",
+      "action": "visit_offer_page",
+      "destination_url": "https://example.com/licensing",
+      "evidence": "Get DWY consulting and SOPs"
+    },
+    {
+      "hop": 2,
+      "source_type": "external_page",
+      "source_id": "destination_2",
+      "action": "book_strategy_call",
+      "destination_url": "https://example.com/book",
+      "visitor_receives": "coaching",
+      "evidence": "Book Your Strategy Call"
+    }
+  ],
+  "primary_cta": "watch_on_youtube",
+  "ultimate_cta": "book_strategy_call",
+  "primary_visitor_outcome": "coaching",
+  "stop_reason": "ultimate_outcome_resolved"
+}
+```
+
+Follow up to three commercial hops by default. A hop is a transition between
+Instagram, link hub, YouTube, landing page, application, booking page, or
+checkout. Continue beyond three only when an intermediate page masks the
+ultimate outcome and the configured absolute hop limit has not been reached.
+Set the absolute limit initially to five.
+
+Stop with one of these reasons:
+
+- `ultimate_outcome_resolved`
+- `core_gate_resolved`
+- `reliable_exclusion_resolved`
+- `max_hops_reached`
+- `no_commercial_action`
+- `destination_unavailable`
+- `authentication_required`
+- `unsupported_page`
+
+Cycles, repeated canonical URLs, unsupported schemes, downloads, login pages,
+and destinations outside the configured safety policy end the branch. They do
+not prove that an offer is absent.
+
+Acquisition is read-only. The collector never submits applications, books
+calls, joins communities, creates accounts, purchases products, enters contact
+details, or bypasses authentication, paywalls, CAPTCHAs, or access controls.
+
+### Offer inventory and comparison
+
+Store every commercially relevant offer independently:
+
+```json
+{
+  "offers": [
+    {
+      "offer_id": "offer_dfy",
+      "name": "Full Stack Growth",
+      "type": "done_for_you_service",
+      "prominence": "primary",
+      "audience": "online coaches",
+      "delivery": "team builds and manages the funnel",
+      "visitor_receives": ["done_for_you_service"],
+      "customer_implementation_role": "none",
+      "price": null,
+      "cta": "book_audit_call",
+      "evidence": []
+    },
+    {
+      "offer_id": "offer_dwy",
+      "name": "Systems Licensing",
+      "type": "done_with_you_consulting",
+      "prominence": "secondary",
+      "audience": "coaches and growth operators",
+      "delivery": "consulting, SOPs, and implementation guidance",
+      "visitor_receives": ["coaching", "information_product"],
+      "customer_implementation_role": "implements_with_guidance",
+      "price": null,
+      "cta": "book_strategy_call",
+      "evidence": []
+    }
+  ]
+}
+```
+
+Compare offers using CTA prominence, placement, repetition, directness,
+destination depth, and the account's own description. Do not assume the
+highest-priced or first-rendered offer is primary. Return `mixed` when agency
+and information paths remain similarly prominent after inspection.
+
+### Proof attribution
+
+Every proof claim identifies what produced the result:
+
+```json
+{
+  "proof_id": "proof_1",
+  "claim": "$1.5M generated",
+  "beneficiary": "agency_client",
+  "result_type": "revenue",
+  "value": 1500000,
+  "currency": "USD",
+  "attributed_offer_id": "offer_dfy",
+  "producing_model": "done_for_you_service",
+  "self_reported": true,
+  "evidence": []
+}
+```
+
+Supported beneficiaries include `self`, `student`, `coaching_client`,
+`community_member`, `agency_client`, `software_customer`, `affiliate`, and
+`unknown`. Agency-client results strengthen agency maturity but do not prove an
+education offer. Student and coaching-client outcomes support the information
+funnel to which they are attributed.
+
+### Evidence sufficiency
+
+High-certainty automatic decisions require:
+
+- Instagram profile evidence captured through a recorded method.
+- Relevant external destination captured when one is present.
+- Link-hub children inspected when a link hub is present.
+- At least one recent video description inspected when YouTube is the primary
+  CTA.
+- CTA chain followed until the ultimate visitor outcome is known.
+- Relevant offers inventoried and compared.
+- Proof attributed to its producing offer or marked unknown.
+- No unresolved primary-business-model conflict.
+
+If an acquisition requirement fails, store the precise capture state and lower
+certainty. Missing external evidence is unknown, not evidence of absence.
 
 ### Story Highlight evidence
 
@@ -1138,8 +1403,11 @@ Certainty is derived by application code. It is not a probability emitted by
 the model.
 
 - `high`: the Instagram bio and relevant external destinations were captured;
-  human identity, information funnel, CTA, and at least one supporting signal
-  have cited evidence; the primary visitor outcome is known; the track is
+  `acquisition_sufficiency` is `sufficient`; YouTube description links were
+  inspected when YouTube was the primary CTA; the CTA chain is resolved; human
+  identity, information funnel, CTA, and at least one supporting signal have
+  cited evidence; relevant offers were compared; proof was attributed or
+  marked unknown; the primary visitor outcome is known; the track is
   `information_personal_brand`; no primary-model conflict applies; and the
   challenger agrees. Other supporting signals may remain unknown.
 - `medium`: commercial evidence is clear but one noncritical surface is
@@ -1232,22 +1500,26 @@ visible price is never required.
 ## Prompt execution sequence
 
 1. Run the metadata-quality and universal-exclusion checks before calling AI.
-2. Serialize the complete evidence snapshot into the primary user prompt.
-3. Call the primary extraction prompt with low temperature, preferably 0 to
+2. Run deterministic commercial evidence acquisition across Instagram,
+   external destinations, link hubs, YouTube, and the bounded CTA chain.
+3. Store the immutable snapshot, acquisition states, offer candidates, proof
+   candidates, and stop reason.
+4. Serialize the complete evidence snapshot into the primary user prompt.
+5. Call the primary extraction prompt with low temperature, preferably 0 to
    0.2, and strict JSON-schema output.
-4. Validate the extraction schema, enum values, citations, and evidence-source
+6. Validate the extraction schema, enum values, citations, and evidence-source
    availability in application code.
-5. Derive the track and apply the hard business-model eligibility gate. A
+7. Derive the track and apply the hard business-model eligibility gate. A
    reliable excluded primary outcome ends qualification before score-based
    eligibility is evaluated, while its analytical score may still be stored.
-6. Map anchored labels to points and calculate signal states, score, review
+8. Map anchored labels to points and calculate signal states, score, review
    flags, and provisional decision with the versioned scorecard.
-7. Call the challenger once for every would-be automatic approval and for any
+9. Call the challenger once for every would-be automatic approval and for any
    mixed, uncertain, or conflicting business-model evidence.
-8. Derive evidence certainty and the final decision, then persist the snapshot
+10. Derive evidence certainty and the final decision, then persist the snapshot
    ID, prompt and scorecard versions, model, extraction, challenger result,
    backend decision, reasons, and review flags.
-9. Retry malformed output once. A second failure enters the scoring-error queue
+11. Retry malformed output once. A second failure enters the scoring-error queue
    and never becomes an automatic rejection.
 
 ## Primary evidence-extraction system prompt
@@ -1270,7 +1542,7 @@ guides, training, application forms, educational YouTube destinations, and
 link hubs that lead to education or coaching.
 
 NOT THE TARGET
-Reject profiles whose core business is done-for-you agency or client-service
+Extract exclusion evidence when the core business is done-for-you agency or client-service
 delivery, ecommerce, SaaS, entertainment, reposting, memes, news, fan content,
 or a non-commercial personal account. A personal name, face, client results,
 or DM CTA does not turn an agency into an information business.
@@ -1375,6 +1647,25 @@ LINK TEST
 - Store or product checkout: negative for this ICP.
 - Unknown personal website: weak until its destination is understood.
 
+CTA-CHAIN TEST
+Use the captured CTA chain to distinguish the first visible action from the
+ultimate commercial action. A link to YouTube, a webinar, a case study, or a
+VSL is intermediate when it subsequently directs the visitor to another
+offer. Base the business-model conclusion on what the visitor ultimately
+receives.
+
+OFFER COMPARISON
+Evaluate every captured offer independently. Identify audience, delivery,
+visitor outcome, customer implementation responsibility, CTA, and prominence.
+Return mixed prominence when agency service and information offers remain
+similarly prominent. Do not infer that the first offer in the input is primary.
+
+PROOF ATTRIBUTION
+Attribute every proof claim to self, student, coaching client, community
+member, agency client, software customer, affiliate, or unknown. Connect the
+claim to an offer when evidence permits. Agency-client proof cannot support an
+information offer merely because both belong to the same person.
+
 MISSING DATA
 Missing likes, views, posts, captions, Highlights, or link details do not prove
 the signal is absent. Mark unavailable evidence as unknown. Do not reject a
@@ -1447,6 +1738,8 @@ is_verified: {{is_verified}}
 followers: {{followers}}
 following: {{following}}
 total_posts: {{total_posts}}
+instagram_meta_description: {{instagram_meta_description}}
+profile_extraction_method: {{instagram_profile_extraction_method}}
 
 STORY HIGHLIGHTS
 capture_status: {{story_highlights_capture_status}}
@@ -1459,6 +1752,25 @@ page_title: {{external_page_title}}
 visible_labels_json: {{external_visible_labels_json}}
 destination_summary: {{external_destination_summary}}
 inspected_destinations_json: {{external_destinations_json}}
+
+YOUTUBE CHANNELS
+{{youtube_channels_json}}
+
+YOUTUBE VIDEOS
+{{youtube_videos_json}}
+
+CTA CHAIN
+{{cta_chain_json}}
+
+PRECOMPUTED OFFER INVENTORY
+{{offer_inventory_json}}
+
+PRECOMPUTED PROOF INVENTORY
+{{proof_inventory_json}}
+
+ACQUISITION STATE
+stop_reason: {{acquisition_stop_reason}}
+unknown_surfaces_json: {{unknown_surfaces_json}}
 
 PINNED POSTS
 {{pinned_posts_json}}
@@ -1512,6 +1824,11 @@ DECISION TESTS
 7. Is at least one of Transformation, Proof, or Authority supported?
 8. Is a secondary affiliate, employment, or commerce link being mistaken for
    the primary business model?
+9. Was the CTA chain followed to the ultimate visitor outcome?
+10. Were all similarly prominent offers compared and proof claims attributed
+    to the model that produced them?
+11. Is acquisition sufficient for an automatic decision, or did an important
+    destination fail?
 
 Do not infer an information product from generic business-advice content. Mark
 evidence as unknown when the relevant surface was not captured.
@@ -1530,6 +1847,8 @@ Return only JSON:
   },
   "core_gate_passes": true,
   "distinct_information_funnel": true,
+  "cta_chain_resolved": true,
+  "acquisition_sufficiency": "sufficient | partial | insufficient",
   "signal_states": {
     "information_funnel": "present | absent | unknown | conflicting",
     "proof": "present | absent | unknown | conflicting",
@@ -1538,7 +1857,7 @@ Return only JSON:
     "cta": "present | absent | unknown | conflicting"
   },
   "evidence": [
-    { "source_type": "bio | highlight | external_page | pinned_post | recent_post", "source_id": "string", "url": "string or null", "field": "string", "phrase": "string" }
+    { "source_type": "bio | instagram_metadata | highlight | link_hub | external_page | youtube_channel | youtube_video | pinned_post | recent_post", "source_id": "string", "url": "string or null", "field": "string", "phrase": "string" }
   ],
   "reason": "short evidence-based explanation"
 }
@@ -1615,9 +1934,28 @@ decision:
       ]
     }
   ],
+  "offers": [
+    {
+      "offer_id": "offer_1",
+      "name": "1:1 transformation coaching",
+      "type": "coaching",
+      "prominence": "primary",
+      "audience": "Christian men",
+      "delivery": "private coaching",
+      "visitor_receives": ["coaching"],
+      "customer_implementation_role": "implements_with_guidance",
+      "cta": "apply for 1:1 coaching",
+      "evidence": [
+        { "source_type": "bio", "source_id": "profile", "url": null, "field": "bio", "phrase": "1:1 coaching" }
+      ]
+    }
+  ],
+  "proof_attribution": [],
   "primary_visitor_outcome": "coaching",
   "primary_cta": "DM [keyword]",
   "ultimate_cta": "apply for 1:1 coaching",
+  "cta_chain_resolved": true,
+  "acquisition_sufficiency": "sufficient",
   "agency_evidence_bundle": {
     "service_delivery": [],
     "team_performance": [],
@@ -1703,6 +2041,13 @@ Required enum values include:
 - `track`: `information_personal_brand`, `agency_service`, `commerce`, `saas`,
   `affiliate`, `employment`, `non_commercial`, or `uncertain`.
 - `business_models[].prominence`: `primary`, `secondary`, or `incidental`.
+- `offers[].type`: `coaching`, `information_product`, `community`,
+  `membership`, `event`, `done_with_you_consulting`, `done_for_you_service`,
+  `managed_trading`, `signals_service`, `affiliate_offer`, `commerce_product`,
+  `software`, `employment`, or `unknown`.
+- `offers[].customer_implementation_role`: `none`, `self_implemented`,
+  `implements_with_guidance`, `team_implemented`, or `unknown`.
+- `acquisition_sufficiency`: `sufficient`, `partial`, or `insufficient`.
 - Visitor outcome: `education`, `coaching`, `information_product`, `community`,
   `live_instruction`, `membership`, `event`, `employment_opportunity`,
   `recruiting_service`, `done_for_you_service`, `managed_trading`,
@@ -1714,7 +2059,8 @@ Required enum values include:
 - `certainty`: `high`, `medium`, or `low`.
 - Evidence and signal state: `present`, `absent`, `unknown`, or `conflicting`.
 - `data_quality`: `complete`, `partial`, or `unreliable`.
-- Evidence `source_type`: `display_name`, `bio`, `highlight`, `external_page`,
+- Evidence `source_type`: `display_name`, `bio`, `instagram_metadata`,
+  `highlight`, `link_hub`, `external_page`, `youtube_channel`, `youtube_video`,
   `pinned_post`, or `recent_post`. Every citation also includes `source_id`,
   `url` when applicable, `field`, and `phrase`.
 - `review_flags`: zero or more of `agency_information_mixed`,
@@ -1853,6 +2199,17 @@ independent final evaluation example.
   distinct information funnel when its ultimate CTA sells service delivery.
 - An agency owner with a verified independent information offer can still
   qualify when that offer has its own CTA and educational visitor outcome.
+- When YouTube is the primary Instagram CTA, at least one relevant video
+  description and its outbound commercial link are captured before a
+  high-certainty decision.
+- Multi-offer profiles expose every material offer, its prominence, delivery
+  model, customer implementation role, and visitor outcome.
+- Every proof claim is attributed to the offer or model that produced it, or
+  explicitly marked unknown.
+- The stored CTA chain reproduces the route from Instagram to the ultimate CTA
+  and visitor outcome.
+- Failed or blocked acquisitions reduce certainty and never become evidence
+  that an offer is absent.
 - Precision on automatic qualification is at least 90% against reviewer labels.
 - Recall on confirmed qualified leads improves relative to the current
   production classifier.
@@ -1937,6 +2294,14 @@ increasing the qualified count. Track:
 - Positive reply and meeting-booked rate by commercial-fit band.
 - Rejection and approval rates by source seed.
 - Percentage of decisions with complete stored evidence.
+- Percentage of external destinations successfully resolved.
+- Percentage of YouTube-primary profiles with a captured video description and
+  outbound CTA.
+- Percentage of CTA chains reaching a known ultimate visitor outcome.
+- Percentage of multi-offer profiles with resolved primary prominence.
+- Percentage of proof claims attributed to a producing offer or model.
+- Median external pages, CTA hops, acquisition time, and acquisition cost per
+  profile.
 
 ## Out of scope
 
