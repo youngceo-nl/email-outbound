@@ -133,6 +133,166 @@ capture timestamp to the backfill result. A null collection means not captured;
 an empty collection means captured and none were visible. These states must not
 be conflated.
 
+### Primary AI recognition model
+
+Before assigning numeric scores, the AI must explicitly answer four semantic
+questions:
+
+1. Is this a human-led personal brand built around expertise or information?
+2. What recognizable transformation does the person help an audience achieve?
+3. What visible path moves a visitor from content toward information,
+   application, coaching, or another conversion step?
+4. What proof or authority makes the expertise credible?
+
+These are the highest-value signals in the qualification system. Keywords help
+the AI locate evidence, but the AI must interpret complete phrases, context,
+and equivalent language rather than count exact matches.
+
+#### High-value phrases and concepts
+
+The AI should recognize these examples and semantic equivalents:
+
+```text
+I help
+We help
+For coaches
+For consultants
+For men
+Build and scale
+Get clients
+1:1 coaching
+Mentorship
+Program
+Academy
+Private coaching
+Client results
+Testimonials
+Apply
+Book
+DM me
+Comment
+Blueprint
+Free training
+```
+
+It must also recognize:
+
+- Revenue, client, student, transformation, or audience proof.
+- A named mechanism, framework, method, system, challenge, academy, university,
+  course, roadmap, or program.
+- Equivalent language in captions, Story Highlights, link labels, pinned posts,
+  and non-English text.
+
+The phrases do not all have equal meaning in isolation. `Program` without an
+owner, audience, or outcome is weak. `I help consultants get clients through
+my private coaching program` is strong because it identifies the expert,
+audience, transformation, and offer in one statement.
+
+#### Recognizable transformation
+
+The transformation should be understandable without extensive investigation.
+Confirmed transformation patterns include:
+
+```text
+lose fat and build muscle
+build and scale a personal brand
+acquire premium clients
+build profitable Instagram brands
+scale an online consulting business
+improve appearance and confidence
+get fit and eliminate destructive habits
+learn languages
+```
+
+The preferred semantic structure is:
+
+```text
+specific person or audience + painful or desirable problem + promised result
+```
+
+The wording can be explicit, such as `I help Christian men get jacked and drop
+vices`, or distributed across the display name, bio, captions, Highlights, and
+external destination. The AI must assemble the meaning across surfaces and
+cite each supporting source.
+
+A broad topic such as fitness, business, mindset, or languages is not yet a
+transformation. The profile needs an outcome, change, solution, or learning
+path associated with that topic.
+
+#### Visible conversion path
+
+A qualified personal brand gives the visitor somewhere meaningful to go.
+Recognized conversion patterns include:
+
+```text
+DM RUTHLESS
+DM SCALE
+DM LAUNCH
+DM READY
+comment a keyword
+apply through a landing page
+download a blueprint
+get a roadmap
+watch a free training
+click an educational link
+visit a YouTube channel
+open a link hub
+request private instruction
+book a call
+join a program or community
+```
+
+The core distinction is:
+
+```text
+content-only creator: follow me for content
+information operator: DM, apply, book, download, watch, learn, request, or join
+```
+
+`Follow me` can support audience building but does not count as a commercial or
+information conversion path by itself. A YouTube link or link hub counts when
+the surrounding profile establishes a human expert and informational
+transformation.
+
+#### Proof and authority
+
+Proof can appear in many forms:
+
+- Client wins and testimonials.
+- Student wins and transformations.
+- Revenue or sales claims.
+- Number of clients or students served.
+- Large owned or managed audiences.
+- Personal transformation stories.
+- Specialized expertise or demonstrated skill.
+- Named systems, mechanisms, frameworks, or methodologies.
+- Results-oriented Story Highlight folders.
+- Strong follower scale or repeat audience reach.
+- Visible association with a relevant education brand, program, academy, or
+  company.
+
+Examples include:
+
+```text
+$4M in sales before 30
+139 clients
+15,000,000+ followers
+client wins
+student wins
+testimonials
+results
+my transformation
+a proprietary method or branded program
+```
+
+The exact proof format is not important. The AI should judge whether credible
+evidence exists, whether it belongs to this person, and whether it supports an
+information offer. Agency client results do not prove an information business.
+
+Proof strength increases when evidence is specific, quantified, repeated, or
+visible across multiple surfaces. Self-reported proof remains useful
+positioning evidence but must be labeled as self-reported.
+
 ### ICP keyword and phrase taxonomy
 
 Keywords are evidence extractors, not independent decisions. Match them across
@@ -705,6 +865,12 @@ The classifier returns a versioned object with this logical shape:
   "model_version": "commercial-fit-v1",
   "track": "information_personal_brand",
   "confidence": 0.91,
+  "recognition": {
+    "human_personal_brand": true,
+    "recognizable_transformation": true,
+    "visible_conversion_path": true,
+    "credible_proof_or_authority": true
+  },
   "scores": {
     "buyer_clarity": 2,
     "transformation_clarity": 2,
@@ -741,9 +907,10 @@ The classifier returns a versioned object with this logical shape:
 }
 ```
 
-The backend validates ranges, required fields, permitted enum values, score
-totals, and decision rules. Invalid AI output is retried once. A second invalid
-response enters a scoring-error queue rather than being treated as rejection.
+The backend validates the four recognition answers, score ranges, required
+fields, permitted enum values, score totals, and decision rules. Invalid AI
+output is retried once. A second invalid response enters a scoring-error queue
+rather than being treated as rejection.
 
 ## Step 9: Manual review
 
@@ -831,6 +998,9 @@ independent final evaluation example.
 - The same stored evidence produces the same deterministic threshold decision.
 - Every decision exposes dimension scores, evidence, confidence, and model
   version.
+- Every automatic qualification identifies a human personal brand, a
+  recognizable transformation, a visible conversion path, and credible proof
+  or authority, with cited evidence for each available signal.
 - At least 80% of high-confidence qualified profiles bypass manual review after
   the automatic-approval rollout.
 
