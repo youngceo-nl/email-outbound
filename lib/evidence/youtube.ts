@@ -74,6 +74,20 @@ export function videoSelectionReason(title: string, isRecent: boolean): string |
   return isRecent ? "recent_upload" : null;
 }
 
+/*
+ * A stable identity for a YouTube URL.
+ *
+ * youtube.com/watch?v=A, m.youtube.com/watch?v=A&t=1240s, and youtu.be/A are the
+ * same video. Treating them as distinct made the CTA chain record the same hop
+ * six times, because each variant canonicalized differently and so never matched
+ * the visited set.
+ */
+export function youtubeIdentity(url: string): string | null {
+  const ref = parseYouTubeRef(url);
+  if (!ref) return null;
+  return `${ref.kind}:${ref.value.toLowerCase()}`;
+}
+
 export type YouTubeCollectionResult = {
   channels: YouTubeChannelEvidence[];
   videos: YouTubeVideoEvidence[];

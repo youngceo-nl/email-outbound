@@ -16,8 +16,12 @@ import { EXTRACTION_PROMPT_VERSION } from "@/lib/evidence/versions";
 import { collectCitations, validateCitationsResolve } from "./schemas";
 import {
   adaptHaikuExtraction,
-  EXTRACTION_JSON_SCHEMA,
-  haikuExtractionSchema,
+  COMMERCE_JSON_SCHEMA,
+  commerceExtractionSchema,
+  mergeHaikuExtractions,
+  SIGNALS_JSON_SCHEMA,
+  signalsExtractionSchema,
+  validateAffirmativeCitations,
 } from "./haiku-contract";
 import { buildExtractionUserPrompt, EXTRACTION_SYSTEM_PROMPT } from "./prompt";
 import { parseJsonLoose, type LlmClient } from "./providers";
@@ -57,76 +61,108 @@ export async function extractCommercialEvidence(opts: {
   let attemptProblems: string[] = [];
   let usage = { inputTokens: 0, outputTokens: 0 };
 
+  /*
+   * Two focused structured passes over the same evidence packet — the full field
+   * set compiles to a grammar the backend rejects. See haiku-contract.ts.
+   */
+  const passes = [
+    { name: "signals", schema: SIGNALS_JSON_SCHEMA, zod: signalsExtractionSchema },
+    { name: "commerce", schema: COMMERCE_JSON_SCHEMA, zod: commerceExtractionSchema },
+  ] as const;
+
   for (let attempt = 0; attempt < 2; attempt++) {
-    const prompt =
+    const repairNote =
       attempt === 0
-        ? userPrompt
-        : `${userPrompt}\n\nYour previous response was rejected by validation:\n${attemptProblems
+        ? ""
+        : `\n\nYour previous response was rejected by validation:\n${attemptProblems
             .map((problem) => `- ${problem}`)
             .join("\n")}\n\nReturn corrected JSON only. Cite only source ids from ALLOWED CITATION SOURCES. If you cannot cite a claim, return that signal as "unknown" rather than "present".`;
 
-    let response;
-    try {
-      response = await opts.llm({
-        system: EXTRACTION_SYSTEM_PROMPT,
-        user: prompt,
-        temperature: 0,
-        maxTokens: 8000,
-        jsonSchema: EXTRACTION_JSON_SCHEMA as unknown as Record<string, unknown>,
-        schemaName: "commercial_evidence_extraction",
-      });
-    } catch (err) {
-      return {
-        ok: false,
-        reason: "provider_error",
-        problems: [err instanceof Error ? err.message : String(err)],
-        provider,
-        model,
-        usage,
+    const parsedPasses: Record<string, unknown> = {};
+    let passFailed = false;
+
+    for (const pass of passes) {
+      let response;
+      try {
+        response = await opts.llm({
+          system: EXTRACTION_SYSTEM_PROMPT,
+          user: `${userPrompt}\n\nEXTRACTION PASS: ${pass.name.toUpperCase()}\nReturn only the fields in the provided schema for this pass.${repairNote}`,
+          temperature: 0,
+          maxTokens: 8000,
+          jsonSchema: pass.schema,
+        });
+      } catch (err) {
+        return {
+          ok: false,
+          reason: "provider_error",
+          problems: [`${pass.name} pass: ${err instanceof Error ? err.message : String(err)}`],
+          provider,
+          model,
+          usage,
+        };
+      }
+
+      provider = response.provider;
+      model = response.model;
+      usage = {
+        inputTokens: usage.inputTokens + response.usage.inputTokens,
+        outputTokens: usage.outputTokens + response.usage.outputTokens,
       };
+
+      let raw: unknown;
+      try {
+        raw = parseJsonLoose(response.text);
+      } catch (err) {
+        attemptProblems = [`${pass.name} pass: ${err instanceof Error ? err.message : String(err)}`];
+        passFailed = true;
+        break;
+      }
+
+      const parsed = pass.zod.safeParse(raw);
+      if (!parsed.success) {
+        attemptProblems = parsed.error.issues.map(
+          (issue: { path: (string | number)[]; message: string }) =>
+            `${pass.name}.${issue.path.join(".")}: ${issue.message}`,
+        );
+        passFailed = true;
+        break;
+      }
+      parsedPasses[pass.name] = parsed.data;
     }
 
-    provider = response.provider;
-    model = response.model;
-    usage = {
-      inputTokens: usage.inputTokens + response.usage.inputTokens,
-      outputTokens: usage.outputTokens + response.usage.outputTokens,
-    };
+    if (passFailed) continue;
 
-    let raw: unknown;
-    try {
-      raw = parseJsonLoose(response.text);
-    } catch (err) {
-      attemptProblems = [err instanceof Error ? err.message : String(err)];
-      continue;
-    }
-
-    const parsed = haikuExtractionSchema.safeParse(raw);
-    if (!parsed.success) {
-      attemptProblems = parsed.error.issues.map(
-        (issue) => `${issue.path.join(".")}: ${issue.message}`,
-      );
-      continue;
-    }
+    const merged = mergeHaikuExtractions(
+      parsedPasses.signals as Parameters<typeof mergeHaikuExtractions>[0],
+      parsedPasses.commerce as Parameters<typeof mergeHaikuExtractions>[1],
+    );
 
     // Versions and the snapshot id are ours to assert, not the model's to choose.
     const extraction = adaptHaikuExtraction(
-      parsed.data,
+      merged,
       opts.snapshot.snapshot_id,
       EXTRACTION_PROMPT_VERSION,
     );
 
-    const citationProblems = validateCitationsResolve(extraction, allowedSources);
-    if (citationProblems.length > 0) {
-      attemptProblems = citationProblems;
+    /*
+     * Two independent checks. The first is the anti-hallucination rule that
+     * structured output cannot express; the second confirms every cited source
+     * actually exists in the snapshot that was inspected.
+     */
+    const problems = [
+      ...validateAffirmativeCitations(extraction),
+      ...validateCitationsResolve(extraction, allowedSources),
+    ];
+    if (problems.length > 0) {
+      attemptProblems = problems;
       continue;
     }
 
     return {
       ok: true,
       extraction,
-      provider: response.provider,
-      model: response.model,
+      provider: provider as string,
+      model: model as string,
       usage,
       repaired: attempt > 0,
       citation_warnings: verifyPhrasesAppear(extraction, opts.snapshot),

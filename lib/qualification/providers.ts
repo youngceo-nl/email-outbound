@@ -57,16 +57,20 @@ function createAnthropicClient(config: LlmConfig): LlmClient {
       messages: [{ role: "user", content: request.user }],
     };
 
-    // Haiku 4.5 accepts sampling params; low temperature keeps extraction stable.
-    if (request.temperature !== undefined) params.temperature = request.temperature;
+    /*
+     * Sampling parameters were removed on the Opus 4.7+ / Sonnet 5 / Fable 5
+     * generation and are rejected outright there. Only send `temperature` to
+     * models that still accept it — Haiku 4.5 does, and a low temperature keeps
+     * extraction stable across reruns.
+     */
+    if (request.temperature !== undefined && modelAcceptsTemperature(config.model)) {
+      params.temperature = request.temperature;
+    }
 
     if (request.jsonSchema) {
+      // `format` takes only `type` and `schema`; a `name` field is rejected.
       params.output_config = {
-        format: {
-          type: "json_schema",
-          name: request.schemaName ?? "extraction",
-          schema: request.jsonSchema,
-        },
+        format: { type: "json_schema", schema: request.jsonSchema },
       };
     }
 
@@ -103,6 +107,16 @@ function createAnthropicClient(config: LlmConfig): LlmClient {
       },
     };
   };
+}
+
+/*
+ * Allowlist rather than blocklist: a model we have not seen before is assumed to
+ * reject sampling params, which fails safe. Sending one to a model that rejects
+ * it is a hard 400 that kills the call; omitting one from a model that accepts it
+ * only means the default is used.
+ */
+export function modelAcceptsTemperature(model: string): boolean {
+  return /claude-(haiku-4-5|sonnet-4-5|sonnet-4-6|opus-4-5|opus-4-6)|^gpt-/.test(model);
 }
 
 function createOpenAiClient(config: LlmConfig): LlmClient {

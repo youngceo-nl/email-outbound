@@ -23,6 +23,7 @@ import type {
   VisitorOutcome,
 } from "@/lib/qualification/types";
 import { computeActivityMetrics } from "./instagram";
+import { collectDirectResponseCtas } from "./cta-signals";
 import {
   collectExternalEvidence,
   createPageFetcher,
@@ -178,6 +179,18 @@ export async function collectCommercialEvidence(
 
     offer_inventory_seed: seedOfferInventory(destinations),
     proof_inventory_seed: seedProofInventory(instagram),
+    direct_response_ctas: collectDirectResponseCtas([
+      { text: instagram.bio, source: "bio:profile" },
+      { text: instagram.instagram_meta_description, source: "instagram_metadata:profile" },
+      ...instagram.pinned_posts.map((post) => ({
+        text: post.caption,
+        source: `pinned_post:${post.post_id}`,
+      })),
+      ...instagram.recent_posts.slice(0, 12).map((post) => ({
+        text: post.caption,
+        source: `recent_post:${post.post_id}`,
+      })),
+    ]),
 
     acquisition_stop_reason: stopReason,
     acquisition_sufficiency: sufficiency,
@@ -215,6 +228,13 @@ function collectUnknownSurfaces(
       surface: "instagram_pinned_posts",
       capture_status: instagram.pinned_posts_capture_status,
       reason: "provider does not report pinned markers",
+    });
+  }
+  if (instagram.external_link_capture_status !== "captured") {
+    out.push({
+      surface: "instagram_external_link",
+      capture_status: instagram.external_link_capture_status,
+      reason: "bio link not exposed by the acquisition method used",
     });
   }
   if (instagram.story_highlights_capture_status !== "captured") {
@@ -323,8 +343,13 @@ function deriveSufficiency(args: {
 
   if (instagram.profile_capture_status !== "captured") return "insufficient";
 
-  // No external link at all is a complete answer about the external surface.
+  /*
+   * Distinguish "we looked and there is no link" from "we could not see the
+   * link". A captured-empty external surface is a complete answer; an
+   * unavailable one leaves the whole funnel unknown and can never be sufficient.
+   */
   if (!instagram.external_link) {
+    if (instagram.external_link_capture_status !== "captured") return "insufficient";
     return instagram.bio ? "partial" : "insufficient";
   }
 

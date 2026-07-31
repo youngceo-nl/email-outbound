@@ -91,7 +91,9 @@ export async function runChallenger(opts: {
       system: CHALLENGER_SYSTEM_PROMPT,
       user: buildChallengerUserPrompt(opts.snapshot, summary, allowedSources),
       temperature: 0,
-      maxTokens: 4000,
+      // A stronger challenger model reasons at length before answering; 4000 was
+      // truncating the verdict mid-JSON and surfacing as a spurious disagreement.
+      maxTokens: 8000,
     });
   } catch (err) {
     return {

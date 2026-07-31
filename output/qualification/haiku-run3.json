@@ -1,0 +1,642 @@
+[
+  {
+    "input": "https://www.instagram.com/rowellwestra",
+    "result": {
+      "username": "rowellwestra",
+      "sufficiency": {
+        "verdict": "retryable",
+        "data_quality": "unreliable",
+        "reasons": [
+          "profile_capture_failed"
+        ],
+        "exclusion_evidence": null
+      },
+      "snapshot": null,
+      "extraction": null,
+      "challenger": null,
+      "challenger_trigger": "none",
+      "decision": {
+        "scorecard_version": "personal-brand-score-v1",
+        "evidence_snapshot_id": "none",
+        "extraction_id": null,
+        "track": "uncertain",
+        "icp_eligible": true,
+        "hard_exclusion": false,
+        "rejection_reason": null,
+        "signal_states": {
+          "information_funnel": "unknown",
+          "proof": "unknown",
+          "authority": "unknown",
+          "transformation": "unknown",
+          "cta": "unknown",
+          "human_personal_brand": "unknown"
+        },
+        "primary_visitor_outcome": null,
+        "scores": {
+          "buyer_clarity": 0,
+          "transformation_clarity": 0,
+          "information_funnel_evidence": 0,
+          "conversion_intent": 0,
+          "proof_strength": 0,
+          "authority_strength": 0,
+          "proof_maturity": 0,
+          "commercial_fit": 0
+        },
+        "score_components": {},
+        "certainty": "low",
+        "challenger_agreement": null,
+        "challenger_result": null,
+        "decision": "data_retry",
+        "mode": "retry_required",
+        "automatic_approval_eligible": false,
+        "decision_reasons": [
+          "profile_unavailable"
+        ],
+        "review_flags": [
+          "unreliable_data"
+        ],
+        "priority": null,
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "challenger_prompt_version": "personal-brand-challenger-v1",
+          "scorecard_version": "personal-brand-score-v1",
+          "config_version": "config-v1",
+          "pipeline_version": "commercial-qualification-1.0.0"
+        },
+        "decided_at": "2026-07-31T17:31:23.976Z"
+      },
+      "timings_ms": {
+        "acquisition": 0,
+        "extraction": 0,
+        "challenger": 0,
+        "total": 0
+      },
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 0
+      }
+    },
+    "error": null
+  },
+  {
+    "input": "https://www.instagram.com/keirhubner",
+    "result": {
+      "username": "keirhubner",
+      "sufficiency": {
+        "verdict": "retryable",
+        "data_quality": "unreliable",
+        "reasons": [
+          "profile_capture_failed"
+        ],
+        "exclusion_evidence": null
+      },
+      "snapshot": null,
+      "extraction": null,
+      "challenger": null,
+      "challenger_trigger": "none",
+      "decision": {
+        "scorecard_version": "personal-brand-score-v1",
+        "evidence_snapshot_id": "none",
+        "extraction_id": null,
+        "track": "uncertain",
+        "icp_eligible": true,
+        "hard_exclusion": false,
+        "rejection_reason": null,
+        "signal_states": {
+          "information_funnel": "unknown",
+          "proof": "unknown",
+          "authority": "unknown",
+          "transformation": "unknown",
+          "cta": "unknown",
+          "human_personal_brand": "unknown"
+        },
+        "primary_visitor_outcome": null,
+        "scores": {
+          "buyer_clarity": 0,
+          "transformation_clarity": 0,
+          "information_funnel_evidence": 0,
+          "conversion_intent": 0,
+          "proof_strength": 0,
+          "authority_strength": 0,
+          "proof_maturity": 0,
+          "commercial_fit": 0
+        },
+        "score_components": {},
+        "certainty": "low",
+        "challenger_agreement": null,
+        "challenger_result": null,
+        "decision": "data_retry",
+        "mode": "retry_required",
+        "automatic_approval_eligible": false,
+        "decision_reasons": [
+          "profile_unavailable"
+        ],
+        "review_flags": [
+          "unreliable_data"
+        ],
+        "priority": null,
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "challenger_prompt_version": "personal-brand-challenger-v1",
+          "scorecard_version": "personal-brand-score-v1",
+          "config_version": "config-v1",
+          "pipeline_version": "commercial-qualification-1.0.0"
+        },
+        "decided_at": "2026-07-31T17:31:30.318Z"
+      },
+      "timings_ms": {
+        "acquisition": 0,
+        "extraction": 0,
+        "challenger": 0,
+        "total": 1
+      },
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 0
+      }
+    },
+    "error": null
+  },
+  {
+    "input": "https://www.instagram.com/enrollpremiumclients",
+    "result": {
+      "username": "enrollpremiumclients",
+      "sufficiency": {
+        "verdict": "retryable",
+        "data_quality": "unreliable",
+        "reasons": [
+          "profile_capture_failed"
+        ],
+        "exclusion_evidence": null
+      },
+      "snapshot": null,
+      "extraction": null,
+      "challenger": null,
+      "challenger_trigger": "none",
+      "decision": {
+        "scorecard_version": "personal-brand-score-v1",
+        "evidence_snapshot_id": "none",
+        "extraction_id": null,
+        "track": "uncertain",
+        "icp_eligible": true,
+        "hard_exclusion": false,
+        "rejection_reason": null,
+        "signal_states": {
+          "information_funnel": "unknown",
+          "proof": "unknown",
+          "authority": "unknown",
+          "transformation": "unknown",
+          "cta": "unknown",
+          "human_personal_brand": "unknown"
+        },
+        "primary_visitor_outcome": null,
+        "scores": {
+          "buyer_clarity": 0,
+          "transformation_clarity": 0,
+          "information_funnel_evidence": 0,
+          "conversion_intent": 0,
+          "proof_strength": 0,
+          "authority_strength": 0,
+          "proof_maturity": 0,
+          "commercial_fit": 0
+        },
+        "score_components": {},
+        "certainty": "low",
+        "challenger_agreement": null,
+        "challenger_result": null,
+        "decision": "data_retry",
+        "mode": "retry_required",
+        "automatic_approval_eligible": false,
+        "decision_reasons": [
+          "profile_unavailable"
+        ],
+        "review_flags": [
+          "unreliable_data"
+        ],
+        "priority": null,
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "challenger_prompt_version": "personal-brand-challenger-v1",
+          "scorecard_version": "personal-brand-score-v1",
+          "config_version": "config-v1",
+          "pipeline_version": "commercial-qualification-1.0.0"
+        },
+        "decided_at": "2026-07-31T17:31:36.740Z"
+      },
+      "timings_ms": {
+        "acquisition": 0,
+        "extraction": 0,
+        "challenger": 0,
+        "total": 0
+      },
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 0
+      }
+    },
+    "error": null
+  },
+  {
+    "input": "https://www.instagram.com/lukegosseling",
+    "result": {
+      "username": "lukegosseling",
+      "sufficiency": {
+        "verdict": "retryable",
+        "data_quality": "unreliable",
+        "reasons": [
+          "profile_capture_failed"
+        ],
+        "exclusion_evidence": null
+      },
+      "snapshot": null,
+      "extraction": null,
+      "challenger": null,
+      "challenger_trigger": "none",
+      "decision": {
+        "scorecard_version": "personal-brand-score-v1",
+        "evidence_snapshot_id": "none",
+        "extraction_id": null,
+        "track": "uncertain",
+        "icp_eligible": true,
+        "hard_exclusion": false,
+        "rejection_reason": null,
+        "signal_states": {
+          "information_funnel": "unknown",
+          "proof": "unknown",
+          "authority": "unknown",
+          "transformation": "unknown",
+          "cta": "unknown",
+          "human_personal_brand": "unknown"
+        },
+        "primary_visitor_outcome": null,
+        "scores": {
+          "buyer_clarity": 0,
+          "transformation_clarity": 0,
+          "information_funnel_evidence": 0,
+          "conversion_intent": 0,
+          "proof_strength": 0,
+          "authority_strength": 0,
+          "proof_maturity": 0,
+          "commercial_fit": 0
+        },
+        "score_components": {},
+        "certainty": "low",
+        "challenger_agreement": null,
+        "challenger_result": null,
+        "decision": "data_retry",
+        "mode": "retry_required",
+        "automatic_approval_eligible": false,
+        "decision_reasons": [
+          "profile_unavailable"
+        ],
+        "review_flags": [
+          "unreliable_data"
+        ],
+        "priority": null,
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "challenger_prompt_version": "personal-brand-challenger-v1",
+          "scorecard_version": "personal-brand-score-v1",
+          "config_version": "config-v1",
+          "pipeline_version": "commercial-qualification-1.0.0"
+        },
+        "decided_at": "2026-07-31T17:31:43.079Z"
+      },
+      "timings_ms": {
+        "acquisition": 0,
+        "extraction": 0,
+        "challenger": 0,
+        "total": 0
+      },
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 0
+      }
+    },
+    "error": null
+  },
+  {
+    "input": "https://www.instagram.com/tom__youngs",
+    "result": {
+      "username": "tom__youngs",
+      "sufficiency": {
+        "verdict": "retryable",
+        "data_quality": "unreliable",
+        "reasons": [
+          "profile_capture_failed"
+        ],
+        "exclusion_evidence": null
+      },
+      "snapshot": null,
+      "extraction": null,
+      "challenger": null,
+      "challenger_trigger": "none",
+      "decision": {
+        "scorecard_version": "personal-brand-score-v1",
+        "evidence_snapshot_id": "none",
+        "extraction_id": null,
+        "track": "uncertain",
+        "icp_eligible": true,
+        "hard_exclusion": false,
+        "rejection_reason": null,
+        "signal_states": {
+          "information_funnel": "unknown",
+          "proof": "unknown",
+          "authority": "unknown",
+          "transformation": "unknown",
+          "cta": "unknown",
+          "human_personal_brand": "unknown"
+        },
+        "primary_visitor_outcome": null,
+        "scores": {
+          "buyer_clarity": 0,
+          "transformation_clarity": 0,
+          "information_funnel_evidence": 0,
+          "conversion_intent": 0,
+          "proof_strength": 0,
+          "authority_strength": 0,
+          "proof_maturity": 0,
+          "commercial_fit": 0
+        },
+        "score_components": {},
+        "certainty": "low",
+        "challenger_agreement": null,
+        "challenger_result": null,
+        "decision": "data_retry",
+        "mode": "retry_required",
+        "automatic_approval_eligible": false,
+        "decision_reasons": [
+          "profile_unavailable"
+        ],
+        "review_flags": [
+          "unreliable_data"
+        ],
+        "priority": null,
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "challenger_prompt_version": "personal-brand-challenger-v1",
+          "scorecard_version": "personal-brand-score-v1",
+          "config_version": "config-v1",
+          "pipeline_version": "commercial-qualification-1.0.0"
+        },
+        "decided_at": "2026-07-31T17:31:49.416Z"
+      },
+      "timings_ms": {
+        "acquisition": 0,
+        "extraction": 0,
+        "challenger": 0,
+        "total": 0
+      },
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 0
+      }
+    },
+    "error": null
+  },
+  {
+    "input": "https://www.instagram.com/charliewelham_",
+    "result": {
+      "username": "charliewelham_",
+      "sufficiency": {
+        "verdict": "retryable",
+        "data_quality": "unreliable",
+        "reasons": [
+          "profile_capture_failed"
+        ],
+        "exclusion_evidence": null
+      },
+      "snapshot": null,
+      "extraction": null,
+      "challenger": null,
+      "challenger_trigger": "none",
+      "decision": {
+        "scorecard_version": "personal-brand-score-v1",
+        "evidence_snapshot_id": "none",
+        "extraction_id": null,
+        "track": "uncertain",
+        "icp_eligible": true,
+        "hard_exclusion": false,
+        "rejection_reason": null,
+        "signal_states": {
+          "information_funnel": "unknown",
+          "proof": "unknown",
+          "authority": "unknown",
+          "transformation": "unknown",
+          "cta": "unknown",
+          "human_personal_brand": "unknown"
+        },
+        "primary_visitor_outcome": null,
+        "scores": {
+          "buyer_clarity": 0,
+          "transformation_clarity": 0,
+          "information_funnel_evidence": 0,
+          "conversion_intent": 0,
+          "proof_strength": 0,
+          "authority_strength": 0,
+          "proof_maturity": 0,
+          "commercial_fit": 0
+        },
+        "score_components": {},
+        "certainty": "low",
+        "challenger_agreement": null,
+        "challenger_result": null,
+        "decision": "data_retry",
+        "mode": "retry_required",
+        "automatic_approval_eligible": false,
+        "decision_reasons": [
+          "profile_unavailable"
+        ],
+        "review_flags": [
+          "unreliable_data"
+        ],
+        "priority": null,
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "challenger_prompt_version": "personal-brand-challenger-v1",
+          "scorecard_version": "personal-brand-score-v1",
+          "config_version": "config-v1",
+          "pipeline_version": "commercial-qualification-1.0.0"
+        },
+        "decided_at": "2026-07-31T17:31:55.856Z"
+      },
+      "timings_ms": {
+        "acquisition": 0,
+        "extraction": 0,
+        "challenger": 0,
+        "total": 0
+      },
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 0
+      }
+    },
+    "error": null
+  },
+  {
+    "input": "https://www.instagram.com/jackplandry",
+    "result": {
+      "username": "jackplandry",
+      "sufficiency": {
+        "verdict": "retryable",
+        "data_quality": "unreliable",
+        "reasons": [
+          "profile_capture_failed"
+        ],
+        "exclusion_evidence": null
+      },
+      "snapshot": null,
+      "extraction": null,
+      "challenger": null,
+      "challenger_trigger": "none",
+      "decision": {
+        "scorecard_version": "personal-brand-score-v1",
+        "evidence_snapshot_id": "none",
+        "extraction_id": null,
+        "track": "uncertain",
+        "icp_eligible": true,
+        "hard_exclusion": false,
+        "rejection_reason": null,
+        "signal_states": {
+          "information_funnel": "unknown",
+          "proof": "unknown",
+          "authority": "unknown",
+          "transformation": "unknown",
+          "cta": "unknown",
+          "human_personal_brand": "unknown"
+        },
+        "primary_visitor_outcome": null,
+        "scores": {
+          "buyer_clarity": 0,
+          "transformation_clarity": 0,
+          "information_funnel_evidence": 0,
+          "conversion_intent": 0,
+          "proof_strength": 0,
+          "authority_strength": 0,
+          "proof_maturity": 0,
+          "commercial_fit": 0
+        },
+        "score_components": {},
+        "certainty": "low",
+        "challenger_agreement": null,
+        "challenger_result": null,
+        "decision": "data_retry",
+        "mode": "retry_required",
+        "automatic_approval_eligible": false,
+        "decision_reasons": [
+          "profile_unavailable"
+        ],
+        "review_flags": [
+          "unreliable_data"
+        ],
+        "priority": null,
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "challenger_prompt_version": "personal-brand-challenger-v1",
+          "scorecard_version": "personal-brand-score-v1",
+          "config_version": "config-v1",
+          "pipeline_version": "commercial-qualification-1.0.0"
+        },
+        "decided_at": "2026-07-31T17:32:02.293Z"
+      },
+      "timings_ms": {
+        "acquisition": 0,
+        "extraction": 0,
+        "challenger": 0,
+        "total": 0
+      },
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 0
+      }
+    },
+    "error": null
+  },
+  {
+    "input": "https://www.instagram.com/petercoleslanguages",
+    "result": {
+      "username": "petercoleslanguages",
+      "sufficiency": {
+        "verdict": "retryable",
+        "data_quality": "unreliable",
+        "reasons": [
+          "profile_capture_failed"
+        ],
+        "exclusion_evidence": null
+      },
+      "snapshot": null,
+      "extraction": null,
+      "challenger": null,
+      "challenger_trigger": "none",
+      "decision": {
+        "scorecard_version": "personal-brand-score-v1",
+        "evidence_snapshot_id": "none",
+        "extraction_id": null,
+        "track": "uncertain",
+        "icp_eligible": true,
+        "hard_exclusion": false,
+        "rejection_reason": null,
+        "signal_states": {
+          "information_funnel": "unknown",
+          "proof": "unknown",
+          "authority": "unknown",
+          "transformation": "unknown",
+          "cta": "unknown",
+          "human_personal_brand": "unknown"
+        },
+        "primary_visitor_outcome": null,
+        "scores": {
+          "buyer_clarity": 0,
+          "transformation_clarity": 0,
+          "information_funnel_evidence": 0,
+          "conversion_intent": 0,
+          "proof_strength": 0,
+          "authority_strength": 0,
+          "proof_maturity": 0,
+          "commercial_fit": 0
+        },
+        "score_components": {},
+        "certainty": "low",
+        "challenger_agreement": null,
+        "challenger_result": null,
+        "decision": "data_retry",
+        "mode": "retry_required",
+        "automatic_approval_eligible": false,
+        "decision_reasons": [
+          "profile_unavailable"
+        ],
+        "review_flags": [
+          "unreliable_data"
+        ],
+        "priority": null,
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "challenger_prompt_version": "personal-brand-challenger-v1",
+          "scorecard_version": "personal-brand-score-v1",
+          "config_version": "config-v1",
+          "pipeline_version": "commercial-qualification-1.0.0"
+        },
+        "decided_at": "2026-07-31T17:32:08.653Z"
+      },
+      "timings_ms": {
+        "acquisition": 0,
+        "extraction": 0,
+        "challenger": 0,
+        "total": 0
+      },
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": 0
+      }
+    },
+    "error": null
+  }
+]

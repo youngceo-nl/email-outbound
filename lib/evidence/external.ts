@@ -26,6 +26,7 @@ import {
   isYouTubeHost,
   type PageExtraction,
 } from "./page-extract";
+import { youtubeIdentity } from "./youtube";
 
 // ---------------------------------------------------------------------------
 // Link ranking
@@ -240,6 +241,9 @@ export async function collectExternalEvidence(opts: {
   const ctaHops: CtaHop[] = [];
   const youtubeUrls = new Set<string>();
   const visited = new Set<string>();
+  // Keyed by video/channel identity so ?t=, ?pp=, m. and youtu.be variants of the
+  // same video collapse to a single hop instead of repeating down the chain.
+  const youtubeSeen = new Set<string>();
 
   type QueueItem = {
     url: string;
@@ -293,6 +297,9 @@ export async function collectExternalEvidence(opts: {
 
     // YouTube is handed to the dedicated collector rather than scraped as HTML.
     if (isYouTubeHost(item.url)) {
+      const identity = youtubeIdentity(item.url);
+      if (identity && youtubeSeen.has(identity)) continue;
+      if (identity) youtubeSeen.add(identity);
       youtubeUrls.add(item.url);
       ctaHops.push({
         hop: ctaHops.length,
@@ -425,8 +432,11 @@ export async function collectExternalEvidence(opts: {
      * — exactly the case where YouTube is most likely to be the real funnel.
      */
     for (const link of unvisited.filter((candidate) => isYouTubeHost(candidate.url))) {
-      youtubeUrls.add(link.url);
       visited.add(link.url);
+      const identity = youtubeIdentity(link.url);
+      if (identity && youtubeSeen.has(identity)) continue;
+      if (identity) youtubeSeen.add(identity);
+      youtubeUrls.add(link.url);
       ctaHops.push({
         hop: ctaHops.length,
         source_type: isHub ? "link_hub" : "external_page",

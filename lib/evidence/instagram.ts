@@ -89,6 +89,7 @@ export function normalizeInstagramEvidence(input: InstagramAcquisitionInput): In
       profile_extraction_method: input.extractionMethod ?? "provider",
       profile_capture_status: input.providerError ? "failed" : "unavailable",
       profile_captured_at: null,
+      external_link_capture_status: "not_attempted",
       recent_posts: [],
       recent_posts_capture_status: "not_attempted",
       pinned_posts: [],
@@ -150,6 +151,10 @@ export function normalizeInstagramEvidence(input: InstagramAcquisitionInput): In
     profile_extraction_method: input.extractionMethod ?? "provider",
     profile_capture_status: "captured",
     profile_captured_at: capturedAt,
+    // The metadata fallback parses the public profile page, which does not
+    // expose the bio link at all — that surface stays unknown.
+    external_link_capture_status:
+      (input.extractionMethod ?? "provider") === "metadata_fallback" ? "unavailable" : "captured",
     recent_posts: allPosts.filter((post) => !post.is_pinned).slice(0, 18),
     recent_posts_capture_status: recentPostsStatus,
     pinned_posts: pinned,
@@ -268,6 +273,13 @@ export async function fetchInstagramEvidence(opts: {
       url,
       premiumProxy: true,
       forwardHeaders: headers,
+      /*
+       * One retry, not three. This endpoint returns a hard 500 for a meaningful
+       * share of accounts, and we have a working metadata fallback — spending
+       * three 45s attempts before reaching it just makes acquisition slow and
+       * occasionally times the whole lead out.
+       */
+      retries: 1,
     });
     const parsed = JSON.parse(body) as { data?: { user?: RawInstagramUser } };
     const user = parsed?.data?.user ?? null;
@@ -287,6 +299,115 @@ export async function fetchInstagramEvidence(opts: {
       capturedAt: new Date().toISOString(),
     };
   }
+}
+
+/*
+ * Fallback acquisition: the public profile page.
+ *
+ * The web_profile_info endpoint returns a hard 500 for some accounts while the
+ * ordinary profile page still renders. That page embeds the biography and
+ * display name in JSON and reports follower/following/post counts in its
+ * og:description, which is enough for a bio-only commercial score. It does NOT
+ * expose the external link, so that surface is recorded as unavailable rather
+ * than absent.
+ */
+export async function fetchInstagramEvidenceViaMetadata(opts: {
+  apiKey: string;
+  username: string;
+}): Promise<InstagramAcquisitionInput> {
+  try {
+    const { body } = await scrapingBeeGet({
+      apiKey: opts.apiKey,
+      url: `https://www.instagram.com/${encodeURIComponent(opts.username)}/`,
+      premiumProxy: true,
+    });
+
+    const biography = extractJsonString(body, "biography");
+    const fullName = extractJsonString(body, "full_name");
+    const metaDescription = decodeEntities(
+      body.match(/<meta property="og:description" content="([^"]*)"/)?.[1] ?? "",
+    );
+
+    if (!biography && !metaDescription) {
+      return {
+        username: opts.username,
+        user: null,
+        providerError: "metadata fallback found no bio or description",
+        extractionMethod: "metadata_fallback",
+        capturedAt: new Date().toISOString(),
+      };
+    }
+
+    const counts = metaDescription.match(
+      /([\d.,]+[KMB]?)\s+Followers,\s+([\d.,]+[KMB]?)\s+Following,\s+([\d.,]+[KMB]?)\s+Posts/i,
+    );
+
+    return {
+      username: opts.username,
+      user: {
+        username: opts.username,
+        full_name: fullName ?? undefined,
+        biography: biography ?? undefined,
+        is_private: /"is_private":true/.test(body),
+        is_verified: /"is_verified":true/.test(body),
+        edge_followed_by: counts ? { count: parseCompact(counts[1]) } : undefined,
+        edge_follow: counts ? { count: parseCompact(counts[2]) } : undefined,
+        // Posts exist but were not returned by this surface. Reporting the count
+        // without the sample is what lets sufficiency mark the sample unknown
+        // instead of treating the account as inactive.
+        edge_owner_to_timeline_media: counts ? { count: parseCompact(counts[3]) } : undefined,
+      },
+      metaDescription,
+      extractionMethod: "metadata_fallback",
+      capturedAt: new Date().toISOString(),
+    };
+  } catch (err) {
+    return {
+      username: opts.username,
+      user: null,
+      providerError: err instanceof Error ? err.message : String(err),
+      extractionMethod: "metadata_fallback",
+      capturedAt: new Date().toISOString(),
+    };
+  }
+}
+
+/** Provider endpoint first, public profile page when it fails. */
+export async function acquireInstagramEvidence(opts: {
+  apiKey: string;
+  username: string;
+  sessionCookie?: string | null;
+}): Promise<InstagramAcquisitionInput> {
+  const primary = await fetchInstagramEvidence(opts);
+  if (primary.user) return primary;
+  return fetchInstagramEvidenceViaMetadata({ apiKey: opts.apiKey, username: opts.username });
+}
+
+function extractJsonString(html: string, key: string): string | null {
+  const match = html.match(new RegExp(`"${key}":"((?:[^"\\\\]|\\\\.)*)"`));
+  if (!match) return null;
+  try {
+    const value = JSON.parse(`"${match[1]}"`) as string;
+    return value.trim().length > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function decodeEntities(raw: string): string {
+  return raw
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function parseCompact(raw: string): number {
+  const match = raw.replace(/,/g, "").match(/([\d.]+)\s*([KMB])?/i);
+  if (!match) return 0;
+  const multiplier = { K: 1e3, M: 1e6, B: 1e9 }[(match[2] ?? "").toUpperCase()] ?? 1;
+  return Math.round(Number(match[1]) * multiplier);
 }
 
 /** Extracts an Instagram username from any profile URL form the operator pastes. */

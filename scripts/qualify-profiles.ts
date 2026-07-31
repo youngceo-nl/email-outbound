@@ -20,12 +20,17 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import {
-  fetchInstagramEvidence,
+  acquireInstagramEvidence,
   normalizeInstagramEvidence,
   usernameFromInstagramUrl,
 } from "@/lib/evidence/instagram";
 import { createPageFetcher, DEFAULT_EXTERNAL_CONFIG } from "@/lib/evidence/external";
-import { runCommercialQualification, type QualificationRunResult } from "@/lib/qualification/run";
+import {
+  requalifyFromSnapshot,
+  runCommercialQualification,
+  type QualificationRunResult,
+} from "@/lib/qualification/run";
+import type { EvidenceSnapshot } from "@/lib/qualification/types";
 import { createLlmClient, type LlmProvider } from "@/lib/qualification/providers";
 
 type Args = {
@@ -34,6 +39,8 @@ type Args = {
   model: string;
   challengerModel: string;
   out: string | null;
+  /** Re-run extraction and decisioning against stored snapshots, no acquisition. */
+  replay: string | null;
   concurrency: number;
 };
 
@@ -43,6 +50,7 @@ function parseArgs(argv: string[]): Args {
   let model: string | null = null;
   let challengerModel: string | null = null;
   let out: string | null = null;
+  let replay: string | null = null;
   let concurrency = 2;
 
   for (let i = 0; i < argv.length; i++) {
@@ -51,6 +59,7 @@ function parseArgs(argv: string[]): Args {
     else if (arg === "--model") model = argv[++i];
     else if (arg === "--challenger-model") challengerModel = argv[++i];
     else if (arg === "--out") out = argv[++i];
+    else if (arg === "--replay") replay = argv[++i];
     else if (arg === "--concurrency") concurrency = Number(argv[++i]) || 3;
     else if (arg === "--file") {
       const contents = readFileSync(argv[++i], "utf8");
@@ -76,19 +85,20 @@ function parseArgs(argv: string[]): Args {
       challengerModel ??
       (resolvedProvider === "anthropic" ? "claude-opus-5" : resolvedModel),
     out,
+    replay,
     concurrency,
   };
 }
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  if (args.inputs.length === 0) {
+  if (args.inputs.length === 0 && !args.replay) {
     console.error("usage: npx tsx scripts/qualify-profiles.ts <instagram-url-or-username> [...]");
     process.exit(1);
   }
 
   const scrapingBeeKey = process.env.SCRAPINGBEE_API_KEY ?? null;
-  if (!scrapingBeeKey) {
+  if (!scrapingBeeKey && !args.replay) {
     console.error("SCRAPINGBEE_API_KEY is required to acquire Instagram profile evidence.");
     process.exit(1);
   }
@@ -106,7 +116,13 @@ async function main(): Promise<void> {
     model: args.challengerModel,
     apiKey,
   });
+  if (args.replay) {
+    await runReplay(args, llm, challengerLlm);
+    return;
+  }
+
   const externalConfig = { ...DEFAULT_EXTERNAL_CONFIG, scrapingBeeApiKey: scrapingBeeKey };
+
   const fetchPage = createPageFetcher(externalConfig);
 
   const usernames = args.inputs.map((input) => ({
@@ -135,8 +151,8 @@ async function main(): Promise<void> {
         continue;
       }
       try {
-        const raw = await fetchInstagramEvidence({
-          apiKey: scrapingBeeKey,
+        const raw = await acquireInstagramEvidence({
+          apiKey: scrapingBeeKey as string,
           username: item.username,
           sessionCookie: process.env.INSTAGRAM_SESSION_COOKIE ?? null,
         });
@@ -172,6 +188,57 @@ async function main(): Promise<void> {
   if (args.out) {
     mkdirSync(dirname(args.out), { recursive: true });
     writeFileSync(args.out, JSON.stringify(ordered, null, 2));
+    console.log(`\nFull evidence bundle written to ${args.out}`);
+  }
+}
+
+/*
+ * Replay mode. Loads stored snapshots and re-runs extraction + decisioning only.
+ * Costs no acquisition credits and is deterministic with respect to the evidence,
+ * which is what makes prompt and scorecard comparisons meaningful.
+ */
+async function runReplay(
+  args: Args,
+  llm: ReturnType<typeof createLlmClient>,
+  challengerLlm: ReturnType<typeof createLlmClient>,
+): Promise<void> {
+  const bundle = JSON.parse(readFileSync(args.replay as string, "utf8")) as Array<{
+    input: string;
+    result: { snapshot: EvidenceSnapshot | null } | null;
+  }>;
+
+  const withSnapshots = bundle.filter((entry) => entry.result?.snapshot);
+  console.log(
+    `\nReplaying ${withSnapshots.length} stored snapshot(s) from ${args.replay}\n` +
+      `  extractor:  ${args.provider}/${args.model}\n` +
+      `  challenger: ${args.provider}/${args.challengerModel}\n` +
+      `  (no acquisition — snapshots are replayed exactly as captured)\n` +
+      `${"=".repeat(78)}`,
+  );
+
+  const results: Array<{ input: string; result: QualificationRunResult | null; error: string | null }> = [];
+  for (const entry of bundle) {
+    const snapshot = entry.result?.snapshot;
+    if (!snapshot) {
+      results.push({ input: entry.input, result: null, error: "no stored snapshot to replay" });
+      continue;
+    }
+    try {
+      const result = await requalifyFromSnapshot({ snapshot, llm, challengerLlm });
+      results.push({ input: entry.input, result, error: null });
+      process.stderr.write(`  done: @${result.username} -> ${result.decision.decision}/${result.decision.mode}\n`);
+    } catch (err) {
+      results.push({ input: entry.input, result: null, error: err instanceof Error ? err.message : String(err) });
+      process.stderr.write(`  FAILED: ${entry.input}: ${err}\n`);
+    }
+  }
+
+  for (const entry of results) printReport(entry);
+  printSummary(results);
+
+  if (args.out) {
+    mkdirSync(dirname(args.out), { recursive: true });
+    writeFileSync(args.out, JSON.stringify(results, null, 2));
     console.log(`\nFull evidence bundle written to ${args.out}`);
   }
 }
@@ -248,7 +315,7 @@ function printReport(entry: { input: string; result: QualificationRunResult | nu
         console.log(`    - ${offer.name ?? offer.offer_id} [${offer.type}/${offer.prominence}] -> ${offer.visitor_receives.join(",") || "?"}`);
       }
     }
-    const proofs = [...ex.proof.claims, ...ex.proof_attribution];
+    const proofs = [...new Map([...ex.proof.claims, ...ex.proof_attribution].map((p) => [p.proof_id, p])).values()];
     if (proofs.length > 0) {
       console.log(`  proof:`);
       for (const proof of proofs) console.log(`    - ${truncate(proof.claim, 60)} [${proof.beneficiary}]`);

@@ -229,6 +229,110 @@ export async function runCommercialQualification(
   };
 }
 
+/*
+ * Replay a stored snapshot through extraction and decisioning with no
+ * acquisition at all.
+ *
+ * This is what makes the immutable snapshot worth storing: a new prompt version,
+ * a new scorecard, or a different model can be evaluated against exactly the
+ * bytes that produced an earlier decision — no re-scraping, no drift, and no
+ * dependency on the profile still looking the way it did.
+ */
+export async function requalifyFromSnapshot(opts: {
+  snapshot: EvidenceSnapshot;
+  llm: LlmClient;
+  challengerLlm?: LlmClient;
+  scorecard?: Scorecard;
+  followerRange?: FollowerRange;
+  auditSample?: boolean;
+  now?: () => string;
+}): Promise<QualificationRunResult> {
+  const started = Date.now();
+  const now = opts.now ?? (() => new Date().toISOString());
+  const challengerLlm = opts.challengerLlm ?? opts.llm;
+  const scorecard = opts.scorecard ?? ACTIVE_SCORECARD;
+  const snapshot = opts.snapshot;
+
+  const sufficiency = assessSufficiency(snapshot.instagram);
+
+  const extractionStart = Date.now();
+  const extraction = await extractCommercialEvidence({ snapshot, llm: opts.llm });
+  const extractionMs = Date.now() - extractionStart;
+
+  if (!extraction.ok) {
+    const result = terminalResult({
+      username: snapshot.username,
+      sufficiency,
+      outcome: "review",
+      mode: "manual_review",
+      reasons: ["ai_output_invalid"],
+      deps: { now } as QualificationDependencies,
+      started,
+      snapshot,
+    });
+    return {
+      ...result,
+      extraction,
+      timings_ms: { acquisition: 0, extraction: extractionMs, challenger: 0, total: Date.now() - started },
+      usage: extraction.usage,
+    };
+  }
+
+  const provisional = decideCommercialQualification({
+    snapshot,
+    extraction: extraction.extraction,
+    challenger: null,
+    challengerAgrees: null,
+    citationWarnings: extraction.citation_warnings,
+    scorecard,
+    followerRange: opts.followerRange,
+    now,
+  });
+
+  const trigger = challengerTrigger({
+    proposedAutoApproval:
+      provisional.decision === "qualified" &&
+      provisional.track === "information_personal_brand" &&
+      provisional.scores.commercial_fit >= scorecard.thresholds.auto_approve_min,
+    trackMixed: provisional.review_flags.includes("agency_information_mixed"),
+    conflicts: extraction.extraction.conflicts.length,
+    hardExclusion: provisional.hard_exclusion,
+    acquisitionFailed: snapshot.acquisition_sufficiency === "insufficient",
+    auditSample: opts.auditSample,
+  });
+
+  let challenger: ChallengerDecision | null = null;
+  let challengerMs = 0;
+  if (trigger !== "none") {
+    const challengerStart = Date.now();
+    challenger = await runChallenger({ snapshot, extraction: extraction.extraction, llm: challengerLlm });
+    challengerMs = Date.now() - challengerStart;
+  }
+
+  const decision = decideCommercialQualification({
+    snapshot,
+    extraction: extraction.extraction,
+    challenger: challenger?.result ?? null,
+    challengerAgrees: challenger?.agrees ?? null,
+    citationWarnings: extraction.citation_warnings,
+    scorecard,
+    followerRange: opts.followerRange,
+    now,
+  });
+
+  return {
+    username: snapshot.username,
+    sufficiency,
+    snapshot,
+    extraction,
+    challenger,
+    challenger_trigger: trigger,
+    decision,
+    timings_ms: { acquisition: 0, extraction: extractionMs, challenger: challengerMs, total: Date.now() - started },
+    usage: extraction.usage,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Terminal results that never reached the model
 // ---------------------------------------------------------------------------

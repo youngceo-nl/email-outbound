@@ -93,6 +93,20 @@ High-value concepts include:
 - a named method, mechanism, framework, system, challenge, or program
 - revenue, client, student, transformation, or audience proof
 
+CONVERSION INTENT IS ABOUT THE ACTION, NOT THE DELIVERABLE
+conversion_cta.label measures how DIRECT the requested action is. It does not
+describe what the visitor eventually receives.
+
+A "DM [keyword]" or "comment [keyword]" instruction is ALWAYS
+direct_sales_action, even when the thing sent back is free or informational.
+Example: Comment "PAGES" and I will send you the blueprint -> direct_sales_action.
+It evidences an operating comment funnel; it is NOT information_action. Use
+information_action only for a passive invitation with no requested reply, such as
+a bare link or "watch my latest video".
+
+Any entry in DETECTED DIRECT-RESPONSE CTAs with action "dm" or "comment" means
+the label is direct_sales_action. Cite the underlying post or bio text for it.
+
 CTA PATTERNS
 Recognize variable patterns rather than named campaign words:
 - DM [keyword]
@@ -235,8 +249,18 @@ offer_inventory, proof_inventory, primary_offer, primary_offer_delivery,
 done_for_you_service_evidence, independent_information_offer_evidence,
 conflicts, unknowns, acquisition_observations, citations.
 
-Each citation is:
-{ "source_type": "...", "source_id": "...", "url": null, "field": "...", "phrase": "..." }
+CITATIONS ARE A REFERENCE TABLE
+List every citation ONCE in the top-level "citations" array. Every signal, offer,
+proof claim, and evidence bundle then references those citations by ARRAY INDEX
+through its "evidence_ids" field (e.g. "evidence_ids": [0, 3]).
+
+Each entry of "citations" is:
+{ "source_type": "...", "source_id": "...", "url": "", "field": "...", "phrase": "..." }
+
+Use "" (empty string) rather than null for any string you cannot fill.
+Use "unknown" for primary_visitor_outcome when it cannot be established.
+A state of "present" or "conflicting", or any strength other than "absent",
+REQUIRES at least one entry in that field's evidence_ids.
 
 KEY FIELD NOTES
 - primary_visitor_outcome: what the visitor ULTIMATELY receives after the CTA
@@ -410,6 +434,9 @@ CTA CHAIN
 ${json(snapshot.cta_chain)}
 primary_cta: ${json(snapshot.primary_cta)}
 ultimate_cta: ${json(snapshot.ultimate_cta)}
+
+DETECTED DIRECT-RESPONSE CTAs (deterministic; verify against the source text)
+${json(snapshot.direct_response_ctas)}
 
 PRECOMPUTED OFFER INVENTORY (seed hints — verify against evidence)
 ${json(snapshot.offer_inventory_seed)}

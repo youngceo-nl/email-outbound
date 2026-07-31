@@ -1,0 +1,734 @@
+[
+  {
+    "input": "enzobardoul",
+    "result": {
+      "username": "enzobardoul",
+      "sufficiency": {
+        "verdict": "review_required",
+        "data_quality": "unreliable",
+        "reasons": [
+          "posts_claimed_but_none_returned"
+        ],
+        "exclusion_evidence": null
+      },
+      "snapshot": {
+        "snapshot_id": "610fdf7a-779b-41ee-a20b-03b893ec3b08",
+        "lead_id": null,
+        "username": "enzobardoul",
+        "captured_at": "2026-07-31T18:15:49.816Z",
+        "instagram": {
+          "username": "enzobardoul",
+          "display_name": "Enzo Bardoul",
+          "category": null,
+          "bio": "Code “enzo” on Lucid/Apex/Alpha \nLongest running live trading discord 🏆\nI trade Futures live M-F using my model \nClick below to trade with me 👇",
+          "external_link": null,
+          "is_private": false,
+          "is_verified": true,
+          "followers": 46000,
+          "following": 2217,
+          "total_posts": 30,
+          "instagram_meta_description": "46K Followers, 2,217 Following, 30 Posts - See Instagram photos and videos from Enzo Bardoul (@enzobardoul)",
+          "profile_extraction_method": "metadata_fallback",
+          "profile_capture_status": "captured",
+          "profile_captured_at": "2026-07-31T18:15:49.814Z",
+          "external_link_capture_status": "unavailable",
+          "recent_posts": [],
+          "recent_posts_capture_status": "unavailable",
+          "pinned_posts": [],
+          "pinned_posts_capture_status": "unavailable",
+          "story_highlight_titles": [],
+          "story_highlights_capture_status": "not_attempted",
+          "story_highlights_captured_at": null
+        },
+        "external_destinations": [],
+        "external_capture_status": "captured",
+        "youtube_channels": [],
+        "youtube_videos": [],
+        "cta_chain": [],
+        "primary_cta": null,
+        "ultimate_cta": null,
+        "offer_inventory_seed": [],
+        "proof_inventory_seed": [],
+        "direct_response_ctas": [],
+        "acquisition_stop_reason": "no_external_link",
+        "acquisition_sufficiency": "insufficient",
+        "unknown_surfaces": [
+          {
+            "surface": "instagram_recent_posts",
+            "capture_status": "unavailable",
+            "reason": "post sample not returned by provider"
+          },
+          {
+            "surface": "instagram_pinned_posts",
+            "capture_status": "unavailable",
+            "reason": "provider does not report pinned markers"
+          },
+          {
+            "surface": "instagram_external_link",
+            "capture_status": "unavailable",
+            "reason": "bio link not exposed by the acquisition method used"
+          },
+          {
+            "surface": "story_highlights",
+            "capture_status": "not_attempted",
+            "reason": "highlight titles require an authenticated surface not attempted in v1"
+          }
+        ],
+        "hops_used": 0,
+        "activity": {
+          "data_quality": "unreliable",
+          "median_unpinned_reel_views": null,
+          "reel_view_rate": null,
+          "posts_last_30_days": null,
+          "reels_last_30_days": null,
+          "days_since_latest_post": null,
+          "median_likes_per_follower": null
+        },
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "fixture_revision": "fixtures-2026-07-31"
+        }
+      },
+      "extraction": {
+        "ok": true,
+        "extraction": {
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "evidence_snapshot_id": "610fdf7a-779b-41ee-a20b-03b893ec3b08",
+          "human_personal_brand": {
+            "state": "present",
+            "strength": "credible",
+            "evidence": [
+              {
+                "source_type": "display_name",
+                "source_id": "profile",
+                "url": null,
+                "field": "display_name",
+                "phrase": "Enzo Bardoul"
+              },
+              {
+                "source_type": "instagram_metadata",
+                "source_id": "profile",
+                "url": null,
+                "field": "followers",
+                "phrase": "46000"
+              }
+            ]
+          },
+          "audience": {
+            "label": "specific",
+            "value": "futures traders, discord community members seeking live trading signals",
+            "evidence": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Longest running live trading discord 🏆"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "I trade Futures live M-F using my model"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Click below to trade with me 👇"
+              }
+            ]
+          },
+          "transformation": {
+            "state": "present",
+            "strength": "weak",
+            "label": "implied_result",
+            "outcome": "learn to trade futures live using a proprietary model",
+            "evidence": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "I trade Futures live M-F using my model"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Click below to trade with me 👇"
+              }
+            ]
+          },
+          "information_funnel": {
+            "state": "present",
+            "strength": "credible",
+            "label": "visible_offer",
+            "visitor_receives": [
+              "managed_trading"
+            ],
+            "asset_or_offer": "live trading discord community with code-based access",
+            "evidence": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Longest running live trading discord 🏆"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "I trade Futures live M-F using my model"
+              }
+            ]
+          },
+          "cta": {
+            "state": "present",
+            "strength": "credible",
+            "label": "direct_sales_action",
+            "action": "code entry or click link to trade",
+            "token_or_asset": "enzo code for Lucid/Apex/Alpha platforms",
+            "evidence": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Code \"enzo\" on Lucid/Apex/Alpha"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Click below to trade with me 👇"
+              }
+            ]
+          },
+          "proof": {
+            "state": "unknown",
+            "strength": "absent",
+            "label": "absent",
+            "claims": [
+              {
+                "proof_id": "proof_1",
+                "claim": "Longest running live trading discord",
+                "beneficiary": "self",
+                "result_type": "other",
+                "value": null,
+                "currency": null,
+                "attributed_offer_id": "offer_1",
+                "producing_model": null,
+                "self_reported": true,
+                "evidence": [
+                  {
+                    "source_type": "bio",
+                    "source_id": "profile",
+                    "url": null,
+                    "field": "bio",
+                    "phrase": "Longest running live trading discord 🏆"
+                  }
+                ]
+              },
+              {
+                "proof_id": "proof_2",
+                "claim": "Trades Futures live M-F using proprietary model",
+                "beneficiary": "self",
+                "result_type": "other",
+                "value": null,
+                "currency": null,
+                "attributed_offer_id": "offer_2",
+                "producing_model": null,
+                "self_reported": true,
+                "evidence": [
+                  {
+                    "source_type": "bio",
+                    "source_id": "profile",
+                    "url": null,
+                    "field": "bio",
+                    "phrase": "I trade Futures live M-F using my model"
+                  }
+                ]
+              }
+            ],
+            "evidence": []
+          },
+          "authority": {
+            "state": "present",
+            "strength": "credible",
+            "label": "credible",
+            "types": [
+              "demonstrated_trading_activity",
+              "owned_community",
+              "verified_account",
+              "named_mechanism:discord:Longest running live trading discord"
+            ],
+            "evidence": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "I trade Futures live M-F using my model"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Click below to trade with me 👇"
+              },
+              {
+                "source_type": "instagram_metadata",
+                "source_id": "profile",
+                "url": null,
+                "field": "followers",
+                "phrase": "46000"
+              }
+            ]
+          },
+          "business_models": [
+            {
+              "type": "agency_service",
+              "prominence": "primary",
+              "evidence": [
+                {
+                  "source_type": "bio",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "bio",
+                  "phrase": "Code \"enzo\" on Lucid/Apex/Alpha"
+                },
+                {
+                  "source_type": "bio",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "bio",
+                  "phrase": "Longest running live trading discord 🏆"
+                },
+                {
+                  "source_type": "bio",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "bio",
+                  "phrase": "I trade Futures live M-F using my model"
+                },
+                {
+                  "source_type": "bio",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "bio",
+                  "phrase": "Click below to trade with me 👇"
+                }
+              ]
+            }
+          ],
+          "offers": [
+            {
+              "offer_id": "offer_1",
+              "name": "Live Trading Discord Community",
+              "type": "managed_trading",
+              "prominence": "primary",
+              "audience": "futures traders",
+              "delivery": "live trading signals and community access via Discord",
+              "visitor_receives": [
+                "managed_trading"
+              ],
+              "customer_implementation_role": "none",
+              "price": "unknown",
+              "cta": "Click below to trade with me",
+              "evidence": [
+                {
+                  "source_type": "bio",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "bio",
+                  "phrase": "Code \"enzo\" on Lucid/Apex/Alpha"
+                },
+                {
+                  "source_type": "bio",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "bio",
+                  "phrase": "Longest running live trading discord 🏆"
+                },
+                {
+                  "source_type": "bio",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "bio",
+                  "phrase": "I trade Futures live M-F using my model"
+                },
+                {
+                  "source_type": "bio",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "bio",
+                  "phrase": "Click below to trade with me 👇"
+                }
+              ]
+            },
+            {
+              "offer_id": "offer_2",
+              "name": "Trading Model Access",
+              "type": "signals_service",
+              "prominence": "primary",
+              "audience": "futures traders",
+              "delivery": "live trading model and signals",
+              "visitor_receives": [
+                "signals_service"
+              ],
+              "customer_implementation_role": "none",
+              "price": "unknown",
+              "cta": "Code entry on trading platforms",
+              "evidence": [
+                {
+                  "source_type": "bio",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "bio",
+                  "phrase": "Code \"enzo\" on Lucid/Apex/Alpha"
+                },
+                {
+                  "source_type": "bio",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "bio",
+                  "phrase": "I trade Futures live M-F using my model"
+                }
+              ]
+            }
+          ],
+          "proof_attribution": [
+            {
+              "proof_id": "proof_1",
+              "claim": "Longest running live trading discord",
+              "beneficiary": "self",
+              "result_type": "other",
+              "value": null,
+              "currency": null,
+              "attributed_offer_id": "offer_1",
+              "producing_model": null,
+              "self_reported": true,
+              "evidence": [
+                {
+                  "source_type": "bio",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "bio",
+                  "phrase": "Longest running live trading discord 🏆"
+                }
+              ]
+            },
+            {
+              "proof_id": "proof_2",
+              "claim": "Trades Futures live M-F using proprietary model",
+              "beneficiary": "self",
+              "result_type": "other",
+              "value": null,
+              "currency": null,
+              "attributed_offer_id": "offer_2",
+              "producing_model": null,
+              "self_reported": true,
+              "evidence": [
+                {
+                  "source_type": "bio",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "bio",
+                  "phrase": "I trade Futures live M-F using my model"
+                }
+              ]
+            }
+          ],
+          "primary_visitor_outcome": "managed_trading",
+          "primary_cta": "code entry or click link to trade",
+          "ultimate_cta": "Click below to trade with me",
+          "cta_chain_resolved": false,
+          "acquisition_sufficiency": "insufficient",
+          "agency_evidence_bundle": {
+            "service_delivery": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "I trade Futures live M-F using my model"
+              }
+            ],
+            "team_performance": [],
+            "service_cta": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Click below to trade with me 👇"
+              }
+            ],
+            "reliability": "incomplete"
+          },
+          "agency_service_evidence": [
+            {
+              "source_type": "bio",
+              "source_id": "profile",
+              "url": null,
+              "field": "bio",
+              "phrase": "I trade Futures live M-F using my model"
+            }
+          ],
+          "exclusion_evidence": [],
+          "conflicts": [
+            "Primary offer delivery classified as done_for_you_service (managed trading) but no explicit team-performance language present. The model is self-traded by Enzo, not managed by a team for customers."
+          ],
+          "data_quality": "unreliable",
+          "unknown_surfaces": [
+            "instagram_recent_posts",
+            "instagram_pinned_posts",
+            "instagram_external_link",
+            "story_highlights",
+            "Whether customers receive managed trading (team executes) or signals only (customer executes)",
+            "Pricing structure and payment terms",
+            "Specific results or performance metrics for community members or signal subscribers",
+            "Whether the Discord community includes educational content or is purely signals-based",
+            "External link destination and full offer details"
+          ],
+          "independent_information_offer": {
+            "own_audience": "absent",
+            "own_transformation": "absent",
+            "own_cta_path": "absent",
+            "information_delivery": "absent",
+            "sufficient_prominence": "absent",
+            "evidence": []
+          },
+          "named_mechanisms": [
+            {
+              "name": "Longest running live trading discord",
+              "kind": "discord",
+              "evidence": []
+            }
+          ]
+        },
+        "provider": "anthropic",
+        "model": "claude-haiku-4-5",
+        "usage": {
+          "inputTokens": 13542,
+          "outputTokens": 1350
+        },
+        "repaired": false,
+        "citation_warnings": [
+          "phrase not found verbatim in snapshot (instagram_metadata:profile): \"46000\"",
+          "phrase not found verbatim in snapshot (instagram_metadata:profile): \"46000\""
+        ]
+      },
+      "challenger": null,
+      "challenger_trigger": "none",
+      "decision": {
+        "scorecard_version": "personal-brand-score-v1",
+        "evidence_snapshot_id": "610fdf7a-779b-41ee-a20b-03b893ec3b08",
+        "extraction_id": null,
+        "track": "agency_service",
+        "icp_eligible": true,
+        "hard_exclusion": false,
+        "rejection_reason": null,
+        "signal_states": {
+          "human_personal_brand": "present",
+          "information_funnel": "present",
+          "cta": "present",
+          "transformation": "present",
+          "proof": "unknown",
+          "authority": "present"
+        },
+        "primary_visitor_outcome": "managed_trading",
+        "scores": {
+          "buyer_clarity": 1.5,
+          "transformation_clarity": 1.5,
+          "information_funnel_evidence": 1.5,
+          "conversion_intent": 2,
+          "proof_strength": 0,
+          "authority_strength": 0.75,
+          "proof_maturity": 0.75,
+          "commercial_fit": 7.25
+        },
+        "score_components": {
+          "buyer_clarity": {
+            "value": 1.5,
+            "label": "specific",
+            "reason": "buyer_clarity=specific -> 1.5 (futures traders, discord community members seeking live trading signals)",
+            "citations": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Longest running live trading discord 🏆"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "I trade Futures live M-F using my model"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Click below to trade with me 👇"
+              }
+            ]
+          },
+          "transformation_clarity": {
+            "value": 1.5,
+            "label": "implied_result",
+            "reason": "transformation_clarity=implied_result -> 1.5 (learn to trade futures live using a proprietary model)",
+            "citations": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "I trade Futures live M-F using my model"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Click below to trade with me 👇"
+              }
+            ]
+          },
+          "information_funnel_evidence": {
+            "value": 1.5,
+            "label": "visible_offer",
+            "reason": "information_funnel_evidence=visible_offer -> 1.5 (live trading discord community with code-based access)",
+            "citations": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Longest running live trading discord 🏆"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "I trade Futures live M-F using my model"
+              }
+            ]
+          },
+          "conversion_intent": {
+            "value": 2,
+            "label": "direct_sales_action",
+            "reason": "conversion_intent=direct_sales_action -> 2 (code entry or click link to trade)",
+            "citations": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Code \"enzo\" on Lucid/Apex/Alpha"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Click below to trade with me 👇"
+              }
+            ]
+          },
+          "proof_strength": {
+            "value": 0,
+            "label": "absent",
+            "reason": "proof_strength=absent -> 0 (Longest running live trading discord (self); Trades Futures live M-F using proprietary model (self); Longest running live trading discord (self))",
+            "citations": []
+          },
+          "authority_strength": {
+            "value": 0.75,
+            "label": "credible",
+            "reason": "authority_strength=credible -> 0.75 (demonstrated_trading_activity, owned_community, verified_account, named_mechanism:discord:Longest running live trading discord)",
+            "citations": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "I trade Futures live M-F using my model"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Click below to trade with me 👇"
+              },
+              {
+                "source_type": "instagram_metadata",
+                "source_id": "profile",
+                "url": null,
+                "field": "followers",
+                "phrase": "46000"
+              }
+            ]
+          }
+        },
+        "certainty": "low",
+        "challenger_agreement": null,
+        "challenger_result": null,
+        "decision": "review",
+        "mode": "manual_review",
+        "automatic_approval_eligible": false,
+        "decision_reasons": [
+          "excluded_track"
+        ],
+        "review_flags": [
+          "contradictory_evidence",
+          "unreliable_data",
+          "proof_unverified"
+        ],
+        "priority": {
+          "value": 6.44,
+          "data_completeness": "unknown",
+          "components": {
+            "commercial_fit": 0.73,
+            "proof_maturity": 0.38,
+            "reel_view_rate": null,
+            "posting_recency": null,
+            "posting_consistency": null
+          }
+        },
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "challenger_prompt_version": "personal-brand-challenger-v1",
+          "scorecard_version": "personal-brand-score-v1",
+          "config_version": "config-v1",
+          "pipeline_version": "commercial-qualification-1.0.0"
+        },
+        "decided_at": "2026-07-31T18:16:10.889Z"
+      },
+      "timings_ms": {
+        "acquisition": 4,
+        "extraction": 21068,
+        "challenger": 0,
+        "total": 21074
+      },
+      "usage": {
+        "inputTokens": 13542,
+        "outputTokens": 1350
+      }
+    },
+    "error": null
+  }
+]

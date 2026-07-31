@@ -59,10 +59,11 @@ function scriptedLlm(overrides: Record<string, unknown> = {}): LlmClient & { cal
   const calls: string[] = [];
   const client = (async (request) => {
     const isChallenger = request.system.includes("adversarial evidence verifier");
-    calls.push(isChallenger ? "challenger" : "extraction");
+    const isCommerce = request.user.includes("EXTRACTION PASS: COMMERCE");
+    calls.push(isChallenger ? "challenger" : isCommerce ? "commerce" : "signals");
 
     const cite = [
-      { source_type: "bio", source_id: "profile", url: null, field: "bio", phrase: "I help consultants get premium clients" },
+      { source_type: "bio", source_id: "profile", url: "", field: "bio", phrase: "I help consultants get premium clients" },
     ];
 
     const body = isChallenger
@@ -86,54 +87,63 @@ function scriptedLlm(overrides: Record<string, unknown> = {}): LlmClient & { cal
           evidence: cite,
           reason: "clear coaching funnel",
         }
-      : {
-          personal_brand: { state: "present", strength: "strong", evidence: cite },
-          audience: { label: "explicit", value: "consultants", evidence: cite },
-          transformation: { state: "present", strength: "strong", label: "explicit_result", outcome: "premium clients", evidence: cite },
-          information_funnel: { state: "present", strength: "credible", label: "visible_offer", visitor_receives: ["coaching"], asset_or_offer: "1:1 coaching", evidence: cite },
-          conversion_cta: { state: "present", strength: "strong", label: "direct_sales_action", action: "apply", token_or_asset: null, evidence: cite },
-          primary_visitor_outcome: "coaching",
-          proof: { state: "unknown", strength: "absent", label: "absent", evidence: [] },
-          authority: { state: "present", strength: "credible", label: "credible", types: ["specialization"], evidence: cite },
-          named_mechanisms: [],
-          offer_inventory: [
-            {
-              offer_id: "offer_1",
-              name: "1:1 coaching",
-              type: "coaching",
-              prominence: "primary",
-              audience: "consultants",
-              delivery: "private coaching",
-              visitor_receives: ["coaching"],
-              customer_implementation_role: "implements_with_guidance",
-              price: null,
-              cta: "apply for coaching",
-              evidence: cite,
+      : isCommerce
+        ? {
+            citations: cite,
+            offer_inventory: [
+              {
+                offer_id: "offer_1",
+                name: "1:1 coaching",
+                type: "coaching",
+                prominence: "primary",
+                audience: "consultants",
+                delivery: "private coaching",
+                customer_implementation_role: "implements_with_guidance",
+                price: "",
+                cta: "apply for coaching",
+                evidence_ids: [0],
+              },
+            ],
+            proof_inventory: [],
+            primary_offer: { offer_id: "offer_1", rationale: "only offer, primary bio CTA" },
+            primary_offer_delivery: "information",
+            done_for_you_service_evidence: {
+              service_delivery_ids: [],
+              team_performance_ids: [],
+              service_cta_ids: [],
+              reliability: "absent",
             },
-          ],
-          proof_inventory: [],
-          primary_offer: { offer_id: "offer_1", rationale: "only offer, primary bio CTA" },
-          primary_offer_delivery: "information",
-          done_for_you_service_evidence: { service_delivery: [], team_performance: [], service_cta: [], reliability: "absent" },
-          independent_information_offer_evidence: {
-            own_audience: "unknown",
-            own_transformation: "unknown",
-            own_cta_path: "unknown",
-            information_delivery: "unknown",
-            sufficient_prominence: "unknown",
-            evidence: [],
-          },
-          conflicts: [],
-          unknowns: [],
-          acquisition_observations: {
-            cta_chain_resolved: true,
-            acquisition_sufficiency: "sufficient",
-            data_quality: "complete",
-            unknown_surfaces: [],
-          },
-          citations: cite,
-          ...overrides,
-        };
+            independent_information_offer_evidence: {
+              own_audience: "unknown",
+              own_transformation: "unknown",
+              own_cta_path: "unknown",
+              information_delivery: "unknown",
+              sufficient_prominence: "unknown",
+              evidence_ids: [],
+            },
+            conflicts: [],
+            unknowns: [],
+            acquisition_observations: {
+              cta_chain_resolved: true,
+              acquisition_sufficiency: "sufficient",
+              data_quality: "complete",
+              unknown_surfaces: [],
+            },
+            ...overrides,
+          }
+        : {
+            citations: cite,
+            personal_brand: { state: "present", strength: "strong", evidence_ids: [0] },
+            audience: { label: "explicit", value: "consultants", evidence_ids: [0] },
+            transformation: { state: "present", strength: "strong", label: "explicit_result", outcome: "premium clients", evidence_ids: [0] },
+            information_funnel: { state: "present", strength: "credible", label: "visible_offer", asset_or_offer: "1:1 coaching", evidence_ids: [0] },
+            conversion_cta: { state: "present", strength: "strong", label: "direct_sales_action", action: "apply", token_or_asset: "", evidence_ids: [0] },
+            primary_visitor_outcome: "coaching",
+            proof: { state: "unknown", strength: "absent", evidence_ids: [] },
+            authority: { state: "present", strength: "credible", types: ["specialization"], evidence_ids: [0] },
+            named_mechanisms: [],
+            ...overrides,
+          };
 
     return {
       text: JSON.stringify(body),
@@ -163,7 +173,7 @@ test("runs acquisition, extraction, challenger, and decision in order", async ()
   assert.equal(result.sufficiency.verdict, "sufficient");
   assert.ok(result.snapshot);
   assert.equal(result.extraction?.ok, true);
-  assert.deepEqual(llm.calls, ["extraction", "challenger"]);
+  assert.deepEqual(llm.calls, ["signals", "commerce", "challenger"]);
   assert.equal(result.challenger_trigger, "proposed_auto_approval");
   assert.equal(result.decision.decision, "qualified");
   assert.equal(result.decision.mode, "auto_approved");
@@ -222,16 +232,9 @@ test("invalid model output routes to review rather than rejecting the lead", asy
 
 test("an extraction citing a nonexistent source is rejected as invalid", async () => {
   const inventing = scriptedLlm({
-    conversion_cta: {
-      state: "present",
-      strength: "strong",
-      label: "direct_sales_action",
-      action: "apply",
-      token_or_asset: null,
-      evidence: [
-        { source_type: "external_page", source_id: "destination_42", url: null, field: "cta", phrase: "Apply" },
-      ],
-    },
+    citations: [
+      { source_type: "external_page", source_id: "destination_42", url: "", field: "cta", phrase: "Apply" },
+    ],
   });
 
   const result = await runCommercialQualification({

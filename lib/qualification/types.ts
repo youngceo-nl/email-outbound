@@ -89,6 +89,13 @@ export type InstagramEvidence = {
 
   profile_capture_status: CaptureStatus;
   profile_captured_at: string | null;
+  /*
+   * Separate from the value itself. The metadata fallback cannot see the bio
+   * link at all, so a null link there means UNKNOWN — not "this profile has no
+   * link". Conflating the two would let a fallback-acquired profile look like a
+   * captured-and-empty external surface and wrongly reach high certainty.
+   */
+  external_link_capture_status: CaptureStatus;
 
   recent_posts: InstagramPostEvidence[];
   recent_posts_capture_status: CaptureStatus;
@@ -377,6 +384,12 @@ export type EvidenceSnapshot = {
 
   offer_inventory_seed: OfferEvidence[];
   proof_inventory_seed: ProofEvidence[];
+  /*
+   * Deterministically detected DM/comment-keyword funnels. Surfaced as explicit
+   * evidence because the extractor kept scoring them by what the visitor
+   * receives rather than by how direct the action is.
+   */
+  direct_response_ctas: DirectResponseCtaEvidence[];
 
   acquisition_stop_reason: AcquisitionStopReason;
   acquisition_sufficiency: AcquisitionSufficiency;
@@ -385,6 +398,13 @@ export type EvidenceSnapshot = {
 
   activity: ActivityMetrics;
   versions: AcquisitionVersions;
+};
+
+export type DirectResponseCtaEvidence = {
+  action: "dm" | "comment" | "apply" | "book";
+  keyword: string | null;
+  source: string;
+  phrase: string;
 };
 
 export type AcquisitionVersions = {

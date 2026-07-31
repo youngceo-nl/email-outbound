@@ -34,7 +34,11 @@ export const evidenceCitationSchema = z
   .object({
     source_type: evidenceSourceTypeSchema,
     source_id: z.string().min(1),
-    url: z.string().nullable().default(null),
+    // Structured output sends "" instead of null for absent URLs.
+    url: z.preprocess(
+      (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+      z.string().nullable().default(null),
+    ),
     field: z.string().min(1),
     phrase: z.string().min(1).max(600),
   })
