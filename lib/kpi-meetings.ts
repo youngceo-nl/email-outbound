@@ -23,3 +23,44 @@ export function countMeetingsInMonth(rows: string[][], monthDate: Date): number 
     return date !== null && date.getFullYear() === year && date.getMonth() === month;
   }).length;
 }
+
+import { google } from "googleapis";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let sheetsClient: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getSheetsClient(): any {
+  if (!sheetsClient) {
+    const auth = new google.auth.OAuth2(
+      process.env.GOOGLE_SHEETS_CLIENT_ID,
+      process.env.GOOGLE_SHEETS_CLIENT_SECRET,
+      "http://localhost",
+    );
+    auth.setCredentials({ refresh_token: process.env.GOOGLE_SHEETS_REFRESH_TOKEN });
+    sheetsClient = google.sheets({ version: "v4", auth });
+  }
+  return sheetsClient;
+}
+
+// Reads the same "Meetings" tab that appointment-setting-systems' Cal.com
+// webhook writes to (api/_lib/sheets.js's appendMeeting/getMeetings) - this
+// app has no meetings/Cal.com concept of its own, so the shared sheet is the
+// source of truth. Returns null (never throws) if the credentials aren't
+// configured yet or the request fails, so a missing/broken Sheets connection
+// shows "Not connected" on the dashboard instead of crashing the page.
+export async function fetchMeetingsBookedThisMonth(): Promise<number | null> {
+  const sheetId = process.env.KPI_SHEET_ID;
+  if (!sheetId || !process.env.GOOGLE_SHEETS_CLIENT_ID || !process.env.GOOGLE_SHEETS_REFRESH_TOKEN) {
+    return null;
+  }
+  try {
+    const res = await getSheetsClient().spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: "Meetings!A2:E",
+    });
+    const rows: string[][] = res.data.values ?? [];
+    return countMeetingsInMonth(rows, new Date());
+  } catch {
+    return null;
+  }
+}
