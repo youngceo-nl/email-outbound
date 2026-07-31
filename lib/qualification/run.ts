@@ -148,6 +148,7 @@ export async function runCommercialQualification(
       ...result,
       extraction,
       timings_ms: { acquisition: acquisitionMs, extraction: extractionMs, challenger: 0, total: Date.now() - started },
+      usage: extraction.usage,
     };
   }
 

@@ -35,6 +35,8 @@ export type ExtractionFailure = {
   problems: string[];
   provider: string | null;
   model: string | null;
+  /** Failed attempts still cost tokens; they must show up in cost reporting. */
+  usage: { inputTokens: number; outputTokens: number };
 };
 
 export type ExtractionResult = ExtractionSuccess | ExtractionFailure;
@@ -73,6 +75,7 @@ export async function extractCommercialEvidence(opts: {
         problems: [err instanceof Error ? err.message : String(err)],
         provider,
         model,
+        usage,
       };
     }
 
@@ -129,6 +132,7 @@ export async function extractCommercialEvidence(opts: {
     problems: attemptProblems,
     provider,
     model,
+    usage,
   };
 }
 

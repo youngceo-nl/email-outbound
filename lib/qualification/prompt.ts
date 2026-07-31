@@ -222,7 +222,41 @@ Return only valid JSON matching the required response contract. Do not return
 markdown, commentary, or fields outside the schema. Every positive state,
 non-absent strength label, and business-model conclusion must have cited
 evidence. Use null or an empty array when evidence is unavailable. Never invent
-profile facts.`;
+profile facts.
+
+RESPONSE CONTRACT
+Return exactly these keys, with exactly these names. The citation array on every
+signal is named "evidence" — not "citations". Extra keys are rejected.
+
+{
+  "human_personal_brand": { "state": "...", "strength": "...", "evidence": [] },
+  "audience": { "label": "...", "value": "string or null", "evidence": [] },
+  "transformation": { "state": "...", "strength": "...", "label": "...", "outcome": "string or null", "evidence": [] },
+  "information_funnel": { "state": "...", "strength": "...", "label": "...", "visitor_receives": [], "asset_or_offer": "string or null", "evidence": [] },
+  "cta": { "state": "...", "strength": "...", "label": "...", "action": "string or null", "token_or_asset": "string or null", "evidence": [] },
+  "proof": { "state": "...", "strength": "...", "label": "...", "claims": [], "evidence": [] },
+  "authority": { "state": "...", "strength": "...", "label": "...", "types": [], "evidence": [] },
+  "business_models": [ { "type": "...", "prominence": "...", "evidence": [] } ],
+  "offers": [ { "offer_id": "...", "name": null, "type": "...", "prominence": "...", "audience": null, "delivery": null, "visitor_receives": [], "customer_implementation_role": "...", "price": null, "cta": null, "evidence": [] } ],
+  "proof_attribution": [ { "proof_id": "...", "claim": "...", "beneficiary": "...", "result_type": "...", "value": null, "currency": null, "attributed_offer_id": null, "producing_model": null, "self_reported": true, "evidence": [] } ],
+  "primary_visitor_outcome": "... or null",
+  "primary_cta": "string or null",
+  "ultimate_cta": "string or null",
+  "cta_chain_resolved": true,
+  "acquisition_sufficiency": "sufficient | partial | insufficient",
+  "agency_evidence_bundle": { "service_delivery": [], "team_performance": [], "service_cta": [], "reliability": "reliable | incomplete | absent" },
+  "agency_service_evidence": [],
+  "exclusion_evidence": [],
+  "conflicts": [],
+  "data_quality": "complete | partial | unreliable",
+  "unknown_surfaces": []
+}
+
+Each entry of every "evidence" array is:
+{ "source_type": "...", "source_id": "...", "url": null, "field": "...", "phrase": "..." }
+
+"proof.claims" and "proof_attribution" entries use the proof object shape shown
+above, including the required "beneficiary" field.`;
 
 export const CHALLENGER_SYSTEM_PROMPT = `You are the adversarial evidence verifier for an Instagram lead. Inspect the
 same evidence independently. Test whether the core gate fails or whether the
