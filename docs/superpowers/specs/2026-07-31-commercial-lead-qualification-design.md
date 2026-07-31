@@ -4,19 +4,28 @@ _2026-07-31_
 
 ## Goal
 
-Qualify Instagram leads according to whether they operate a credible,
-expertise-based business that can buy the agency's service. The decision must
-primarily reflect commercial fit, not social engagement. Activity and reach
-help prioritize qualified leads, but weak likes, views, or posting cadence do
-not independently disqualify a commercially strong lead.
+Qualify Instagram leads according to whether they are human-led personal
+brands that publish and monetize information or expertise. The information
+funnel can be direct, such as coaching or a course, or indirect, such as a free
+blueprint, roadmap, training, application form, YouTube channel, or link hub
+that leads toward an information offer. The decision must primarily reflect
+personal-brand and information-funnel fit, not social engagement. Activity and
+reach help prioritize qualified leads, but weak likes, views, or posting
+cadence do not independently disqualify a strong lead.
+
+Agency owners and service agencies are not the target. A person who owns an
+agency qualifies only when their personal profile clearly operates a separate
+information business or education funnel for the audience. Selling done-for-you
+agency services under a personal brand is still an agency and does not qualify.
 
 The pipeline must explain every decision with stored evidence so a reviewer can
 see why a lead qualified, entered review, or was rejected.
 
 ## Guiding principles
 
-1. Commercial intent is the primary qualification signal.
-2. A clear buyer, transformation, offer, CTA, and proof matter more than likes.
+1. Personal-brand information intent is the primary qualification signal.
+2. A human expert, informational transformation, funnel, CTA, and proof matter
+   more than likes.
 3. Missing scraper data is not evidence that the profile lacks activity.
 4. Activity and reach rank qualified leads. They do not define qualification.
 5. Obvious non-leads should be removed before an AI call when the evidence is
@@ -137,16 +146,15 @@ supported non-English evidence into the same semantic groups while preserving
 the original text. The initial supported languages are English and Dutch
 because both appear in the confirmed ideal examples.
 
-#### Expertise and operator identity
+#### Personal-brand expert identity
 
 These terms indicate that the person operates an expertise-based business:
 
 ```text
 coach, coaching, business coach, transformation coach, physique coach,
 performance coach, fitness coach, consultant, consulting, mentor, mentorship,
-strategist, educator, expert, advisor, teacher, polyglot, founder, agency,
-media agency, marketing agency, sales agency, client acquisition agency,
-personal brand agency, academy, school, university
+strategist, educator, expert, advisor, teacher, polyglot, creator, author,
+speaker, founder, academy, school, university
 ```
 
 Strong phrases include:
@@ -213,24 +221,27 @@ A result phrase is stronger when it joins an action to a concrete outcome.
 Generic uses of `grow`, `scale`, or `success` without a buyer or business
 context receive only weak evidence.
 
-#### Paid offer and delivery model
+#### Information offer and funnel
 
-Offer terms include:
+Information-offer terms include:
 
 ```text
 1:1 coaching, 1-1 coaching, one-to-one coaching, private coaching,
 group coaching, consulting, mentorship, mastermind, accelerator, program,
 challenge, course, free course, training, workshop, bootcamp, academy,
-university, school, community, membership, done for you, done with you,
-agency service, client acquisition, personal brand management
+university, school, community, membership, blueprint, roadmap, guide,
+playbook, framework, masterclass, webinar, newsletter, YouTube
 ```
 
 The following are important policy rules:
 
 - Explicit 1:1 or private coaching is strong offer evidence. It is not a weak
   signal merely because it is not a scalable course.
-- A free course, blueprint, or training proves funnel intent but does not by
-  itself prove a paid offer.
+- A free course, blueprint, roadmap, guide, training, YouTube channel, or
+  newsletter is valid information-funnel evidence even when a paid offer is not
+  visible on Instagram. It is not treated as proof of a paid offer, but the
+  profile can still qualify when personal-brand, expertise, transformation,
+  and conversion evidence are strong.
 - A branded program name such as a challenge, university, accelerator, or
   proprietary system strengthens offer maturity when the surrounding context
   indicates delivery or transformation.
@@ -240,7 +251,7 @@ The following are important policy rules:
 
 #### Conversion and CTA
 
-Direct-response phrases include:
+Direct-response and information-funnel phrases include:
 
 ```text
 DM me, DM us, DM for, send me a DM, message me, DM "[keyword]",
@@ -248,7 +259,9 @@ comment "[keyword]", apply, apply now, apply below, book a call,
 book a strategy call, schedule a call, work with me, work with us,
 join now, enroll, start here, click below, link below, link in bio,
 get the blueprint, steal my blueprint, get the training,
-download, watch the training, request coaching
+get the roadmap, get the guide, free course, free training, download,
+watch the training, watch on YouTube, subscribe on YouTube, request coaching,
+application form, fill out the application
 ```
 
 Intent levels:
@@ -257,12 +270,34 @@ Intent levels:
 |---:|---|---|
 | 0 | No next step | No conversion evidence |
 | 1 | `follow`, generic link | Audience CTA only |
-| 2 | `free guide`, `watch`, `download` | Lead-capture intent |
+| 2 | `free guide`, `blueprint`, `roadmap`, `YouTube`, `Linktree`, `watch`, `download` | Information-funnel intent |
 | 3 | `DM SCALE`, `apply`, `book a call`, `1:1 coaching` | Direct sales intent |
 
 A direct keyword CTA is especially strong because it shows an operating DM
 funnel. Extract the action and keyword separately, such as action `DM` and
 keyword `RUTHLESS`, `SCALE`, `LAUNCH`, or `READY`.
+
+#### External-link destination signals
+
+Classify the destination type instead of treating every bio link equally:
+
+| Destination | Evidence strength | Examples |
+|---|---:|---|
+| Direct application or booking form | Strong | application, apply, Typeform, booking page, calendar |
+| Information lead magnet | Strong | blueprint, roadmap, guide, free course, training, webinar |
+| Coaching or education page | Strong | coaching, mentorship, academy, university, school, program |
+| YouTube channel or video | Moderate | YouTube channel, long-form educational video |
+| Link hub | Moderate | Linktree, Beacons, Stan, link.me, linktw.in, direct.me |
+| Generic personal website | Weak until inspected | personal domain with unknown destination |
+| Agency service page | Negative for this ICP | done-for-you marketing, media, lead generation, client services |
+| Store or product checkout | Negative for this ICP | Shopify, product catalog, physical-product checkout |
+
+A YouTube link or link hub is enough to support information-funnel intent when
+the profile already has a human expert identity and an educational
+transformation. It does not independently qualify an otherwise ambiguous
+creator. When a link hub is available, inspect its visible destination labels
+for coaching, education, blueprint, roadmap, application, results, or agency
+service evidence.
 
 #### Proof, results, and authority
 
@@ -319,27 +354,42 @@ These terms strengthen fit only alongside evidence that the profile owns or
 sells an offer. Educational discussion of funnels or sales does not
 automatically prove a business.
 
-#### Partnership and agency signals
+#### Personal-brand and agency-separation signals
 
-Partnership-track positive terms include:
+Positive personal-brand signals include:
 
 ```text
-agency, media, marketing, personal branding, brand engine, content agency,
-growth agency, sales agency, lead generation, client acquisition,
-appointment setting, paid ads, media buying, funnels, conversion,
-done for you, we help, our clients, client results, case studies,
-book a call, DM to scale, work with us
+I help, I teach, my method, my framework, my story, learn from me,
+coach, mentor, educator, author, speaker, creator, personal brand,
+free blueprint, free roadmap, free guide, free course, training,
+YouTube, newsletter, community, coaching, mentorship, mastermind,
+academy, university, school, application, DM me, comment a keyword
 ```
 
-An agency receives strong evidence only when at least one of these bundles is
-present:
+Agency and done-for-you service signals include:
 
-1. Service plus buyer plus CTA.
-2. Service plus client proof.
-3. Explicit agency identity plus a concrete commercial outcome.
+```text
+agency, media agency, marketing agency, sales agency, content agency,
+growth agency, lead generation agency, appointment setting agency,
+media buying, ads agency, done for you, DFY, we manage, we build for you,
+our clients, hire our team, client acquisition service, brand management
+```
 
-An `agency` label without a service, buyer, outcome, CTA, or proof is
-insufficient for automatic qualification.
+Apply these separation rules:
+
+1. A human face, personal name, or personal-brand content does not override an
+   agency service as the core offer.
+2. If the primary CTA is to hire the person or team for done-for-you services,
+   classify the profile as `agency_service` and reject it from this ICP.
+3. If the person owns an agency but separately teaches their expertise through
+   coaching, a course, blueprint, roadmap, community, or educational YouTube
+   funnel, evaluate only that distinct information offer.
+4. Client results from agency delivery do not prove an information offer.
+5. An agency founder with only business advice content but no information
+   funnel remains excluded.
+6. When the agency and information offers are both visible but the primary
+   model is unclear, send the lead to manual review rather than automatically
+   qualifying it.
 
 #### Dutch equivalents
 
@@ -368,7 +418,8 @@ Likely non-ICP terms include:
 fan page, fan account, parody, meme page, memes, news, gossip, paparazzi,
 repost, quotes page, entertainment, official army, shop now, online store,
 worldwide shipping, discount code, ambassador, affiliate, restaurant,
-salon, contractor, transport, SaaS, software platform
+salon, contractor, transport, SaaS, software platform, agency service,
+done for you, media buying, appointment setting agency, content agency
 ```
 
 These terms are contextual warnings, not blind exclusions. For example, a
@@ -384,11 +435,17 @@ still produces one identity signal.
 
 Strong commercial evidence exists when at least one of these bundles is found:
 
-1. Operator identity plus named buyer plus transformation plus direct CTA.
-2. Named buyer plus paid offer plus direct CTA.
-3. Paid offer plus client proof plus direct CTA.
-4. Agency service plus B2B buyer plus client proof.
+1. Human expert identity plus named audience plus informational transformation
+   plus direct CTA.
+2. Human expert identity plus coaching or education offer plus direct CTA.
+3. Human expert identity plus free blueprint, roadmap, course, or training plus
+   a capture or application path.
+4. Human expert identity plus educational YouTube destination plus a clear
+   transformation.
 5. Expertise identity plus branded program plus proof-oriented Highlights.
+
+No bundle qualifies when the core offer is agency delivery, done-for-you
+services, ecommerce, SaaS, or entertainment.
 
 Automatic qualification still follows the five-dimension score and confidence
 rules. A keyword bundle supplies auditable evidence for those dimensions; it
@@ -438,6 +495,8 @@ Reject when any of the following is confirmed:
   relevance.
 - The profile is a non-commercial personal account with no expertise,
   audience, transformation, offer, CTA, or business evidence.
+- The profile's core offer is agency delivery or another done-for-you service,
+  with no distinct coaching, education, or information funnel.
 
 Follower count is not a universal hard exclusion. The configured follower
 range contributes to priority and can flag a lead for review, but it should not
@@ -453,22 +512,25 @@ its meaning.
 
 The AI assigns one primary track:
 
-- `infopreneur`: coach, consultant, educator, expert, creator with a paid
-  transformation, course, mentorship, community, or private instruction.
-- `partnership`: agency, service provider, software operator, media operator,
-  or complementary business that can create partnership value.
-- `commerce`: product-led business whose suitability needs a distinct review
-  rule.
-- `non_commercial`: creator or personal account without meaningful buying or
-  partnership intent.
-- `uncertain`: insufficient or contradictory evidence.
+- `information_personal_brand`: human expert or creator with coaching,
+  education, an information product, or an information funnel.
+- `agency_service`: personal or company profile whose core offer is
+  done-for-you agency or client service delivery.
+- `commerce`: physical or digital product seller centered on checkout rather
+  than expertise.
+- `saas`: software product or platform.
+- `non_commercial`: creator or personal account without meaningful information
+  or coaching intent.
+- `uncertain`: insufficient, mixed, or contradictory evidence.
 
-Track classification and qualification are separate. A profile can clearly be
-an infopreneur while still lacking enough buyer, offer, or proof evidence to
-qualify.
+Track classification and qualification are separate. Only
+`information_personal_brand` can qualify automatically. `agency_service`,
+`commerce`, `saas`, and `non_commercial` are rejected when confidence is high.
+An agency founder with a plausible separate education funnel is `uncertain`
+until the distinct information offer is verified.
 
-`uncertain` profiles cannot be automatically rejected when credible commercial
-signals exist. They enter manual review.
+`uncertain` profiles cannot be automatically rejected when credible
+information-funnel signals exist. They enter manual review.
 
 ## Step 5: Score commercial fit
 
@@ -501,15 +563,15 @@ Christian men, founders, and language learners.
 Examples include acquiring premium clients, scaling a personal brand, losing
 fat, building muscle, improving confidence, or learning a language.
 
-### Offer evidence
+### Information offer and funnel evidence
 
 | Score | Definition |
 |---:|---|
-| 0 | No evidence of a product or service |
-| 0.5 | Monetization is possible but unsupported |
-| 1 | Commercial activity or a business is implied |
-| 1.5 | A service, program, course, agency, or coaching offer is visible |
-| 2 | A concrete paid offer and delivery model are explicit |
+| 0 | No evidence of coaching, education, or an information funnel |
+| 0.5 | Expertise or educational intent is weakly implied |
+| 1 | A YouTube destination, link hub, free resource, or education path is visible |
+| 1.5 | Coaching, a course, program, blueprint, roadmap, application, or training is visible |
+| 2 | A concrete information offer and delivery or conversion path are explicit |
 
 ### Conversion intent
 
@@ -547,9 +609,9 @@ The commercial-fit score is the sum of these five dimensions and ranges from
 Automatically qualify when all conditions hold:
 
 - Commercial-fit score is at least 8.0.
-- Offer evidence is at least 1.0.
+- Information offer and funnel evidence is at least 1.0.
 - At least one of buyer clarity or transformation clarity is at least 1.5.
-- The track is `infopreneur` or `partnership`.
+- The track is `information_personal_brand`.
 - No universal exclusion applies.
 
 Automatically approve the lead for enrichment when all additional conditions
@@ -559,8 +621,9 @@ hold:
 - AI confidence is at least 0.85.
 - Data quality is `complete` or `partial` with all commercial dimensions
   supported.
-- Offer evidence is at least 1.5.
-- Conversion intent is at least 1.5.
+- Information offer and funnel evidence is at least 1.0. This allows a verified
+  YouTube or link-hub education funnel to qualify without a visible paid offer.
+- Conversion intent is at least 1.0.
 - At least one valid strong commercial bundle is present.
 - No contradictory-evidence, follower-range, uncertain-track, or suspicious
   proof flag applies.
@@ -574,7 +637,8 @@ Send to review when any condition holds:
 
 - Commercial-fit score is 6.0 to 7.5.
 - Commercial-fit score is at least 8.0 but a required dimension is missing.
-- The track is `uncertain` or `commerce` and credible commercial signals exist.
+- The track is `uncertain` and credible personal-brand information signals
+  exist.
 - The AI confidence is below 0.75.
 - Evidence is contradictory, such as a strong CTA with no identifiable offer.
 - A follower-range flag applies to an otherwise strong lead.
@@ -639,7 +703,7 @@ The classifier returns a versioned object with this logical shape:
 ```json
 {
   "model_version": "commercial-fit-v1",
-  "track": "infopreneur",
+  "track": "information_personal_brand",
   "confidence": 0.91,
   "scores": {
     "buyer_clarity": 2,
@@ -650,29 +714,29 @@ The classifier returns a versioned object with this logical shape:
     "commercial_fit": 9.5
   },
   "evidence": {
-    "buyer": "I help high ticket coaches and service providers",
-    "transformation": "scale",
-    "offer": "results-based client acquisition service",
-    "conversion": "DM SCALE",
-    "proof": "$4M in sales before 30",
-    "story_highlights": ["RESULTS", "CLIENTS", "START HERE"]
+    "buyer": "Christian men",
+    "transformation": "get jacked and drop vices",
+    "offer": "1:1 transformation coaching",
+    "conversion": "DM READY",
+    "proof": "client results",
+    "story_highlights": ["CLIENT WINS", "CLIENT RESULTS", "MY STORY"]
   },
   "keyword_evidence": [
     {
       "group": "buyer",
       "source": "bio",
-      "phrase": "high ticket coaches and service providers"
+      "phrase": "Christian men"
     },
     {
       "group": "conversion",
       "source": "bio",
-      "phrase": "DM SCALE"
+      "phrase": "DM READY"
     }
   ],
-  "commercial_bundles": ["buyer + offer + direct CTA"],
+  "commercial_bundles": ["personal expert + buyer + transformation + coaching + direct CTA"],
   "data_quality": "complete",
   "decision": "qualified",
-  "decision_reason": "Clear buyer, transformation, offer, CTA, and quantified proof",
+  "decision_reason": "Clear personal brand, audience, transformation, coaching offer, CTA, and proof",
   "review_flags": []
 }
 ```
@@ -739,7 +803,10 @@ eventual enrichment and outreach outcomes.
 
 Create a versioned labeled set containing:
 
-- The eight user-supplied very-qualified profiles as positive examples.
+- The eight user-supplied profiles, relabeled against the narrowed personal-brand
+  information ICP. Personal information brands are positive examples. Any
+  profile whose core model is agency delivery is a negative or mixed example
+  unless a separate information funnel is verified.
 - At least 50 additional manually approved qualified leads.
 - At least 100 manually confirmed bad leads covering each major rejection
   reason.
@@ -750,9 +817,11 @@ independent final evaluation example.
 
 ### Offline acceptance criteria
 
-- All eight supplied positive examples classify as qualified. With complete
-  commercial evidence captured, they should satisfy automatic approval rather
-  than require manual review.
+- Every supplied profile centered on a personal information or coaching funnel
+  classifies as qualified and should satisfy automatic approval when evidence
+  is complete.
+- Any supplied profile centered on agency or done-for-you delivery does not
+  qualify solely because it uses a personal brand, client proof, or a DM CTA.
 - Precision on automatic qualification is at least 90% against reviewer labels.
 - Recall on confirmed qualified leads improves relative to the current
   production classifier.
