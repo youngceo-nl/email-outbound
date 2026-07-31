@@ -159,12 +159,14 @@ export const scoreLead = inngest.createFunction(
       bumpFunnelCounters({ crawl_job_id: crawl_job_id ?? null, filtered: 1 }),
     );
 
-    // Partnership leads pass through to the Partnership review queue (manual
-    // vetting in Phase 1); infopreneur status comes from the score's verdict.
+    // Both tracks: status comes from the score's verdict (overall_score vs.
+    // crawl_score_threshold, with the weak-ICP hard cap). Partnership leads used
+    // to bypass this and go straight to "qualified" regardless of score, which
+    // flooded the Partnership review queue with sub-threshold and wrong-ICP
+    // leads — the queue is meant to hold candidates a human still has to
+    // approve/reject, not every agency-classified profile.
     const status =
-      track === "partnership"
-        ? "qualified"
-        : score.recommended_action === "qualified"
+      score.recommended_action === "qualified"
         ? "qualified"
         : score.recommended_action === "review"
         ? "review"

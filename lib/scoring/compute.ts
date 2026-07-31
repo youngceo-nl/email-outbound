@@ -1,19 +1,31 @@
 import type { AppSettings, ClaudeScore, ScrapedProfile } from "@/lib/types";
 import type { ComputedMetrics } from "@/lib/pipeline/metrics";
 import type { AiClassification } from "./types";
+import { leadTrackFor } from "@/lib/leads/category";
 
 // Pure code-based scorer. Takes metrics + AI classification and produces the
 // full ClaudeScore-shaped result. Deterministic — no AI in here.
 //
-// Weights (sum to 1.0):
+// Infopreneur weights (sum to 1.0):
 //   traction      0.25
 //   activity      0.15
 //   monetization  0.25
 //   icp_fit       0.35   ← raised; ICP alignment is the primary gate
 //
+// Partnership weights differ (see WEIGHTS below): monetization and activity
+// are near-worthless signals for a B2B partner who works by DM/referral —
+// they penalize exactly the profile shape (quiet operator, no public funnel,
+// sparse posting) that a real partnership lead often has. icp_fit + traction
+// carry the whole score instead.
+//
 // Hard cap: icp_signal === "weak" → overall capped at 6.5 (never qualifies)
 //
 // Qualified threshold: crawl_score_threshold (default 7.5)
+
+const WEIGHTS = {
+  infopreneur:  { traction: 0.25, activity: 0.15, monetization: 0.25, icp_fit: 0.35 },
+  partnership:  { traction: 0.35, activity: 0,     monetization: 0,    icp_fit: 0.65 },
+} as const;
 
 const ROUND = (n: number) => Math.round(n * 10) / 10;
 const CLAMP = (n: number, lo = 0, hi = 10) => Math.max(lo, Math.min(hi, n));
@@ -136,8 +148,12 @@ export function computeScores(args: {
   const monetization = monetizationScore(classification, profile);
   const icp_fit      = icpFitScore(classification, profile, settings);
 
-  // Weights: ICP fit raised to 35% — being the right kind of account matters most.
-  const raw = traction * 0.25 + activity * 0.15 + monetization * 0.25 + icp_fit * 0.35;
+  // Sub-scores are always computed and stored for every lead (human reviewers
+  // still want to see monetization/activity context) — only the WEIGHTS used
+  // to combine them into `overall` differ by track.
+  const track = leadTrackFor(classification.business_model);
+  const w = WEIGHTS[track];
+  const raw = traction * w.traction + activity * w.activity + monetization * w.monetization + icp_fit * w.icp_fit;
 
   // Hard cap by ICP band: ICP fit is the dominant gate, not just a 35% weight.
   // "weak" = wrong industry (physical-product ecom, B2B SaaS, service biz, pure
