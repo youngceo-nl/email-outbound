@@ -116,3 +116,17 @@ export async function fetchDailyKpis(client: SupabaseClient<any, any, any>): Pro
     buildKpiRow({ key: "positive_reply_rate", label: "Positive reply rate", frequency: "daily", unit: "percent", target: 15, targetLabel: "15%", comparator: "at_least", actual: computePositiveReplyRate(positiveReplies ?? 0, emailsSent ?? 0) }),
   ];
 }
+
+export function assembleKpiRows(daily: KpiRow[], meetingsBookedActual: number | null): KpiRow[] {
+  const meetingsRow = buildKpiRow({
+    key: "meetings_booked",
+    label: "Meetings booked",
+    frequency: "monthly",
+    unit: "count",
+    target: 30,
+    targetLabel: "30",
+    comparator: "at_least",
+    actual: meetingsBookedActual,
+  });
+  return [...daily, meetingsRow, computeTaskCompletion(daily)];
+}

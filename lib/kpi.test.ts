@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { computeStatus, buildKpiRow, computeTaskCompletion, computePositiveReplyRate, type KpiRow } from "./kpi";
+import { computeStatus, buildKpiRow, computeTaskCompletion, computePositiveReplyRate, assembleKpiRows, type KpiRow } from "./kpi";
 
 describe("computeStatus", () => {
   it("is unknown when actual is null", () => {
@@ -81,5 +81,32 @@ describe("computePositiveReplyRate", () => {
 
   it("is null when no emails were sent today, not a misleading 0%", () => {
     assert.equal(computePositiveReplyRate(0, 0), null);
+  });
+});
+
+describe("assembleKpiRows", () => {
+  it("orders all 7 rows: 5 daily, then meetings booked, then task completion", () => {
+    const daily = [
+      buildKpiRow({ key: "leads_scraped", label: "Leads scraped", frequency: "daily", unit: "count", target: 500, targetLabel: "500", comparator: "at_least", actual: 500 }),
+      buildKpiRow({ key: "leads_enriched", label: "Leads enriched", frequency: "daily", unit: "count", target: 100, targetLabel: "100", comparator: "at_least", actual: 100 }),
+      buildKpiRow({ key: "emails_sent", label: "Emails sent", frequency: "daily", unit: "count", target: 100, targetLabel: "100", comparator: "at_least", actual: 100 }),
+      buildKpiRow({ key: "first_response_time", label: "First response time", frequency: "daily", unit: "minutes", target: 120, targetLabel: "< 2 hours", comparator: "at_most", actual: 90 }),
+      buildKpiRow({ key: "positive_reply_rate", label: "Positive reply rate", frequency: "daily", unit: "percent", target: 15, targetLabel: "15%", comparator: "at_least", actual: 15 }),
+    ];
+    const rows = assembleKpiRows(daily, 30);
+    assert.deepEqual(rows.map((r) => r.key), [
+      "leads_scraped", "leads_enriched", "emails_sent", "first_response_time",
+      "positive_reply_rate", "meetings_booked", "task_completion",
+    ]);
+    assert.equal(rows[5].actual, 30);
+    assert.equal(rows[5].frequency, "monthly");
+    assert.equal(rows[6].actual, 100); // all 5 daily rows were "ok"
+  });
+
+  it("shows meetings booked as unknown when the sheet is unreachable", () => {
+    const rows = assembleKpiRows([], null);
+    const meetings = rows.find((r) => r.key === "meetings_booked")!;
+    assert.equal(meetings.status, "unknown");
+    assert.equal(meetings.actual, null);
   });
 });
