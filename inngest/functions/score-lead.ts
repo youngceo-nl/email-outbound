@@ -8,6 +8,23 @@ import { leadTrackFor } from "@/lib/leads/category";
 import { bumpFunnelCounters, logCrawl, logError } from "@/lib/pipeline/persist";
 import type { ScrapedProfile } from "@/lib/types";
 
+/**
+ * Deterministic sampling for shadow qualification: a given lead is either
+ * always in the sample or always out. Math.random would reshuffle on every
+ * rescore, so a lead could pick up several shadow rows while its neighbour
+ * never gets one, which quietly biases the measured rate.
+ */
+export function inShadowSample(leadId: string, samplePct: number): boolean {
+  if (samplePct <= 0) return false;
+  if (samplePct >= 100) return true;
+  let hash = 2166136261;
+  for (let i = 0; i < leadId.length; i++) {
+    hash ^= leadId.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % 100 < samplePct;
+}
+
 // Light-weight scoring: uses the data the cookie-based backfill already put
 // into the leads row (bio, followers, recent_posts, etc.). No re-scraping.
 // Costs: one OpenAI gpt-4o-mini call per lead. ~$0.0001 each.
@@ -208,6 +225,23 @@ export const scoreLead = inngest.createFunction(
     await step.run("bump-verified", () =>
       bumpFunnelCounters({ crawl_job_id: crawl_job_id ?? null, verified: 1 }),
     );
+
+    /*
+     * Shadow mode. Fired here, at the point the live scorer has a verdict, so
+     * both pipelines have decided the same lead and the comparison is like for
+     * like. Leads rejected by the hard filter above never reach this point and
+     * are therefore outside the shadow denominator — worth remembering when
+     * reading the measured qualification rate.
+     *
+     * Send-and-forget: the shadow function owns its own enable flag and never
+     * writes back, so nothing about this lead's outcome depends on it.
+     */
+    if (settings.shadow_qualification_enabled && inShadowSample(lead_id, settings.shadow_qualification_sample_pct)) {
+      await step.sendEvent("request-shadow-qualification", {
+        name: "lead/shadow-qualify.requested",
+        data: { lead_id, crawl_job_id: crawl_job_id ?? null, legacy_status: status, legacy_score: score.overall_score },
+      });
+    }
 
     await logCrawl({
       crawl_job_id: crawl_job_id ?? null,

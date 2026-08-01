@@ -41,6 +41,20 @@ type Events = {
       force?: boolean;
     };
   };
+  /*
+   * Observational. Runs the evidence-first pipeline on a lead the live scorer
+   * has already decided, and records the comparison. Consuming it never changes
+   * the lead — see inngest/functions/shadow-qualify.ts.
+   */
+  "lead/shadow-qualify.requested": {
+    data: {
+      lead_id: string;
+      crawl_job_id?: string | null;
+      /** The live scorer's verdict, captured at send time rather than re-read later. */
+      legacy_status?: string | null;
+      legacy_score?: number | null;
+    };
+  };
 };
 
 // Decide dev vs. cloud deterministically instead of letting the SDK guess.

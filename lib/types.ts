@@ -84,6 +84,14 @@ export type AppSettings = {
   apify_api_keys: string[];
   claude_api_key: string | null;
   claude_model: string;
+  /*
+   * Shadow mode for the evidence-first qualification pipeline
+   * (inngest/functions/shadow-qualify.ts). Off by default: enabling it starts
+   * spending Anthropic tokens on leads the live scorer has already decided.
+   * The sample percentage is what keeps that bill bounded.
+   */
+  shadow_qualification_enabled: boolean;
+  shadow_qualification_sample_pct: number;
   scrapingbee_api_key: string | null;
   hikerapi_api_key: string | null;
   default_seeds: string[];
