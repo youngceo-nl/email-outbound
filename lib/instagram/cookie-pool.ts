@@ -1,4 +1,3 @@
-import "server-only";
 import type { AppSettings } from "@/lib/types";
 
 const rateLimitedUntil = new Map<string, number>();
@@ -17,6 +16,40 @@ export type PoolEntry = {
   proxyUrl: string | null;
   accountUsername: string | null;
 };
+
+/**
+ * One authenticated Instagram identity. These four values are deliberately
+ * non-null and travel together for the lifetime of an acquisition. Production
+ * code must never fill a missing field from a global or positional fallback.
+ */
+export type AcquisitionPoolEntry = {
+  cookie: string;
+  proxyUrl: string;
+  accountUsername: string;
+  steelProfileId: string;
+};
+
+export function buildAcquisitionPool(settings: AppSettings): AcquisitionPoolEntry[] {
+  const seen = new Set<string>();
+  const activeGroup = settings.active_account_group?.trim() || null;
+  const pool: AcquisitionPoolEntry[] = [];
+
+  for (const account of settings.instagram_accounts ?? []) {
+    if (account.paused) continue;
+    if (activeGroup && (account.group?.trim() || null) !== activeGroup) continue;
+
+    const cookie = account.cookie?.trim();
+    const proxyUrl = account.proxy_url?.trim();
+    const accountUsername = account.label?.trim();
+    const steelProfileId = account.steel_profile_id?.trim();
+    if (!cookie || !proxyUrl || !accountUsername || !steelProfileId || seen.has(cookie)) continue;
+
+    seen.add(cookie);
+    pool.push({ cookie, proxyUrl, accountUsername, steelProfileId });
+  }
+
+  return pool;
+}
 
 export function buildCookiePool(settings: AppSettings): PoolEntry[] {
   const seen = new Set<string>();

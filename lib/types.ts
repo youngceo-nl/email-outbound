@@ -66,6 +66,7 @@ export type ManagedAccount = {
   last_error: string | null;
   checkpoint_state: CheckpointState | null;
   proxy_url: string | null; // dedicated residential proxy for this account, e.g. http://user:pass@host:port
+  steel_profile_id?: string | null; // persistent Steel browser identity, fixed to this account and proxy
   group?: string | null;  // rotation group label, e.g. "A", "B" — only the active group is scraped
   paused?: boolean;       // true = excluded from scraping (cooling off), account is kept in DB
 };
