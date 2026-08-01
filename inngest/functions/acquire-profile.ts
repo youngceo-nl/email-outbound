@@ -12,6 +12,8 @@ import {
 import { createEvidenceSnapshot } from "@/lib/qualification/repository";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logCrawl, logError } from "@/lib/pipeline/persist";
+import { quarantineAccount } from "@/lib/instagram/quarantine";
+import { shouldQuarantine } from "@/lib/instagram/quarantine-policy";
 import {
   qualificationEventForAcquisition,
   selectAcquisitionIdentity,
@@ -44,6 +46,19 @@ export const acquireProfile = inngest.createFunction(
     );
 
     if (acquisition.status !== "captured") {
+      if (shouldQuarantine(acquisition.status, acquisition.report.errors)) {
+        await step.run("quarantine-account", () =>
+          quarantineAccount({
+            accountUsername: identity.accountUsername,
+            leadUsername: username,
+            proxyUrl: identity.proxyUrl,
+            steelProfileId: identity.steelProfileId,
+            sessionId: acquisition.sessionId,
+            challenge: acquisition.challenge ?? acquisition.report.errors.join("; ").slice(0, 200),
+            crawlJobId: crawl_job_id,
+          }),
+        );
+      }
       await step.run("persist-acquisition-failure", async () => {
         const sb = createAdminClient();
         await sb
