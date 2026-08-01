@@ -6,3 +6,7 @@ node_modules
 supabase/.temp
 /tmp
 *.log
+
+# Local personalized-video worker input. This tracked LFS asset is 129 MB,
+# exceeds Vercel's per-file upload limit, and is consumed only by worker/.
+worker/assets/base-pitch-video.mp4
