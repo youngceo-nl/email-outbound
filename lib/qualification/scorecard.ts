@@ -106,7 +106,14 @@ export const ACTIVE_SCORECARD: Scorecard = {
 export type HighlightGroup = "proof" | "offer" | "funnel" | "authority";
 
 const HIGHLIGHT_PATTERNS: Array<{ group: HighlightGroup; pattern: RegExp }> = [
-  { group: "proof", pattern: /\b(result|client|review|win|testimonial|transformation|case stud|success stor|before.?after)/i },
+  /*
+   * `student` and `member` sit alongside `client` deliberately. The spec lists
+   * STUDENT WINS under Proof and says matching is semantic, but the pattern
+   * previously matched `client` only — so a "CLIENTS" folder scored as proof
+   * while a "STUDENTS" folder scored as nothing. For an information ICP that is
+   * backwards: students are the more on-target outcome evidence.
+   */
+  { group: "proof", pattern: /\b(result|client|student|member|review|win|testimonial|transformation|case stud|success stor|before.?after)/i },
   { group: "offer", pattern: /\b(1[\s-]?(?:on|to)?[\s-]?1|coaching|program|mentorship|work with me|academy|course|package)/i },
   { group: "funnel", pattern: /\b(start here|free|apply|book|join|call|link|training|webinar|blueprint|roadmap|guide)/i },
   { group: "authority", pattern: /\b(my story|about me|journey|youtube|podcast|press|featured|media)/i },

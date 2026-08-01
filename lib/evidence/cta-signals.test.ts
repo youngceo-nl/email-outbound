@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { collectDirectResponseCtas, detectDirectResponseCtas } from "./cta-signals";
 import { youtubeIdentity } from "./youtube";
+import { classifyHighlight } from "@/lib/qualification/scorecard";
 
 // ---------------------------------------------------------------------------
 // Direct-response CTA detection
@@ -97,4 +98,29 @@ test("different videos and channels keep distinct identities", () => {
   );
   assert.equal(youtubeIdentity("https://www.youtube.com/@lukegosseling"), "handle:lukegosseling");
   assert.equal(youtubeIdentity("https://example.com/video"), null);
+});
+
+// ---------------------------------------------------------------------------
+// Highlight grouping
+//
+// Regression: @glenn.nieuwenhuis has a "students" Highlight that classified as
+// no group at all, while an equivalent "clients" folder scored as Proof. For an
+// information ICP, student outcomes are the more on-target proof signal.
+// ---------------------------------------------------------------------------
+
+test("student and member folders count as proof, like clients", () => {
+  assert.equal(classifyHighlight("students"), "proof");
+  assert.equal(classifyHighlight("STUDENT WINS"), "proof");
+  assert.equal(classifyHighlight("members"), "proof");
+  assert.equal(classifyHighlight("clients"), "proof");
+});
+
+test("existing highlight groups are unchanged", () => {
+  assert.equal(classifyHighlight("RESULTS"), "proof");
+  assert.equal(classifyHighlight("TESTIMONIALS"), "proof");
+  assert.equal(classifyHighlight("1-1 COACHING"), "offer");
+  assert.equal(classifyHighlight("START HERE"), "funnel");
+  assert.equal(classifyHighlight("MY STORY"), "authority");
+  assert.equal(classifyHighlight("Ibiza 2024"), null);
+  assert.equal(classifyHighlight("marbs XXII"), null);
 });

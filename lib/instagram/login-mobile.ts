@@ -1,6 +1,7 @@
 import "server-only";
 import { generateTotp } from "@/lib/totp";
 import type { LoginResult } from "@/lib/instagram/login-playwright";
+import { proxyFetch, type FetchLike } from "@/lib/instagram/proxy";
 
 // Logs into Instagram using the private mobile API (i.instagram.com).
 // Unlike the web login, this produces a mobile sessionid that is accepted by
@@ -121,9 +122,10 @@ async function importRsaPublicKey(pubKeyB64: string): Promise<CryptoKey> {
 async function fetchEncryptionKey(
   deviceId: string,
   guid: string,
+  httpFetch: FetchLike,
 ): Promise<{ keyId: number; pubKey: string; cookieMap: Map<string, string> } | null> {
   try {
-    const res = await fetch("https://i.instagram.com/api/v1/qe/sync/", {
+    const res = await httpFetch("https://i.instagram.com/api/v1/qe/sync/", {
       method: "POST",
       headers: {
         ...mobileHeaders({ deviceId, guid }),
@@ -201,7 +203,10 @@ export async function loginInstagramMobile(creds: {
   username: string;
   password: string;
   totp_secret?: string | null;
+  /** The account's dedicated proxy — see lib/instagram/proxy.ts. */
+  proxy_url?: string | null;
 }): Promise<LoginResult> {
+  const httpFetch = proxyFetch(creds.proxy_url);
   const deviceId = `android-${randomHex(8)}`;
   const guid = crypto.randomUUID();
   const phoneId = crypto.randomUUID();
@@ -211,7 +216,7 @@ export async function loginInstagramMobile(creds: {
   const cookieMap = new Map<string, string>();
 
   // Step 1: Fetch encryption key (also seeds mid, ig_did, csrftoken cookies)
-  const keyData = await fetchEncryptionKey(deviceId, guid);
+  const keyData = await fetchEncryptionKey(deviceId, guid, httpFetch);
   if (keyData?.cookieMap) {
     for (const [k, v] of keyData.cookieMap) cookieMap.set(k, v);
   }
@@ -230,7 +235,7 @@ export async function loginInstagramMobile(creds: {
   }
 
   // Step 2: POST login
-  const loginRes = await fetch("https://i.instagram.com/api/v1/accounts/login/", {
+  const loginRes = await httpFetch("https://i.instagram.com/api/v1/accounts/login/", {
     method: "POST",
     headers: {
       ...mobileHeaders({ deviceId, guid, csrf, cookies: cookieStr(cookieMap) }),
@@ -269,7 +274,7 @@ export async function loginInstagramMobile(creds: {
     }
     const tfInfo = (json.two_factor_info ?? {}) as Record<string, string>;
     const totp = generateTotp(creds.totp_secret);
-    const tfRes = await fetch("https://i.instagram.com/api/v1/accounts/two_factor_login/", {
+    const tfRes = await httpFetch("https://i.instagram.com/api/v1/accounts/two_factor_login/", {
       method: "POST",
       headers: {
         ...mobileHeaders({ deviceId, guid, csrf: cookieMap.get("csrftoken") ?? csrf, cookies: cookieStr(cookieMap) }),

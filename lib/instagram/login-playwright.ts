@@ -1,4 +1,5 @@
 import { generateTotp } from "@/lib/totp";
+import { proxyFetch, type FetchLike } from "@/lib/instagram/proxy";
 import type { CheckpointState } from "@/lib/types";
 
 export type LoginResult =
@@ -11,13 +12,21 @@ export async function loginInstagramPlaywright(creds: {
   password: string;
   totp_secret?: string | null;
   capsolver_api_key?: string | null;
+  /*
+   * The account's dedicated proxy. Omitting it mints the session from the
+   * server's IP, which is then contradicted by every scrape that follows —
+   * see lib/instagram/proxy.ts. Always pass account.proxy_url.
+   */
+  proxy_url?: string | null;
 }): Promise<LoginResult> {
   const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+  const proxyUrl = creds.proxy_url?.trim() || null;
+  const httpFetch = proxyFetch(proxyUrl);
 
   // Step 1: GET homepage for initial cookies + CSRF token
   let homeRes: Response;
   try {
-    homeRes = await fetch("https://www.instagram.com/", {
+    homeRes = await httpFetch("https://www.instagram.com/", {
       headers: { "User-Agent": ua, "Accept": "text/html,*/*", "Accept-Language": "en-US,en;q=0.9" },
     });
   } catch (err) {
@@ -46,7 +55,7 @@ export async function loginInstagramPlaywright(creds: {
   });
 
   // Step 2: POST login
-  const loginRes = await fetch("https://www.instagram.com/api/v1/web/accounts/login/ajax/", {
+  const loginRes = await httpFetch("https://www.instagram.com/api/v1/web/accounts/login/ajax/", {
     method: "POST",
     headers: baseHeaders(),
     body: new URLSearchParams({ username: creds.username, enc_password: encPassword, queryParams: "{}", optIntoOneTap: "false" }).toString(),
@@ -64,7 +73,7 @@ export async function loginInstagramPlaywright(creds: {
     json = await loginRes.json();
   } catch {
     if (isRedirectedToChallenge) {
-      return handleCheckpoint(finalUrl, cookieMap, csrf, baseHeaders);
+      return handleCheckpoint(finalUrl, cookieMap, csrf, baseHeaders, httpFetch, proxyUrl);
     }
     console.error("[ig-login] non-JSON response", loginRes.status, finalUrl);
     return { ok: false, error: `Instagram returned non-JSON (status ${loginRes.status})` };
@@ -72,7 +81,7 @@ export async function loginInstagramPlaywright(creds: {
 
   // Also handle the case where JSON was returned at a challenge URL
   if (isRedirectedToChallenge && !json.authenticated) {
-    return handleCheckpoint(finalUrl, cookieMap, csrf, baseHeaders);
+    return handleCheckpoint(finalUrl, cookieMap, csrf, baseHeaders, httpFetch, proxyUrl);
   }
 
   // 2FA
@@ -80,7 +89,7 @@ export async function loginInstagramPlaywright(creds: {
     if (!creds.totp_secret) return { ok: false, error: "Instagram requires 2FA but no TOTP secret is configured" };
     const tfInfo = (json.two_factor_info ?? {}) as Record<string, string>;
     const totp = generateTotp(creds.totp_secret);
-    const tfRes = await fetch("https://www.instagram.com/api/v1/web/accounts/login/ajax/two_factor/", {
+    const tfRes = await httpFetch("https://www.instagram.com/api/v1/web/accounts/login/ajax/two_factor/", {
       method: "POST",
       headers: baseHeaders(),
       body: new URLSearchParams({ username: creds.username, verificationCode: totp, identifier: tfInfo.two_factor_identifier ?? "", queryParams: "{}", trustThisDevice: "0", verificationMethod: "3" }).toString(),
@@ -98,7 +107,7 @@ export async function loginInstagramPlaywright(creds: {
     const emailFromLogin = extractEmail(json);
     const checkpointPath = (json.checkpoint_url as string) ?? "";
     const challengeUrl = checkpointPath.startsWith("http") ? checkpointPath : `https://www.instagram.com${checkpointPath}`;
-    return handleCheckpoint(challengeUrl, cookieMap, csrf, baseHeaders, emailFromLogin, creds.capsolver_api_key ?? null);
+    return handleCheckpoint(challengeUrl, cookieMap, csrf, baseHeaders, httpFetch, proxyUrl, emailFromLogin, creds.capsolver_api_key ?? null);
   }
 
   if (!json.authenticated) {
@@ -118,7 +127,7 @@ export async function submitInstagramCheckpointCode(
   // so it shows the code entry form) and submit the code via the UI.
   if (state.challenge_url.includes("/auth_platform/")) {
     const { submitAuthPlatformCode } = await import("@/lib/instagram/captcha");
-    return submitAuthPlatformCode(state.challenge_url, state.cookies, state.csrf, code);
+    return submitAuthPlatformCode(state.challenge_url, state.cookies, state.csrf, code, state.proxy_url ?? null);
   }
 
   // Legacy /challenge/ flow — plain fetch works here.
@@ -142,7 +151,7 @@ export async function submitInstagramCheckpointCode(
     "Cookie": state.cookies,
   };
 
-  const res = await fetch(state.challenge_url, {
+  const res = await proxyFetch(state.proxy_url)(state.challenge_url, {
     method: "POST",
     headers,
     body: new URLSearchParams({ security_code: code.trim() }).toString(),
@@ -167,6 +176,8 @@ async function handleCheckpoint(
   cookieMap: Map<string, string>,
   csrf: string,
   baseHeaders: (extra?: Record<string, string>) => Record<string, string>,
+  httpFetch: FetchLike,
+  proxyUrl: string | null,
   seedEmail: string | null = null,
   capsolverApiKey: string | null = null,
 ): Promise<LoginResult> {
@@ -176,7 +187,7 @@ async function handleCheckpoint(
   if (challengeUrl.includes("/auth_platform/") && capsolverApiKey) {
     console.error("[ig-login] /auth_platform/ checkpoint detected — attempting CapSolver bypass");
     const { bypassInstagramCaptcha } = await import("@/lib/instagram/captcha");
-    const updatedCookies = await bypassInstagramCaptcha(challengeUrl, cookieStr(cookieMap), capsolverApiKey);
+    const updatedCookies = await bypassInstagramCaptcha(challengeUrl, cookieStr(cookieMap), capsolverApiKey, proxyUrl);
     if (updatedCookies) {
       // Merge updated cookies back into our map
       for (const part of updatedCookies.split(";")) {
@@ -196,6 +207,7 @@ async function handleCheckpoint(
         csrf: cookieMap.get("csrftoken") ?? csrf,
         challenge_url: challengeUrl,
         email_hint: emailHint,
+        proxy_url: proxyUrl,
       },
       message: updatedCookies
         ? "Instagram sent a verification code to the account email. Enter it below to complete login."
@@ -207,7 +219,7 @@ async function handleCheckpoint(
 
   // GET the challenge page — Instagram may return JSON with step_data.contact_point or HTML with masked email
   try {
-    const challengeRes = await fetch(challengeUrl, { headers: baseHeaders() });
+    const challengeRes = await httpFetch(challengeUrl, { headers: baseHeaders() });
     mergeCookies(cookieMap, challengeRes.headers.getSetCookie?.() ?? []);
     const body = await challengeRes.text();
     try {
@@ -219,7 +231,7 @@ async function handleCheckpoint(
 
   // POST choice=1 to trigger email verification; response often contains contact point
   try {
-    const choiceRes = await fetch(challengeUrl, {
+    const choiceRes = await httpFetch(challengeUrl, {
       method: "POST",
       headers: baseHeaders({ "Referer": challengeUrl }),
       body: new URLSearchParams({ choice: "1" }).toString(),
@@ -240,7 +252,7 @@ async function handleCheckpoint(
   return {
     ok: false,
     checkpoint: true,
-    state: { cookies: cookieStr(cookieMap), csrf: cookieMap.get("csrftoken") ?? csrf, challenge_url: challengeUrl, email_hint: emailHint },
+    state: { cookies: cookieStr(cookieMap), csrf: cookieMap.get("csrftoken") ?? csrf, challenge_url: challengeUrl, email_hint: emailHint, proxy_url: proxyUrl },
     message: "Instagram sent a verification code to the account email. Enter it below to complete login.",
   };
 }

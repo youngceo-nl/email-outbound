@@ -485,14 +485,25 @@ export function buildChallengerUserPrompt(
   extractionSummary: unknown,
   allowedSourceIds: ReadonlySet<string>,
 ): string {
+  /*
+   * The evidence section is shared with the extractor, but its RESPONSE CONTRACT
+   * must NOT be: handing the challenger the extraction contract made it answer
+   * in the extraction shape, which failed validation and silently blocked every
+   * auto-approval. Everything from that heading onward is stripped.
+   */
+  const evidence = buildExtractionUserPrompt(snapshot, allowedSourceIds);
+  const contractIndex = evidence.indexOf("RESPONSE CONTRACT");
+  const evidenceOnly = contractIndex === -1 ? evidence : evidence.slice(0, contractIndex);
+
   return `Independently verify this lead against the same evidence.
 
-${buildExtractionUserPrompt(snapshot, allowedSourceIds)}
+${evidenceOnly}
 
 PRIMARY EXTRACTION UNDER REVIEW
 ${json(extractionSummary)}
 
-Return the required challenger JSON only.`;
+Answer ONLY in the challenger contract described in your system instructions.
+Do not return the extraction contract's fields.`;
 }
 
 function json(value: unknown): string {

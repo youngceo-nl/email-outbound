@@ -198,12 +198,24 @@ function verifyPhrasesAppear(
       ...snapshot.instagram.story_highlight_titles,
       ...snapshot.instagram.recent_posts.map((post) => post.caption ?? ""),
       ...snapshot.instagram.pinned_posts.map((post) => post.caption ?? ""),
+      /*
+       * Every captured field the extractor is allowed to cite must appear here.
+       * Prices were missing, so a perfectly good "$148" citation was reported as
+       * unverified — and four such warnings are enough to cap certainty and
+       * block auto-approval. If a surface is quoted in the prompt, it belongs in
+       * the haystack.
+       */
       ...snapshot.external_destinations.flatMap((destination) => [
         destination.page_title ?? "",
         destination.meta_description ?? "",
         destination.text_excerpt ?? "",
         ...destination.headings,
         ...destination.offer_copy,
+        ...destination.prices,
+        ...destination.form_signals,
+        ...destination.proof_claims,
+        ...destination.service_delivery_signals,
+        ...destination.education_delivery_signals,
         ...destination.cta_labels.map((cta) => cta.label),
       ]),
       ...snapshot.youtube_channels.map((channel) => channel.description ?? ""),
@@ -212,11 +224,23 @@ function verifyPhrasesAppear(
     ].join(" \n "),
   );
 
+  /*
+   * Compare on alphanumerics only.
+   *
+   * Page text frequently runs together where the DOM concatenated a heading and
+   * its body ("The 10K Followers RoadmapThe exact step..."), and the model
+   * faithfully re-inserts a separator when citing it. Punctuation-sensitive
+   * matching flagged all twelve such citations as unverified, which pushed
+   * certainty down to medium and silently blocked auto-approval on an otherwise
+   * clean lead. The spec permits faithful normalization, so the check must too.
+   */
+  const collapsed = collapse(haystack);
+
   const warnings: string[] = [];
   for (const citation of collectCitations(extraction)) {
     const phrase = normalize(citation.phrase);
     if (phrase.length < 4) continue;
-    if (!haystack.includes(phrase)) {
+    if (!haystack.includes(phrase) && !collapsed.includes(collapse(citation.phrase))) {
       warnings.push(
         `phrase not found verbatim in snapshot (${citation.source_type}:${citation.source_id}): "${citation.phrase.slice(0, 90)}"`,
       );
@@ -224,6 +248,11 @@ function verifyPhrasesAppear(
     if (warnings.length >= 12) break;
   }
   return warnings;
+}
+
+/** Alphanumerics only — separator- and punctuation-insensitive comparison. */
+function collapse(value: string): string {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 }
 
 function normalize(value: string): string {
