@@ -15,7 +15,7 @@ export const qualifyLead = inngest.createFunction(
     id: "qualify-lead",
     name: "Qualify persisted lead evidence",
     retries: 2,
-    concurrency: [{ limit: 4, key: "event.data.crawl_job_id" }, { limit: 8 }],
+    concurrency: [{ limit: 4, key: "event.data.crawl_job_id" }, { limit: 5 }],
   },
   { event: "lead/qualification.requested" },
   async ({ event, step }) => {

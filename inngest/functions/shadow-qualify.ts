@@ -41,7 +41,7 @@ export const shadowQualify = inngest.createFunction(
     retries: 1,
     concurrency: [
       { limit: 4, key: "event.data.crawl_job_id" },
-      { limit: 8 },
+      { limit: 5 },
     ],
   },
   { event: "lead/shadow-qualify.requested" },

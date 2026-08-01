@@ -13,7 +13,7 @@ export const recurseFollowing = inngest.createFunction(
     retries: 2,
     concurrency: [
       { limit: 4, key: "event.data.crawl_job_id" },
-      { limit: 12 },
+      { limit: 5 },
     ],
   },
   { event: "crawl/recurse.requested" },
