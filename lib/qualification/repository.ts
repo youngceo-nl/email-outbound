@@ -215,3 +215,113 @@ export async function setLeadQualificationProjection(opts: {
   const { error } = await sb.from("leads").update(opts.projection).eq("id", opts.leadId);
   if (error) throw new Error(`setLeadQualificationProjection failed: ${error.message}`);
 }
+
+export type OperationalLeadStatus = "qualified" | "review" | "rejected" | "pending";
+
+export function operationalStatusForDecision(
+  decision: CommercialDecision["decision"],
+): OperationalLeadStatus {
+  return decision === "data_retry" ? "pending" : decision;
+}
+
+type SaveSnapshotOperation = (opts: {
+  snapshot: EvidenceSnapshot;
+  leadId: string;
+}) => Promise<{ id: string }>;
+type SaveExtractionOperation = (opts: {
+  evidenceSnapshotId: string;
+  leadId: string;
+  extraction: ExtractionResult;
+}) => Promise<{ id: string }>;
+type SaveDecisionOperation = (opts: {
+  evidenceSnapshotId: string;
+  extractionId: string | null;
+  leadId: string;
+  decision: CommercialDecision;
+}) => Promise<{ id: string }>;
+type ProjectLeadOperation = (opts: {
+  leadId: string;
+  decisionId: string;
+  decision: CommercialDecision;
+}) => Promise<void>;
+
+export type QualificationPersistenceOperations = {
+  saveSnapshot: SaveSnapshotOperation;
+  saveExtraction: SaveExtractionOperation;
+  saveDecision: SaveDecisionOperation;
+  projectLead: ProjectLeadOperation;
+};
+
+async function projectQualificationToLead(opts: {
+  leadId: string;
+  decisionId: string;
+  decision: CommercialDecision;
+  supabase?: SupabaseClient;
+}): Promise<void> {
+  const sb = client(opts.supabase);
+  const { decision } = opts;
+  const { error } = await sb
+    .from("leads")
+    .update({
+      status: operationalStatusForDecision(decision.decision),
+      qualification_state: "done",
+      qualification_outcome: decision.decision,
+      qualification_decision_id: opts.decisionId,
+      qualification_ready_at: decision.decided_at,
+      qualification_review_reason:
+        decision.mode === "manual_review" ? decision.decision_reasons.join(", ") : null,
+      qualification_pipeline_version: decision.versions?.pipeline_version ?? null,
+      approval_source: decision.automatic_approval_eligible ? "automatic" : null,
+      rejection_reason: decision.decision === "rejected" ? decision.rejection_reason : null,
+    })
+    .eq("id", opts.leadId);
+  if (error) throw new Error(`projectQualificationToLead failed: ${error.message}`);
+}
+
+function defaultOperations(supabase?: SupabaseClient): QualificationPersistenceOperations {
+  return {
+    saveSnapshot: (opts) => createEvidenceSnapshot({ ...opts, supabase }),
+    saveExtraction: (opts) => createExtraction({ ...opts, supabase }),
+    saveDecision: (opts) => createDecision({ ...opts, supabase }),
+    projectLead: (opts) => projectQualificationToLead({ ...opts, supabase }),
+  };
+}
+
+/**
+ * Persists an entire run in dependency order. The mutable lead projection is
+ * deliberately last, so it can never point at partial or missing history.
+ */
+export async function saveQualificationRun(opts: {
+  leadId: string;
+  snapshot: EvidenceSnapshot;
+  extraction: ExtractionResult | null;
+  decision: CommercialDecision;
+  supabase?: SupabaseClient;
+  operations?: QualificationPersistenceOperations;
+}): Promise<{ snapshotId: string; extractionId: string | null; decisionId: string }> {
+  const operations = opts.operations ?? defaultOperations(opts.supabase);
+  const snapshot = await operations.saveSnapshot({ snapshot: opts.snapshot, leadId: opts.leadId });
+  const extraction = opts.extraction
+    ? await operations.saveExtraction({
+        evidenceSnapshotId: snapshot.id,
+        leadId: opts.leadId,
+        extraction: opts.extraction,
+      })
+    : null;
+  const decision = await operations.saveDecision({
+    evidenceSnapshotId: snapshot.id,
+    extractionId: extraction?.id ?? null,
+    leadId: opts.leadId,
+    decision: opts.decision,
+  });
+  await operations.projectLead({
+    leadId: opts.leadId,
+    decisionId: decision.id,
+    decision: opts.decision,
+  });
+  return {
+    snapshotId: snapshot.id,
+    extractionId: extraction?.id ?? null,
+    decisionId: decision.id,
+  };
+}
