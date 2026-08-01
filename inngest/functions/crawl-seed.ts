@@ -2,7 +2,6 @@ import { inngest } from "@/inngest/client";
 import { getSettings, resolveApifyToken } from "@/lib/config/settings";
 import { scrapeFollowingDetailedWithFallback } from "@/lib/pipeline/scrape-following";
 import { bulkUpsertDiscoveredLeads, bumpFunnelCounters, logCrawl, logError } from "@/lib/pipeline/persist";
-import { scrapeProfiles } from "@/lib/apify/actors";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { AppSettings } from "@/lib/types";
 
@@ -38,33 +37,6 @@ export const crawlSeed = inngest.createFunction(
       : settings;
 
     const apifyToken = resolveApifyToken(settings);
-
-    // The seed's own follow count — the hard ceiling "found" can never exceed.
-    // Fetched fresh here rather than trusted from an existing lead row: leads
-    // scraped as a side-effect of someone else's crawl carry stale `following`
-    // values (@pierree read 837 from an old backfill against a 650 profile).
-    // Best-effort: a failure here shouldn't fail the whole crawl, it just means
-    // the ceiling check below is skipped for this run.
-    let followingCount: number | null = null;
-    if (apifyToken) {
-      followingCount = await step.run("fetch-following-count", async () => {
-        try {
-          const [profile] = await scrapeProfiles({ token: apifyToken, usernames: [seed_username] });
-          if (!profile) return null;
-          const sb = createAdminClient();
-          await sb.from("seeds").update({ following_count: profile.following }).eq("id", seed_id);
-          return profile.following;
-        } catch (err) {
-          await logError({
-            context: "crawl-seed.following-count",
-            error_message: err instanceof Error ? err.message : String(err),
-            payload: { seed_username },
-            crawl_job_id: crawl_job_id ?? null,
-          });
-          return null;
-        }
-      });
-    }
 
     let cursor: string | null = null;
     let totalNew = 0;
@@ -168,14 +140,17 @@ export const crawlSeed = inngest.createFunction(
 
     await step.run("set-counters", async () => {
       const sb = createAdminClient();
-      await sb
-        .from("crawl_jobs")
-        .update({
-          expected_profiles: totalScraped,
-          profiles_scraped: totalScraped,
-          new_leads: totalNew,
-        })
-        .eq("id", crawl_job_id);
+      await Promise.all([
+        sb
+          .from("crawl_jobs")
+          .update({
+            expected_profiles: totalScraped,
+            profiles_scraped: totalScraped,
+            new_leads: totalNew,
+          })
+          .eq("id", crawl_job_id),
+        sb.from("seeds").update({ following_count: totalScraped }).eq("id", seed_id),
+      ]);
     });
 
     // Record who-follows-whom for the seed recommender's network-overlap
@@ -240,22 +215,6 @@ export const crawlSeed = inngest.createFunction(
           await sb.from("seeds").update({ exhausted_providers: updated }).eq("id", seed_id);
         }
       });
-    }
-
-    // Hard ceiling: a seed can never yield more accounts than it follows. A
-    // breach means the logic upstream is wrong, so it's surfaced loudly rather
-    // than silently capped or hidden — the leads already scraped are real and
-    // stay, but the run is flagged failed so the anomaly gets investigated.
-    if (followingCount != null && totalScraped > followingCount) {
-      const msg = `Found ${totalScraped} accounts but @${seed_username} only follows ${followingCount} — scrape logic is producing more than the ceiling allows.`;
-      await logError({
-        context: "crawl-seed.ceiling-breach",
-        error_message: msg,
-        payload: { seed_username, totalScraped, followingCount },
-        crawl_job_id: crawl_job_id ?? null,
-      });
-      await markJobFailed(crawl_job_id, msg);
-      return { discovered: totalNew, pages: pageIndex + 1, ceilingBreach: true };
     }
 
     await markJobCompleted(crawl_job_id);

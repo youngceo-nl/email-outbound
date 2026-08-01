@@ -1,19 +1,8 @@
+/* Compatibility adapter for legacy lead/score.requested callers. */
 import { inngest } from "@/inngest/client";
-import { getSettings } from "@/lib/config/settings";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hardFilter, infopreneurGate } from "@/lib/pipeline/filter";
-import { computeMetrics } from "@/lib/pipeline/metrics";
-import { scoreProfileRouted } from "@/lib/scoring/score";
-import { leadTrackFor } from "@/lib/leads/category";
-import { bumpFunnelCounters, logCrawl, logError } from "@/lib/pipeline/persist";
-import type { ScrapedProfile } from "@/lib/types";
 
-/**
- * Deterministic sampling for shadow qualification: a given lead is either
- * always in the sample or always out. Math.random would reshuffle on every
- * rescore, so a lead could pick up several shadow rows while its neighbour
- * never gets one, which quietly biases the measured rate.
- */
+/** Retained for callers and tests that use deterministic shadow sampling. */
 export function inShadowSample(leadId: string, samplePct: number): boolean {
   if (samplePct <= 0) return false;
   if (samplePct >= 100) return true;
@@ -25,233 +14,54 @@ export function inShadowSample(leadId: string, samplePct: number): boolean {
   return (hash >>> 0) % 100 < samplePct;
 }
 
-// Light-weight scoring: uses the data the cookie-based backfill already put
-// into the leads row (bio, followers, recent_posts, etc.). No re-scraping.
-// Costs: one OpenAI gpt-4o-mini call per lead. ~$0.0001 each.
 export const scoreLead = inngest.createFunction(
   {
     id: "score-lead",
-    name: "Score lead from cached metadata",
+    name: "Adapt legacy scoring to canonical qualification",
     retries: 2,
-    concurrency: [
-      { limit: 8, key: "event.data.crawl_job_id" }, // 8 concurrent scores per crawl
-      { limit: 16 },                                  // 16 globally
-    ],
   },
   { event: "lead/score.requested" },
   async ({ event, step }) => {
-    const { lead_id, crawl_job_id } = event.data;
-
-    const lead = await step.run("load-lead", async () => {
+    const { lead_id, crawl_job_id = null } = event.data;
+    const resolved = await step.run("resolve-canonical-input", async () => {
       const sb = createAdminClient();
-      const { data, error } = await sb.from("leads").select("*").eq("id", lead_id).single();
-      if (error || !data) throw new Error(error?.message ?? "lead not found");
-      return data;
+      const [{ data: lead, error: leadError }, { data: snapshot, error: snapshotError }] =
+        await Promise.all([
+          sb.from("leads").select("id, username").eq("id", lead_id).single(),
+          sb
+            .from("lead_evidence_snapshots")
+            .select("id")
+            .eq("lead_id", lead_id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
+      if (leadError || !lead) throw new Error(leadError?.message ?? "lead not found");
+      if (snapshotError) throw new Error(snapshotError.message);
+      return { lead: lead as { id: string; username: string }, snapshotId: snapshot?.id as string | undefined };
     });
 
-    // Skip if already scored — unless the caller explicitly forces a rescore.
-    if (lead.overall_score != null && lead.status !== "pending" && !event.data.force) {
-      return { skipped: "already_scored", status: lead.status };
-    }
-
-    const profile: ScrapedProfile = {
-      username: lead.username,
-      full_name: lead.full_name,
-      profile_url: lead.profile_url,
-      profile_pic_url: lead.profile_pic_url ?? null,
-      bio: lead.bio,
-      external_link: lead.external_link,
-      followers: lead.followers ?? 0,
-      following: lead.following ?? 0,
-      posts: lead.posts ?? 0,
-      is_private: !!lead.is_private,
-      is_verified: !!lead.is_verified,
-      recent_posts: lead.recent_posts ?? [],
-    };
-
-    const settings = await step.run("load-settings", () => getSettings());
-
-    // Gate 1 — hard filter (private, follower range, bio, keywords, junk)
-    const hard = hardFilter(profile, settings);
-    if (!hard.ok) {
-      await step.run("persist-rejected-hard", async () => {
-        const sb = createAdminClient();
-        await sb
-          .from("leads")
-          .update({
-            status: "rejected",
-            rejection_reason: hard.reason,
-            overall_score: null,
-            // .update() only touches listed columns — a lead re-processed
-            // after an earlier AI pass would otherwise keep that pass's
-            // reason_for_score/recommended_action, making a hard-filter
-            // rejection misread as "went through AI" downstream (the funnel's
-            // `verified` count, in particular, reads reason_for_score as proof
-            // of that). persistLead's full-row upsert never has this problem;
-            // this narrower update needs to null them explicitly instead.
-            reason_for_score: null,
-            recommended_action: null,
-          })
-          .eq("id", lead_id);
+    if (resolved.snapshotId) {
+      await step.sendEvent("request-canonical-qualification", {
+        name: "lead/qualification.requested" as const,
+        data: {
+          lead_id,
+          evidence_snapshot_id: resolved.snapshotId,
+          crawl_job_id,
+        },
       });
-      await logCrawl({
-        crawl_job_id: crawl_job_id ?? null,
-        profile_username: lead.username,
-        parent_username: lead.parent_username,
-        action: "filtered_hard",
-        depth: lead.crawl_depth,
-        detail: hard.reason,
-      });
-      return { status: "rejected", reason: hard.reason };
+      return { queued: "qualification", snapshot_id: resolved.snapshotId };
     }
 
-    // Compute engagement / activity metrics from recent_posts
-    const metrics = computeMetrics(profile);
-    const reelSample = profile.recent_posts.filter((p) => p.is_reel).length;
-
-    // Classify FIRST — the activity gate is now infopreneur-specific, so we need
-    // the AI business_model before we know whether to apply it (see filter.ts /
-    // the partnership track). Costs one classify call even for leads an
-    // infopreneur activity gate would later reject — the price of the split.
-    let scored;
-    try {
-      scored = await step.run("score", () =>
-        scoreProfileRouted({ settings, profile, metrics }),
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await logError({
-        context: "score-lead.classify",
-        error_message: msg,
-        payload: { lead_id, username: lead.username },
-        crawl_job_id: crawl_job_id ?? null,
-      });
-      throw err;
-    }
-
-    const score = scored.score;
-    const track = leadTrackFor(score.business_model);
-
-    // Infopreneur track only: the activity gate (no recent posts, engagement,
-    // reels). Partnerships skip it — they're judged on audience fit, not cadence.
-    if (track === "infopreneur") {
-      const gate = infopreneurGate(profile, metrics, settings, reelSample);
-      if (!gate.ok) {
-        await step.run("persist-rejected-metrics", async () => {
-          const sb = createAdminClient();
-          await sb
-            .from("leads")
-            .update({
-              status: "rejected",
-              rejection_reason: gate.reason,
-              overall_score: null,
-              reason_for_score: null,
-              recommended_action: null,
-              lead_type: "infopreneur",
-              niche: score.niche,
-              business_model: score.business_model,
-              avg_likes: metrics.avg_likes,
-              avg_comments: metrics.avg_comments,
-              avg_views: metrics.avg_views,
-              engagement_rate: metrics.engagement_rate,
-              posts_last_30_days: metrics.posts_last_30_days,
-              reels_last_30_days: metrics.reels_last_30_days,
-              activity_status: metrics.activity_status,
-            })
-            .eq("id", lead_id);
-        });
-        await logCrawl({
-          crawl_job_id: crawl_job_id ?? null,
-          profile_username: lead.username,
-          parent_username: lead.parent_username,
-          action: "filtered_metrics",
-          depth: lead.crawl_depth,
-          detail: gate.reason,
-        });
-        return { status: "rejected", reason: gate.reason };
-      }
-    }
-
-    await step.run("bump-filtered", () =>
-      bumpFunnelCounters({ crawl_job_id: crawl_job_id ?? null, filtered: 1 }),
-    );
-
-    // Both tracks: status comes from the score's verdict (overall_score vs.
-    // crawl_score_threshold, with the weak-ICP hard cap). Partnership leads used
-    // to bypass this and go straight to "qualified" regardless of score, which
-    // flooded the Partnership review queue with sub-threshold and wrong-ICP
-    // leads — the queue is meant to hold candidates a human still has to
-    // approve/reject, not every agency-classified profile.
-    const status =
-      score.recommended_action === "qualified"
-        ? "qualified"
-        : score.recommended_action === "review"
-        ? "review"
-        : "rejected";
-
-    await step.run("persist-scored", async () => {
-      const sb = createAdminClient();
-      await sb
-        .from("leads")
-        .update({
-          avg_likes: metrics.avg_likes,
-          avg_comments: metrics.avg_comments,
-          avg_views: metrics.avg_views,
-          engagement_rate: metrics.engagement_rate,
-          posts_last_30_days: metrics.posts_last_30_days,
-          reels_last_30_days: metrics.reels_last_30_days,
-          activity_status: metrics.activity_status,
-          niche: score.niche,
-          business_model: score.business_model,
-          offer_type: score.offer_type,
-          audience_type: score.audience_type,
-          icp_fit_score: status === "rejected" ? null : score.icp_fit_score,
-          traction_score: status === "rejected" ? null : score.traction_score,
-          monetization_score: status === "rejected" ? null : score.monetization_score,
-          activity_score: status === "rejected" ? null : score.activity_score,
-          overall_score: status === "rejected" ? null : score.overall_score,
-          reason_for_score: score.reason_for_score,
-          recommended_action: score.recommended_action,
-          // Cleared on a pass, matching process-profile.ts. Without this a lead
-          // that was rejected earlier keeps its stale reason after qualifying,
-          // so the funnel reads "qualified / no_recent_posts".
-          rejection_reason: status === "rejected" ? score.reason_for_score : null,
-          status,
-          lead_type: track,
-        })
-        .eq("id", lead_id);
+    await step.sendEvent("request-canonical-acquisition", {
+      name: "lead/profile-acquisition.requested" as const,
+      data: {
+        lead_id,
+        username: resolved.lead.username,
+        crawl_job_id,
+        event_index: 0,
+      },
     });
-
-    await step.run("bump-verified", () =>
-      bumpFunnelCounters({ crawl_job_id: crawl_job_id ?? null, verified: 1 }),
-    );
-
-    /*
-     * Shadow mode. Fired here, at the point the live scorer has a verdict, so
-     * both pipelines have decided the same lead and the comparison is like for
-     * like. Leads rejected by the hard filter above never reach this point and
-     * are therefore outside the shadow denominator — worth remembering when
-     * reading the measured qualification rate.
-     *
-     * Send-and-forget: the shadow function owns its own enable flag and never
-     * writes back, so nothing about this lead's outcome depends on it.
-     */
-    if (settings.shadow_qualification_enabled && inShadowSample(lead_id, settings.shadow_qualification_sample_pct)) {
-      await step.sendEvent("request-shadow-qualification", {
-        name: "lead/shadow-qualify.requested",
-        data: { lead_id, crawl_job_id: crawl_job_id ?? null, legacy_status: status, legacy_score: score.overall_score },
-      });
-    }
-
-    await logCrawl({
-      crawl_job_id: crawl_job_id ?? null,
-      profile_username: lead.username,
-      parent_username: lead.parent_username,
-      action: "scored",
-      depth: lead.crawl_depth,
-      detail: `provider=${scored.provider} overall=${score.overall_score} status=${status} niche=${score.niche}`,
-    });
-
-    return { status, overall: score.overall_score, niche: score.niche };
+    return { queued: "acquisition" };
   },
 );

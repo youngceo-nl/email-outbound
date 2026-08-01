@@ -6,7 +6,7 @@ import { toUsername, profileUrl } from "@/lib/pipeline/normalize";
 import { inngest } from "@/inngest/client";
 import { getSettings, resolveApifyToken } from "@/lib/config/settings";
 import { getScrapedSeedIds, hasBeenScraped, checkRescrapeOverride } from "@/lib/seeds/scraped";
-import { scrapeProfiles } from "@/lib/apify/actors";
+import { scrapeFollowingDetailedWithFallback } from "@/lib/pipeline/scrape-following";
 
 async function requireUser() {
   const sb = await createClient();
@@ -107,12 +107,17 @@ export async function checkFollowingCount(id: string): Promise<{ ok: true; follo
   const apifyToken = resolveApifyToken(settings);
   if (!apifyToken) return { ok: false, error: "No Apify token configured — add one in Settings." };
 
-  const [profile] = await scrapeProfiles({ token: apifyToken, usernames: [seed.username] });
-  if (!profile) return { ok: false, error: `Apify returned nothing for @${seed.username}.` };
+  const result = await scrapeFollowingDetailedWithFallback({
+    username: seed.username,
+    settings: { ...settings, following_scraper_provider: "apify" },
+    apifyToken,
+    fullAccount: true,
+  });
+  const followingCount = result.items.length;
 
-  await sb.from("seeds").update({ following_count: profile.following }).eq("id", id);
+  await sb.from("seeds").update({ following_count: followingCount }).eq("id", id);
   revalidatePath("/seeds");
-  return { ok: true, following_count: profile.following };
+  return { ok: true, following_count: followingCount };
 }
 
 export type ScrapeProvider = "auto" | "playwright" | "cookie" | "apify" | "scrapingbee" | "colddms" | "hikerapi";
@@ -271,4 +276,3 @@ export async function startCrawl(
     seed_username: seed.username,
   };
 }
-

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AcquisitionPoolEntry } from "../../lib/instagram/cookie-pool";
 import {
+  buildProfileAcquisitionEvents,
   qualificationEventForAcquisition,
   selectAcquisitionIdentity,
 } from "../../lib/pipeline/canonical-events";
@@ -52,4 +53,26 @@ test("never emits qualification for a failed or challenged acquisition", () => {
       null,
     );
   }
+});
+
+test("legacy batches fan out only canonical acquisition events", () => {
+  assert.deepEqual(
+    buildProfileAcquisitionEvents(
+      [
+        { id: "lead-1", username: "first" },
+        { id: "lead-2", username: "second" },
+      ],
+      "crawl-1",
+    ),
+    [
+      {
+        name: "lead/profile-acquisition.requested",
+        data: { lead_id: "lead-1", username: "first", crawl_job_id: "crawl-1", event_index: 0 },
+      },
+      {
+        name: "lead/profile-acquisition.requested",
+        data: { lead_id: "lead-2", username: "second", crawl_job_id: "crawl-1", event_index: 1 },
+      },
+    ],
+  );
 });

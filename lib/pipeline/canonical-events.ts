@@ -26,3 +26,18 @@ export function qualificationEventForAcquisition(input: {
     },
   };
 }
+
+export function buildProfileAcquisitionEvents(
+  leads: Array<{ id: string; username: string }>,
+  crawlJobId: string | null,
+) {
+  return leads.map((lead, eventIndex) => ({
+    name: "lead/profile-acquisition.requested" as const,
+    data: {
+      lead_id: lead.id,
+      username: lead.username,
+      crawl_job_id: crawlJobId,
+      event_index: eventIndex,
+    },
+  }));
+}

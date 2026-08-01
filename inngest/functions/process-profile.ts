@@ -1,164 +1,31 @@
+/* Compatibility adapter for callers that still emit crawl/profile.discovered. */
 import { inngest } from "@/inngest/client";
-import { getSettings } from "@/lib/config/settings";
-import { scrapeProfileWithFallback } from "@/lib/pipeline/scrape-profile";
-import { hardFilter, infopreneurGate } from "@/lib/pipeline/filter";
-import { computeMetrics } from "@/lib/pipeline/metrics";
-import { scoreProfileRouted } from "@/lib/scoring/score";
-import { leadTrackFor } from "@/lib/leads/category";
-import { bumpJobCounters, getJobStatus, logCrawl, logError, persistLead } from "@/lib/pipeline/persist";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { buildProfileAcquisitionEvents } from "@/lib/pipeline/canonical-events";
 
-// One profile through the full pipeline:
-//   scrape → hard-filter → metrics → metrics-gate → claude → persist → maybe recurse
 export const processProfile = inngest.createFunction(
   {
     id: "process-profile",
-    name: "Process discovered profile",
-    retries: 3,
-    concurrency: [
-      { limit: 10, key: "event.data.crawl_job_id" }, // 10 profiles per crawl
-      { limit: 30 },                                  // 30 globally
-    ],
+    name: "Adapt discovered profile to canonical acquisition",
+    retries: 2,
   },
   { event: "crawl/profile.discovered" },
   async ({ event, step }) => {
-    const { crawl_job_id, seed_id, username, depth, parent_username } = event.data;
-
-    const jobStatus = await step.run("check-job-status", () => getJobStatus(crawl_job_id));
-    if (jobStatus === "cancelled" || jobStatus === "failed") {
-      return { skipped: jobStatus };
-    }
-
-    const settings = await step.run("load-settings", () => getSettings());
-
-    // 1. Scrape profile via direct cookie (Playwright fallback handled inside)
-    let profile;
-    try {
-      const r = await step.run("scrape-profile", () =>
-        scrapeProfileWithFallback({ username, settings, apifyToken: null, crawl_job_id }),
-      );
-      profile = r.profile;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await logError({ context: "scrape.profile", error_message: msg, payload: { username }, crawl_job_id });
-      await logCrawl({
-        crawl_job_id, profile_username: username, parent_username,
-        action: "scraped", depth, status: "failure", detail: msg,
-      });
-      throw err; // let Inngest retry
-    }
-
-    await bumpJobCounters({ crawl_job_id, scraped: 1, depth });
-
-    // 2. Hard filter
-    const hard = hardFilter(profile, settings);
-    if (!hard.ok) {
-      await persistLead({
-        profile, metrics: null, score: null,
-        status: "rejected", rejection_reason: hard.reason,
-        crawl_depth: depth, source_seed_id: seed_id, parent_username,
-      });
-      await logCrawl({
-        crawl_job_id, profile_username: username, parent_username,
-        action: "filtered_hard", depth, detail: hard.reason,
-      });
-      await bumpJobCounters({ crawl_job_id, rejected: 1 });
-      return { status: "rejected_hard", reason: hard.reason };
-    }
-
-    // 3. Metrics
-    const metrics = computeMetrics(profile);
-    const reelSample = profile.recent_posts.filter((p) => p.is_reel).length;
-
-    // 4. AI classifies FIRST — the activity gate is now infopreneur-specific, so
-    // we need business_model to know whether it applies (partnership track skips
-    // it). See filter.ts.
-    let score;
-    let scoringProvider: "openai" | "claude" | "gemini" | "groq";
-    try {
-      const r = await step.run("score", () =>
-        scoreProfileRouted({ settings, profile, metrics }),
-      );
-      score = r.score;
-      scoringProvider = r.provider;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await logError({ context: "scoring", error_message: msg, payload: { username }, crawl_job_id });
-      // Persist as "review" so we don't lose the profile, then rethrow for retry visibility.
-      await persistLead({
-        profile, metrics, score: null,
-        status: "review", rejection_reason: `scoring_failed: ${msg.slice(0, 200)}`,
-        crawl_depth: depth, source_seed_id: seed_id, parent_username,
-      });
-      throw err;
-    }
-
-    const track = leadTrackFor(score.business_model);
-
-    // 5. Infopreneur-only activity gate (post-classify). Partnerships skip it.
-    if (track === "infopreneur") {
-      const gate = infopreneurGate(profile, metrics, settings, reelSample);
-      if (!gate.ok) {
-        await persistLead({
-          profile, metrics, score: null,
-          status: "rejected", rejection_reason: gate.reason, lead_type: "infopreneur",
-          crawl_depth: depth, source_seed_id: seed_id, parent_username,
-        });
-        await logCrawl({
-          crawl_job_id, profile_username: username, parent_username,
-          action: "filtered_metrics", depth, detail: gate.reason,
-        });
-        await bumpJobCounters({ crawl_job_id, rejected: 1 });
-        return { status: "rejected_metrics", reason: gate.reason };
-      }
-    }
-
-    // 6. Decide status. Partnerships pass through to manual review; infopreneurs
-    // take the score's verdict.
-    const overall = score.overall_score;
-    const status: "qualified" | "review" | "rejected" =
-      track === "partnership"
-        ? "qualified"
-        : score.recommended_action === "qualified"
-        ? "qualified"
-        : score.recommended_action === "reject"
-        ? "rejected"
-        : "review";
-
-    await step.run("persist", () =>
-      persistLead({
-        profile, metrics, score,
-        status,
-        rejection_reason: status === "rejected" ? score.reason_for_score : null,
-        crawl_depth: depth, source_seed_id: seed_id, parent_username,
-        lead_type: track,
-      }),
-    );
-
-    await logCrawl({
-      crawl_job_id, profile_username: username, parent_username,
-      action: "scored", depth,
-      detail: `provider=${scoringProvider} overall=${overall} status=${status} niche=${score.niche}`,
+    const { username, crawl_job_id } = event.data;
+    const lead = await step.run("resolve-lead", async () => {
+      const sb = createAdminClient();
+      const { data, error } = await sb
+        .from("leads")
+        .select("id, username")
+        .eq("username", username)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data as { id: string; username: string } | null;
     });
-    if (status === "qualified") await bumpJobCounters({ crawl_job_id, qualified: 1 });
-    if (status === "rejected") await bumpJobCounters({ crawl_job_id, rejected: 1 });
+    if (!lead) return { skipped: "lead_not_found" };
 
-    // 7. Recurse if quality is high enough AND we're still at the seed level (depth 0 → 1 only)
-    const shouldRecurse =
-      status !== "rejected" &&
-      overall >= settings.crawl_score_threshold &&
-      depth < 1;
-
-    if (shouldRecurse) {
-      await step.sendEvent("recurse", {
-        name: "crawl/recurse.requested",
-        data: { crawl_job_id, seed_id, username, depth },
-      });
-      await logCrawl({
-        crawl_job_id, profile_username: username, parent_username,
-        action: "recurse_queued", depth, detail: `next_depth=${depth + 1}`,
-      });
-    }
-
-    return { status, overall, recursed: shouldRecurse };
+    const [next] = buildProfileAcquisitionEvents([lead], crawl_job_id);
+    await step.sendEvent("request-profile-acquisition", next);
+    return { queued: 1, lead_id: lead.id };
   },
 );
