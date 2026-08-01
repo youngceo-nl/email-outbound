@@ -293,6 +293,7 @@ function defaultOperations(supabase?: SupabaseClient): QualificationPersistenceO
  */
 export async function saveQualificationRun(opts: {
   leadId: string;
+  existingSnapshotId?: string;
   snapshot: EvidenceSnapshot;
   extraction: ExtractionResult | null;
   decision: CommercialDecision;
@@ -300,7 +301,9 @@ export async function saveQualificationRun(opts: {
   operations?: QualificationPersistenceOperations;
 }): Promise<{ snapshotId: string; extractionId: string | null; decisionId: string }> {
   const operations = opts.operations ?? defaultOperations(opts.supabase);
-  const snapshot = await operations.saveSnapshot({ snapshot: opts.snapshot, leadId: opts.leadId });
+  const snapshot = opts.existingSnapshotId
+    ? { id: opts.existingSnapshotId }
+    : await operations.saveSnapshot({ snapshot: opts.snapshot, leadId: opts.leadId });
   const extraction = opts.extraction
     ? await operations.saveExtraction({
         evidenceSnapshotId: snapshot.id,

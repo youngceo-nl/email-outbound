@@ -61,6 +61,8 @@ export type QualificationDependencies = {
 
 export type RunOptions = {
   instagram: InstagramEvidence;
+  /** Replay a durable acquisition without contacting any acquisition surface. */
+  precollectedSnapshot?: EvidenceSnapshot;
   llm: LlmClient;
   challengerLlm?: LlmClient;
   leadId?: string | null;
@@ -119,20 +121,22 @@ export async function runCommercialQualification(
 
   // ---- Acquisition ----
   const acquisitionStart = Date.now();
-  const snapshot = await collectCommercialEvidence({
-    instagram,
-    dataQuality: sufficiency.data_quality,
-    leadId: opts.leadId,
-    external: externalConfig,
-    youtube: opts.youtube,
-    dependencies: {
-      fetchPage: deps.fetchPage,
-      collectYouTube: deps.collectYouTube,
-      now: deps.now,
-      uuid: deps.uuid,
-    },
-  });
-  const acquisitionMs = Date.now() - acquisitionStart;
+  const snapshot =
+    opts.precollectedSnapshot ??
+    (await collectCommercialEvidence({
+      instagram,
+      dataQuality: sufficiency.data_quality,
+      leadId: opts.leadId,
+      external: externalConfig,
+      youtube: opts.youtube,
+      dependencies: {
+        fetchPage: deps.fetchPage,
+        collectYouTube: deps.collectYouTube,
+        now: deps.now,
+        uuid: deps.uuid,
+      },
+    }));
+  const acquisitionMs = opts.precollectedSnapshot ? 0 : Date.now() - acquisitionStart;
 
   // ---- Extraction ----
   const extractionStart = Date.now();

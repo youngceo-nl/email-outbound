@@ -33,6 +33,21 @@ type Events = {
       crawl_job_id?: string | null;
     };
   };
+  "lead/profile-acquisition.requested": {
+    data: {
+      lead_id: string;
+      username: string;
+      crawl_job_id?: string | null;
+      event_index?: number;
+    };
+  };
+  "lead/qualification.requested": {
+    data: {
+      lead_id: string;
+      evidence_snapshot_id: string;
+      crawl_job_id?: string | null;
+    };
+  };
   "lead/score.requested": {
     data: {
       lead_id: string;

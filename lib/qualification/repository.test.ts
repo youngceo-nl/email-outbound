@@ -68,6 +68,31 @@ test("persists terminal pre-AI decisions without inventing an extraction", async
   assert.deepEqual(calls, []);
 });
 
+test("reuses an existing durable snapshot without inserting a duplicate", async () => {
+  const calls: string[] = [];
+  const result = await saveQualificationRun({
+    leadId: "lead-1",
+    existingSnapshotId: "snapshot-existing",
+    snapshot: { username: "creator" } as EvidenceSnapshot,
+    extraction: { ok: true } as ExtractionResult,
+    decision: { decision: "review" } as CommercialDecision,
+    operations: {
+      saveSnapshot: async () => {
+        calls.push("snapshot");
+        return { id: "duplicate" };
+      },
+      saveExtraction: async () => ({ id: "extraction-1" }),
+      saveDecision: async ({ evidenceSnapshotId }) => {
+        assert.equal(evidenceSnapshotId, "snapshot-existing");
+        return { id: "decision-1" };
+      },
+      projectLead: async () => undefined,
+    },
+  });
+  assert.deepEqual(calls, []);
+  assert.equal(result.snapshotId, "snapshot-existing");
+});
+
 test("data retry remains pending and is never projected as rejected", () => {
   assert.equal(operationalStatusForDecision("data_retry"), "pending");
   assert.equal(operationalStatusForDecision("qualified"), "qualified");

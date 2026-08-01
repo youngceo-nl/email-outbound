@@ -185,6 +185,32 @@ test("runs acquisition, extraction, challenger, and decision in order", async ()
   );
 });
 
+test("qualifies a persisted snapshot without fetching acquisition surfaces again", async () => {
+  const firstLlm = scriptedLlm();
+  const first = await runCommercialQualification({
+    instagram: igEvidence(),
+    llm: firstLlm,
+    dependencies: deps(firstLlm, { "https://example.com/coaching": COACHING_PAGE }),
+  });
+  assert.ok(first.snapshot);
+
+  const replayLlm = scriptedLlm();
+  const replay = await runCommercialQualification({
+    instagram: first.snapshot.instagram,
+    precollectedSnapshot: first.snapshot,
+    llm: replayLlm,
+    dependencies: {
+      ...deps(replayLlm, {}),
+      fetchPage: async () => {
+        throw new Error("persisted snapshot must not fetch pages");
+      },
+    },
+  });
+
+  assert.equal(replay.snapshot?.snapshot_id, first.snapshot.snapshot_id);
+  assert.equal(replay.decision.decision, first.decision.decision);
+});
+
 test("a universal exclusion short-circuits before any model call", async () => {
   const llm = scriptedLlm();
   const result = await runCommercialQualification({

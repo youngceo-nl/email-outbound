@@ -13,6 +13,8 @@ import { routeFollowupLeads } from "@/inngest/functions/route-followup-leads";
 import { autoSendFollowups } from "@/inngest/functions/auto-send-followups";
 import { syncInboxScheduled } from "@/inngest/functions/sync-inbox-scheduled";
 import { shadowQualify } from "@/inngest/functions/shadow-qualify";
+import { acquireProfile } from "@/inngest/functions/acquire-profile";
+import { qualifyLead } from "@/inngest/functions/qualify-lead";
 
 // dailyScrape is intentionally NOT registered here, permanently. Accounts are
 // scraped once and re-scraping takes the override password (lib/seeds/scraped.ts),
@@ -43,5 +45,7 @@ export const { GET, POST, PUT } = serve({
     // decided; writes nothing to public.leads. Inert until
     // shadow_qualification_enabled is turned on.
     shadowQualify,
+    acquireProfile,
+    qualifyLead,
   ],
 });
