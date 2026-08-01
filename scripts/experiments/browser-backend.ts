@@ -44,6 +44,8 @@ export type BackendOptions = {
   useRotatingProxy?: boolean;
   /** Persistent Steel profile id — one per Instagram account in production. */
   profileId?: string | null;
+  /** Exact cookie header paired with this profile. Never logged. */
+  sessionCookie?: string | null;
   sessionTimeoutMs?: number;
 };
 
@@ -89,7 +91,7 @@ async function openSteelSession(options: BackendOptions): Promise<BrowserSession
    * addCookies: the browser is already authenticated on its very first request,
    * so Instagram never sees a logged-out hit from this IP.
    */
-  const cookies = parseSessionCookies(process.env.INSTAGRAM_SESSION_COOKIE);
+  const cookies = parseSessionCookies(options.sessionCookie ?? process.env.INSTAGRAM_SESSION_COOKIE);
 
   const params: Steel.SessionCreateParams = {
     dimensions: BROWSER_IDENTITY.viewport,

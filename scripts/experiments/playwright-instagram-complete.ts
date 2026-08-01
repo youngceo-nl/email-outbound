@@ -23,6 +23,7 @@
  */
 
 import { writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { type BrowserContext, type Page, type Response } from "playwright";
 import { openBrowserSession, type BackendKind } from "./browser-backend";
 import { extractPage } from "@/lib/evidence/page-extract";
@@ -100,11 +101,13 @@ type CaptureStatuses = {
   youtube: CaptureStatus;
 };
 
-type Report = {
+export type Report = {
   username: string;
   started_at: string;
   finished_at: string;
   duration_ms: number;
+  steel_session_id: string | null;
+  proxy_source: "steel" | "external" | null;
   authenticated: boolean;
   profile: Record<string, unknown>;
   recent_posts: NormalizedPost[];
@@ -330,22 +333,45 @@ async function readHighlightTitlesFromDom(
 // Main
 // ---------------------------------------------------------------------------
 
-async function main(): Promise<void> {
-  ensureOutputDir(profileDirFor(CHANNEL));
+export type CompleteAcquisitionOptions = {
+  username: string;
+  backend?: BackendKind;
+  headed?: boolean;
+  channel?: string | null;
+  slowMo?: number;
+  proxyUrl?: string | null;
+  steelProfileId?: string | null;
+  sessionCookie?: string | null;
+  writeArtifacts?: boolean;
+};
+
+export async function runPlaywrightInstagramComplete(
+  options: CompleteAcquisitionOptions,
+): Promise<Report> {
+  const target = options.username.replace(/^@/, "");
+  const backend = options.backend ?? "steel";
+  const headed = options.headed ?? false;
+  const channel = options.channel ?? null;
+  const slowMo = options.slowMo ?? 0;
+  const proxyUrl = options.proxyUrl ?? null;
+  const steelProfileId = options.steelProfileId ?? null;
+  ensureOutputDir(profileDirFor(channel));
   const started = Date.now();
 
   console.log(
-    `Target @${TARGET} | backend=${BACKEND} | ${HEADED ? "HEADED" : "headless"}` +
-      `${BACKEND === "local" ? (CHANNEL ? ` | channel=${CHANNEL}` : " | bundled Chromium") : ""}` +
-      `${PROXY_URL ? " | pinned proxy" : BACKEND === "steel" ? " | NO proxy (direct)" : ""}` +
-      `${SLOW_MO ? ` | slowMo=${SLOW_MO}ms` : ""}`,
+    `Target @${target} | backend=${backend} | ${headed ? "HEADED" : "headless"}` +
+      `${backend === "local" ? (channel ? ` | channel=${channel}` : " | bundled Chromium") : ""}` +
+      `${proxyUrl ? " | pinned proxy" : backend === "steel" ? " | NO proxy (direct)" : ""}` +
+      `${slowMo ? ` | slowMo=${slowMo}ms` : ""}`,
   );
 
   const report: Report = {
-    username: TARGET,
+    username: target,
     started_at: new Date(started).toISOString(),
     finished_at: "",
     duration_ms: 0,
+    steel_session_id: null,
+    proxy_source: null,
     authenticated: false,
     profile: {},
     recent_posts: [],
@@ -378,14 +404,17 @@ async function main(): Promise<void> {
   const captured: Captured[] = [];
   const launchStart = Date.now();
   const session = await openBrowserSession({
-    kind: BACKEND,
-    headed: HEADED,
-    channel: CHANNEL,
-    slowMo: SLOW_MO,
-    proxyUrl: PROXY_URL,
-    profileId: STEEL_PROFILE,
+    kind: backend,
+    headed,
+    channel,
+    slowMo,
+    proxyUrl,
+    profileId: steelProfileId,
+    sessionCookie: options.sessionCookie,
   });
   const context = session.context;
+  report.steel_session_id = session.sessionId;
+  report.proxy_source = session.proxySource ?? null;
   if (session.sessionId) {
     console.log(`Steel session ${session.sessionId}`);
     if (session.debugUrl) console.log(`Live viewer: ${session.debugUrl}`);
@@ -396,7 +425,7 @@ async function main(): Promise<void> {
 
   try {
     await time("routing_install", async () => {
-      await installRouting(context, report.route_stats, { allowImages: HEADED });
+      await installRouting(context, report.route_stats, { allowImages: headed });
       installResponseCapture(context, captured, report);
     });
 
@@ -420,7 +449,7 @@ async function main(): Promise<void> {
     // ---- Profile ----
     try {
       await time("profile_nav", () =>
-        page.goto(`https://www.instagram.com/${TARGET}/`, {
+        page.goto(`https://www.instagram.com/${target}/`, {
           waitUntil: "domcontentloaded",
           timeout: NAV_TIMEOUT_MS,
         }),
@@ -476,7 +505,7 @@ async function main(): Promise<void> {
         await time(
           "reels_tab",
           async () => {
-            await page.goto(`https://www.instagram.com/${TARGET}/reels/`, {
+            await page.goto(`https://www.instagram.com/${target}/reels/`, {
               waitUntil: "domcontentloaded",
               timeout: NAV_TIMEOUT_MS,
             });
@@ -511,7 +540,7 @@ async function main(): Promise<void> {
       }
 
       const merged = {
-        username: networkProfile?.username ?? TARGET,
+        username: networkProfile?.username ?? target,
         display_name: networkProfile?.display_name ?? (domProfile.display_name as string | null) ?? null,
         biography: networkProfile?.biography ?? (domProfile.biography as string | null) ?? null,
         category: networkProfile?.category ?? null,
@@ -527,7 +556,7 @@ async function main(): Promise<void> {
         is_private: networkProfile?.is_private ?? (domProfile.isPrivate as boolean | null) ?? null,
         profile_pic_url:
           networkProfile?.profile_pic_url ?? sanitizeUrl(domProfile.profilePic as string | undefined),
-        profile_url: `https://www.instagram.com/${TARGET}/`,
+        profile_url: `https://www.instagram.com/${target}/`,
         user_id: networkProfile?.user_id ?? null,
       };
 
@@ -718,7 +747,8 @@ async function main(): Promise<void> {
     report.timings.push({ phase: "browser_close", ms: Date.now() - closeStart });
   }
 
-  finalize(report, started);
+  finalize(report, started, options.writeArtifacts ?? false);
+  return report;
 }
 
 // ---------------------------------------------------------------------------
@@ -988,7 +1018,7 @@ function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-function finalize(report: Report, started: number): void {
+function finalize(report: Report, started: number, writeArtifacts: boolean): void {
   const profile = report.profile as Record<string, unknown>;
   const posts = report.recent_posts;
 
@@ -1051,11 +1081,12 @@ function finalize(report: Report, started: number): void {
 
   // Final sweep: nothing credential-bearing reaches disk.
   const sanitized = sanitizeDeep(report, { maxDepth: 16 });
-  writeFileSync(`${OUTPUT_DIR}/${TARGET}-evidence.json`, JSON.stringify(sanitized, null, 2));
-  writeFileSync(`${OUTPUT_DIR}/${TARGET}-summary.md`, renderSummary(report));
+  if (!writeArtifacts) return;
+  writeFileSync(`${OUTPUT_DIR}/${report.username}-evidence.json`, JSON.stringify(sanitized, null, 2));
+  writeFileSync(`${OUTPUT_DIR}/${report.username}-summary.md`, renderSummary(report));
 
-  console.log(`\nEvidence: ${OUTPUT_DIR}/${TARGET}-evidence.json`);
-  console.log(`Summary:  ${OUTPUT_DIR}/${TARGET}-summary.md`);
+  console.log(`\nEvidence: ${OUTPUT_DIR}/${report.username}-evidence.json`);
+  console.log(`Summary:  ${OUTPUT_DIR}/${report.username}-summary.md`);
   console.log(`\nauthenticated=${report.authenticated} challenge=${report.challenge}`);
   console.log(
     `posts=${report.recent_posts.length} reels=${report.recent_posts.filter((p) => p.is_reel).length} ` +
@@ -1143,7 +1174,19 @@ ${report.errors.map((e) => `- ${e}`).join("\n") || "- none"}
 `;
 }
 
-main().catch((err) => {
-  console.error("Experiment failed:", err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runPlaywrightInstagramComplete({
+    username: TARGET,
+    backend: BACKEND,
+    headed: HEADED,
+    channel: CHANNEL,
+    slowMo: SLOW_MO,
+    proxyUrl: PROXY_URL,
+    steelProfileId: STEEL_PROFILE,
+    sessionCookie: process.env.INSTAGRAM_SESSION_COOKIE,
+    writeArtifacts: true,
+  }).catch((err) => {
+    console.error("Experiment failed:", err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  });
+}
