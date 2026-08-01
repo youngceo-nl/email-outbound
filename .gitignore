@@ -23,3 +23,6 @@ worker/loom-session/
 # Generated Python bytecode.
 __pycache__/
 *.pyc
+
+# TypeScript incremental build artifacts
+*.tsbuildinfo
