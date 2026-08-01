@@ -36,32 +36,38 @@ export const qualifyLead = inngest.createFunction(
       return data.payload as EvidenceSnapshot;
     });
 
-    await logCrawl({
-      crawl_job_id,
-      profile_username: snapshot.username,
-      parent_username: null,
-      action: "qualification_started",
-      depth: 0,
-      detail: `snapshot=${evidence_snapshot_id}`,
-    });
+    await step.run("log-qualification-started", () =>
+      logCrawl({
+        crawl_job_id,
+        profile_username: snapshot.username,
+        parent_username: null,
+        action: "qualification_started",
+        depth: 0,
+        detail: `snapshot=${evidence_snapshot_id}`,
+      }),
+    );
 
     let result: Awaited<ReturnType<typeof runCommercialQualification>>;
     try {
-      result = await runCommercialQualification({
-        instagram: snapshot.instagram,
-        precollectedSnapshot: snapshot,
-        leadId: lead_id,
-        llm: createLlmClient({ provider: "anthropic", model: EXTRACTOR_MODEL, apiKey }),
-        challengerLlm: createLlmClient({ provider: "anthropic", model: CHALLENGER_MODEL, apiKey }),
-      });
+      result = await step.run("run-commercial-qualification", () =>
+        runCommercialQualification({
+          instagram: snapshot.instagram,
+          precollectedSnapshot: snapshot,
+          leadId: lead_id,
+          llm: createLlmClient({ provider: "anthropic", model: EXTRACTOR_MODEL, apiKey }),
+          challengerLlm: createLlmClient({ provider: "anthropic", model: CHALLENGER_MODEL, apiKey }),
+        }),
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await logError({
-        context: "canonical-qualification",
-        error_message: message,
-        payload: { lead_id, evidence_snapshot_id, username: snapshot.username },
-        crawl_job_id,
-      });
+      await step.run("log-qualification-error", () =>
+        logError({
+          context: "canonical-qualification",
+          error_message: message,
+          payload: { lead_id, evidence_snapshot_id, username: snapshot.username },
+          crawl_job_id,
+        }),
+      );
       throw error;
     }
 
@@ -75,18 +81,20 @@ export const qualifyLead = inngest.createFunction(
       }),
     );
 
-    await logCrawl({
-      crawl_job_id,
-      profile_username: snapshot.username,
-      parent_username: null,
-      action: result.decision.decision,
-      depth: 0,
-      status: "success",
-      detail:
-        `score=${result.decision.scores.commercial_fit} certainty=${result.decision.certainty} ` +
-        `reasons=${result.decision.decision_reasons.join(",")} ` +
-        `pipeline=${result.decision.versions.pipeline_version}`,
-    });
+    await step.run("log-qualification-result", () =>
+      logCrawl({
+        crawl_job_id,
+        profile_username: snapshot.username,
+        parent_username: null,
+        action: result.decision.decision,
+        depth: 0,
+        status: "success",
+        detail:
+          `score=${result.decision.scores.commercial_fit} certainty=${result.decision.certainty} ` +
+          `reasons=${result.decision.decision_reasons.join(",")} ` +
+          `pipeline=${result.decision.versions.pipeline_version}`,
+      }),
+    );
 
     return {
       status: result.decision.decision,

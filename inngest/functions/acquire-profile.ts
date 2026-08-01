@@ -32,14 +32,16 @@ export const acquireProfile = inngest.createFunction(
     const settings = await step.run("load-settings", () => getSettings(true));
     const identity = selectAcquisitionIdentity(buildAcquisitionPool(settings), event_index);
 
-    await logCrawl({
-      crawl_job_id,
-      profile_username: username,
-      parent_username: null,
-      action: "profile_acquisition_started",
-      depth: 0,
-      detail: acquisitionIdentityDetail(identity),
-    });
+    await step.run("log-acquisition-started", () =>
+      logCrawl({
+        crawl_job_id,
+        profile_username: username,
+        parent_username: null,
+        action: "profile_acquisition_started",
+        depth: 0,
+        detail: acquisitionIdentityDetail(identity),
+      }),
+    );
 
     const acquisition = await step.run("acquire-profile", () =>
       acquireInstagramEvidence({ username, identity }),
@@ -66,28 +68,32 @@ export const acquireProfile = inngest.createFunction(
           .update({ qualification_state: "error", backfill_error: acquisition.status })
           .eq("id", lead_id);
       });
-      await logError({
-        context: "profile-acquisition",
-        error_message: `Profile acquisition ${acquisition.status} for @${username}`,
-        payload: {
-          username,
-          account: identity.accountUsername,
-          proxy: proxyEndpoint(identity.proxyUrl),
-          steel_profile_id: identity.steelProfileId,
-          steel_session_id: acquisition.sessionId,
-          challenge: acquisition.challenge,
-        },
-        crawl_job_id,
-      });
-      await logCrawl({
-        crawl_job_id,
-        profile_username: username,
-        parent_username: null,
-        action: "profile_acquisition_failed",
-        depth: 0,
-        status: "failure",
-        detail: `status=${acquisition.status} ${acquisitionIdentityDetail(identity)}`,
-      });
+      await step.run("log-acquisition-error", () =>
+        logError({
+          context: "profile-acquisition",
+          error_message: `Profile acquisition ${acquisition.status} for @${username}`,
+          payload: {
+            username,
+            account: identity.accountUsername,
+            proxy: proxyEndpoint(identity.proxyUrl),
+            steel_profile_id: identity.steelProfileId,
+            steel_session_id: acquisition.sessionId,
+            challenge: acquisition.challenge,
+          },
+          crawl_job_id,
+        }),
+      );
+      await step.run("log-acquisition-failed", () =>
+        logCrawl({
+          crawl_job_id,
+          profile_username: username,
+          parent_username: null,
+          action: "profile_acquisition_failed",
+          depth: 0,
+          status: "failure",
+          detail: `status=${acquisition.status} ${acquisitionIdentityDetail(identity)}`,
+        }),
+      );
       return { status: acquisition.status, qualified: false };
     }
 
@@ -142,18 +148,20 @@ export const acquireProfile = inngest.createFunction(
     });
     if (next) await step.sendEvent("request-qualification", next);
 
-    await logCrawl({
-      crawl_job_id,
-      profile_username: username,
-      parent_username: null,
-      action: "profile_acquired",
-      depth: 0,
-      status: "success",
-      detail:
-        `${acquisitionIdentityDetail(identity)} snapshot=${snapshotRow.id} ` +
-        `captured=${acquisition.report.field_completeness.captured_fields.length} ` +
-        `unknown=${acquisition.report.field_completeness.unknown_fields.length}`,
-    });
+    await step.run("log-profile-acquired", () =>
+      logCrawl({
+        crawl_job_id,
+        profile_username: username,
+        parent_username: null,
+        action: "profile_acquired",
+        depth: 0,
+        status: "success",
+        detail:
+          `${acquisitionIdentityDetail(identity)} snapshot=${snapshotRow.id} ` +
+          `captured=${acquisition.report.field_completeness.captured_fields.length} ` +
+          `unknown=${acquisition.report.field_completeness.unknown_fields.length}`,
+      }),
+    );
 
     return { status: "captured", snapshot_id: snapshotRow.id };
   },

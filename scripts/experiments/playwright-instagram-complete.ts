@@ -46,6 +46,7 @@ import {
   parseHighlightTray,
   parsePostsResponse,
   parseProfileResponse,
+  selectPostsForProfile,
   sanitizeDeep,
   sanitizeHtmlForDiagnostics,
   sanitizeUrl,
@@ -530,7 +531,10 @@ export async function runPlaywrightInstagramComplete(
       const networkProfile = captured
         .filter((entry) => entry.kind === "profile")
         .map((entry) => parseProfileResponse(entry.body))
-        .find((parsed): parsed is ParsedProfile => Boolean(parsed?.username));
+        .find(
+          (parsed): parsed is ParsedProfile =>
+            parsed?.username?.toLowerCase() === target.toLowerCase(),
+        );
 
       let domProfile: Partial<ParsedProfile> & Record<string, unknown> = {};
       try {
@@ -584,7 +588,12 @@ export async function runPlaywrightInstagramComplete(
 
       const deduped = new Map<string, NormalizedPost>();
       for (const post of posts) if (!deduped.has(post.post_id)) deduped.set(post.post_id, post);
-      const all = [...deduped.values()];
+      const profile = report.profile as { user_id?: string | null; is_private?: boolean | null };
+      const all = selectPostsForProfile([...deduped.values()], {
+        userId: profile.user_id ?? null,
+        username: target,
+        isPrivate: profile.is_private === true,
+      });
 
       /*
        * Pinning is only knowable if at least one response carried a pin marker.
@@ -596,11 +605,13 @@ export async function runPlaywrightInstagramComplete(
 
       report.pinned_posts = all.filter((post) => post.is_pinned);
       report.recent_posts = all.filter((post) => !post.is_pinned).slice(0, 18);
-      report.capture_sources.recent_posts = "network";
-      report.capture_statuses.recent_posts = all.length > 0 ? "captured" : "failed";
-      report.capture_statuses.pinned_posts = anyPinMarker ? "captured" : "unavailable";
+      report.capture_sources.recent_posts = profile.is_private === true ? "none" : "network";
+      report.capture_statuses.recent_posts =
+        profile.is_private === true ? "unavailable" : all.length > 0 ? "captured" : "failed";
+      report.capture_statuses.pinned_posts =
+        profile.is_private === true ? "unavailable" : anyPinMarker ? "captured" : "unavailable";
 
-      if (all.length === 0) {
+      if (all.length === 0 && profile.is_private !== true) {
         report.errors.push("no timeline responses yielded parseable posts");
         await captureFailureScreenshot(page, "posts");
       }

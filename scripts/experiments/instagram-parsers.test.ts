@@ -13,6 +13,7 @@ import {
   parseHighlightTray,
   parsePostsResponse,
   parseProfileResponse,
+  selectPostsForProfile,
   sanitizeDeep,
   sanitizeHtmlForDiagnostics,
   sanitizeUrl,
@@ -200,6 +201,36 @@ test("deduplicates posts that appear in more than one container", () => {
     data: { edges: [{ node: { pk: "1", code: "AAA", media_type: 1 } }] },
   });
   assert.equal(posts.length, 1);
+});
+
+test("filters intercepted posts to the requested profile owner", () => {
+  const posts = parsePostsResponse({
+    items: [
+      { pk: "1", code: "OWN", media_type: 1, user: { pk: "42", username: "target" } },
+      { pk: "2", code: "FOREIGN", media_type: 2, user: { pk: "99", username: "someone_else" } },
+    ],
+  });
+
+  const selected = selectPostsForProfile(posts, {
+    userId: "42",
+    username: "target",
+    isPrivate: false,
+  });
+
+  assert.deepEqual(selected.map((post) => post.post_id), ["1"]);
+});
+
+test("private profiles never retain intercepted post candidates", () => {
+  const posts = parsePostsResponse({
+    items: [
+      { pk: "1", code: "OWN", media_type: 1, user: { pk: "42", username: "target" } },
+    ],
+  });
+
+  assert.deepEqual(
+    selectPostsForProfile(posts, { userId: "42", username: "target", isPrivate: true }),
+    [],
+  );
 });
 
 // ---------------------------------------------------------------------------

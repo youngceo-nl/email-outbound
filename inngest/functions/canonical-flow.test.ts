@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { AcquisitionPoolEntry } from "../../lib/instagram/cookie-pool";
 import {
@@ -75,4 +76,15 @@ test("legacy batches fan out only canonical acquisition events", () => {
       },
     ],
   );
+});
+
+test("production orchestration keeps expensive work and logging inside Inngest steps", () => {
+  const acquireSource = readFileSync(new URL("./acquire-profile.ts", import.meta.url), "utf8");
+  const qualifySource = readFileSync(new URL("./qualify-lead.ts", import.meta.url), "utf8");
+
+  assert.match(acquireSource, /step\.run\("log-acquisition-started"/);
+  assert.match(acquireSource, /step\.run\("log-profile-acquired"/);
+  assert.match(qualifySource, /step\.run\("run-commercial-qualification"/);
+  assert.match(qualifySource, /step\.run\("log-qualification-started"/);
+  assert.match(qualifySource, /step\.run\("log-qualification-result"/);
 });

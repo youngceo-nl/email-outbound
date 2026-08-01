@@ -195,6 +195,8 @@ export type NormalizedPost = {
   thumbnail_url: string | null;
   capture_source: CaptureSource;
   capture_status: CaptureStatus;
+  owner_id: string | null;
+  owner_username: string | null;
 };
 
 /*
@@ -313,6 +315,13 @@ export function normalizePost(
   );
 
   const pinned = detectPinned(node);
+  const owner = (node.user ?? node.owner) as Record<string, unknown> | undefined;
+  const ownerId =
+    nonEmpty(owner?.pk) ??
+    nonEmpty(owner?.id) ??
+    nonEmpty(node.owner_id) ??
+    nonEmpty(node.user_id);
+  const ownerUsername = nonEmpty(owner?.username) ?? nonEmpty(node.owner_username);
 
   return {
     post_id: String(id),
@@ -330,6 +339,8 @@ export function normalizePost(
     thumbnail_url: extractThumbnail(node),
     capture_source: source,
     capture_status: "captured",
+    owner_id: ownerId,
+    owner_username: ownerUsername,
   };
 }
 
@@ -444,6 +455,23 @@ export function parsePostsResponse(body: unknown, source: CaptureSource = "netwo
     posts.push(post);
   }
   return posts;
+}
+
+export function selectPostsForProfile(
+  posts: NormalizedPost[],
+  profile: { userId: string | null; username: string; isPrivate: boolean },
+): NormalizedPost[] {
+  if (profile.isPrivate) return [];
+
+  const expectedId = profile.userId?.trim() || null;
+  const expectedUsername = profile.username.trim().toLowerCase();
+  return posts.filter((post) => {
+    const hasOwner = Boolean(post.owner_id || post.owner_username);
+    if (!hasOwner) return true;
+    if (expectedId && post.owner_id === expectedId) return true;
+    if (post.owner_username?.toLowerCase() === expectedUsername) return true;
+    return false;
+  });
 }
 
 // ---------------------------------------------------------------------------
