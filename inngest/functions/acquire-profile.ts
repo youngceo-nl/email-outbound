@@ -140,14 +140,6 @@ export const acquireProfile = inngest.createFunction(
       createEvidenceSnapshot({ snapshot, leadId: lead_id }),
     );
 
-    const next = qualificationEventForAcquisition({
-      status: acquisition.status,
-      leadId: lead_id,
-      snapshotId: snapshotRow.id,
-      crawlJobId: crawl_job_id,
-    });
-    if (next) await step.sendEvent("request-qualification", next);
-
     await step.run("log-profile-acquired", () =>
       logCrawl({
         crawl_job_id,
@@ -162,6 +154,14 @@ export const acquireProfile = inngest.createFunction(
           `unknown=${acquisition.report.field_completeness.unknown_fields.length}`,
       }),
     );
+
+    const next = qualificationEventForAcquisition({
+      status: acquisition.status,
+      leadId: lead_id,
+      snapshotId: snapshotRow.id,
+      crawlJobId: crawl_job_id,
+    });
+    if (next) await step.sendEvent("request-qualification", next);
 
     return { status: "captured", snapshot_id: snapshotRow.id };
   },

@@ -87,4 +87,10 @@ test("production orchestration keeps expensive work and logging inside Inngest s
   assert.match(qualifySource, /step\.run\("run-commercial-qualification"/);
   assert.match(qualifySource, /step\.run\("log-qualification-started"/);
   assert.match(qualifySource, /step\.run\("log-qualification-result"/);
+
+  assert.ok(
+    acquireSource.indexOf('step.run("log-profile-acquired"') <
+      acquireSource.indexOf('step.sendEvent("request-qualification"'),
+    "acquisition must be durably logged before qualification is dispatched",
+  );
 });
