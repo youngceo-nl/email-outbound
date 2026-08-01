@@ -26,8 +26,9 @@ import { MarkBadLeadButton } from "@/components/leads/mark-bad-lead-button";
 import { VoiceDmButton } from "@/components/leads/voice-dm-button";
 import { BadLeadsTable, type RejectedLeadRow } from "@/components/leads/bad-leads-table";
 import { createClient } from "@/lib/supabase/server";
-import { getReviewQueue, getReviewStats, getReviewTrackCounts, getReviewPendingCount } from "@/app/actions/review";
+import { getReviewQueue, getReviewStats, getReviewTrackCounts, getReviewPendingCount, getEvidenceReviewQueue, getEvidenceReviewPendingCount } from "@/app/actions/review";
 import { ReviewClient } from "@/components/review/review-client";
+import { EvidenceReviewClient } from "@/components/review/evidence-review-client";
 import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -51,8 +52,13 @@ type Search = {
   tab?: string;
 };
 
-type View = "all" | "review" | "bad";
-const VIEW_LABELS: Record<View, string> = { all: "All Leads", review: "Review Queue", bad: "Bad Leads" };
+type View = "all" | "review" | "evidence" | "bad";
+const VIEW_LABELS: Record<View, string> = {
+  all: "All Leads",
+  review: "Review Queue",
+  evidence: "Evidence Review",
+  bad: "Bad Leads",
+};
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
@@ -62,9 +68,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const { data: { user } } = await authed.auth.getUser();
   const isVa = user?.app_metadata?.role === "va";
 
-  const views: View[] = isVa ? ["all", "review"] : ["all", "review", "bad"];
+  const views: View[] = isVa ? ["all", "review", "evidence"] : ["all", "review", "evidence", "bad"];
   const view: View = (views as string[]).includes(sp.tab ?? "") ? (sp.tab as View) : "all";
-  const pendingReview = await getReviewPendingCount().catch(() => 0);
+  const [pendingReview, pendingEvidence] = await Promise.all([
+    getReviewPendingCount().catch(() => 0),
+    getEvidenceReviewPendingCount().catch(() => 0),
+  ]);
+  const tabCounts: Partial<Record<View, number>> = { review: pendingReview, evidence: pendingEvidence };
 
   return (
     <div className="p-6 space-y-6">
@@ -81,9 +91,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             )}
           >
             {VIEW_LABELS[v]}
-            {v === "review" && pendingReview > 0 && (
+            {!!tabCounts[v] && (
               <span className="text-[11px] tabular-nums rounded-full bg-primary/15 text-primary px-1.5 py-0.5 min-w-[1.25rem] text-center">
-                {pendingReview > 99 ? "99+" : pendingReview}
+                {tabCounts[v]! > 99 ? "99+" : tabCounts[v]}
               </span>
             )}
           </Link>
@@ -92,6 +102,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
       {view === "all" && <AllLeadsView sp={sp} />}
       {view === "review" && <ReviewView />}
+      {view === "evidence" && <EvidenceReviewView />}
       {view === "bad" && !isVa && <BadLeadsView />}
     </div>
   );
@@ -416,6 +427,26 @@ async function ReviewView() {
   }
 
   return <ReviewClient queue={queue} stats={stats} trackCounts={trackCounts} />;
+}
+
+async function EvidenceReviewView() {
+  const queue = await getEvidenceReviewQueue(100, "asc");
+
+  if (queue.length === 0) {
+    return (
+      <Card className="max-w-2xl mx-auto">
+        <CardContent className="py-16 text-center text-muted-foreground">
+          <CheckCircle2 className="h-8 w-8 mx-auto mb-3 opacity-40" />
+          <p className="text-sm">Nothing left to review.</p>
+          <p className="text-xs mt-1">
+            Leads the evidence-first pipeline (lib/qualification/*) marks uncertain show up here.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return <EvidenceReviewClient queue={queue} />;
 }
 
 async function BadLeadsView() {

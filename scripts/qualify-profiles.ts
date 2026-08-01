@@ -20,6 +20,15 @@
  *                                  lib/qualification/repository.ts, and update
  *                                  the lead's projection columns when the
  *                                  username matches an existing lead row
+ *   --sync-legacy                 with --persist: for decision=qualified AND
+ *                                  mode=auto_approved results, also set the
+ *                                  LEGACY leads.status='qualified' and
+ *                                  review_decision='approved' — the columns
+ *                                  lib/handover/batch.ts actually checks for
+ *                                  enrichment eligibility. Off by default: a
+ *                                  deliberate, explicit opt-in for recovery
+ *                                  runs against the rejected-leads backlog,
+ *                                  not a silent side effect of --persist.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -56,6 +65,7 @@ type Args = {
   replay: string | null;
   concurrency: number;
   persist: boolean;
+  syncLegacy: boolean;
 };
 
 function parseArgs(argv: string[]): Args {
@@ -67,6 +77,7 @@ function parseArgs(argv: string[]): Args {
   let replay: string | null = null;
   let concurrency = 2;
   let persist = false;
+  let syncLegacy = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -77,6 +88,7 @@ function parseArgs(argv: string[]): Args {
     else if (arg === "--replay") replay = argv[++i];
     else if (arg === "--concurrency") concurrency = Number(argv[++i]) || 3;
     else if (arg === "--persist") persist = true;
+    else if (arg === "--sync-legacy") syncLegacy = true;
     else if (arg === "--file") {
       const contents = readFileSync(argv[++i], "utf8");
       inputs.push(...contents.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
@@ -104,6 +116,7 @@ function parseArgs(argv: string[]): Args {
     replay,
     concurrency,
     persist,
+    syncLegacy,
   };
 }
 
@@ -125,7 +138,11 @@ function resolveApifyTokensFromEnv(): string[] | null {
  * When the username matches an existing `leads` row, that lead's projection
  * columns are updated to point at the new decision.
  */
-async function persistResult(username: string, result: QualificationRunResult): Promise<string> {
+async function persistResult(
+  username: string,
+  result: QualificationRunResult,
+  opts: { syncLegacy: boolean },
+): Promise<string> {
   const supabase = createAdminClient();
 
   const { data: lead, error: leadErr } = await supabase
@@ -179,7 +196,16 @@ async function persistResult(username: string, result: QualificationRunResult): 
     });
   }
 
-  return `snapshot=${snapshotId} decision=${decisionId}${leadId ? ` lead=${leadId}` : " (no matching lead row)"}`;
+  let legacySync = "";
+  if (leadId && opts.syncLegacy && result.decision.decision === "qualified" && result.decision.mode === "auto_approved") {
+    const { error: syncErr } = await supabase
+      .from("leads")
+      .update({ status: "qualified", review_decision: "approved" })
+      .eq("id", leadId);
+    legacySync = syncErr ? ` legacy_sync_FAILED=${syncErr.message}` : " legacy_synced=true";
+  }
+
+  return `snapshot=${snapshotId} decision=${decisionId}${leadId ? ` lead=${leadId}` : " (no matching lead row)"}${legacySync}`;
 }
 
 async function main(): Promise<void> {
@@ -261,7 +287,7 @@ async function main(): Promise<void> {
         process.stderr.write(`  done: @${item.username} -> ${result.decision.decision}/${result.decision.mode}\n`);
         if (args.persist) {
           try {
-            const persisted = await persistResult(item.username, result);
+            const persisted = await persistResult(item.username, result, { syncLegacy: args.syncLegacy });
             process.stderr.write(`  persisted: @${item.username} -> ${persisted}\n`);
           } catch (err) {
             process.stderr.write(`  PERSIST FAILED: @${item.username}: ${err}\n`);

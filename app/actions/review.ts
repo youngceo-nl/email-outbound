@@ -131,7 +131,11 @@ export async function approveLead(leadId: string): Promise<{ ok: boolean; error?
   const sb = createAdminClient();
   const { error } = await sb
     .from("leads")
-    .update({ review_decision: "approved", reviewed_at: new Date().toISOString(), reviewed_by: user.id })
+    // status is set explicitly (not just review_decision) so this also works for
+    // the evidence-review queue, whose leads sit at status='rejected' until a
+    // human approves them — a no-op overwrite for the legacy queue, which is
+    // already 'qualified' by the time it reaches this action.
+    .update({ status: "qualified", review_decision: "approved", reviewed_at: new Date().toISOString(), reviewed_by: user.id })
     .eq("id", leadId);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/review");
@@ -230,4 +234,138 @@ export async function undoReview(leadId: string): Promise<{ ok: boolean; error?:
   revalidatePath("/review");
   revalidatePath("/leads");
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Evidence-first review queue (docs/gaps.md gap 4 — minimal slice).
+//
+// The legacy queue above only ever shows status='qualified' leads. Leads the
+// new lib/qualification/* pipeline marks decision='review' sit at whatever
+// their legacy status already was (usually 'rejected', from the run that
+// happened before reprocessing) — they never appear above. This is a second,
+// parallel queue reading lead_qualification_decisions directly so those leads
+// get a human verdict too, using the SAME review_decision/reviewed_by/reviewed_at
+// columns (and the approveLead/rejectLead actions above) so they count toward
+// the same audit trail and KPI, not a separate one.
+// ---------------------------------------------------------------------------
+
+export type EvidenceScoreComponent = {
+  value: number;
+  label: string;
+  reason: string;
+  citations: { phrase: string; source_type: string }[];
+};
+
+export type EvidenceReviewLead = {
+  id: string;
+  decision_id: string;
+  username: string;
+  full_name: string | null;
+  profile_url: string;
+  bio: string | null;
+  external_link: string | null;
+  followers: number | null;
+  track: string;
+  certainty: string;
+  commercial_fit: number | null;
+  decision_reasons: string[];
+  review_flags: string[];
+  score_components: Record<string, EvidenceScoreComponent>;
+};
+
+type DecisionRow = {
+  id: string;
+  lead_id: string | null;
+  track: string;
+  certainty: string;
+  commercial_fit: number | null;
+  decision_reasons: string[] | null;
+  review_flags: string[] | null;
+  payload: { score_components?: Record<string, EvidenceScoreComponent> } | null;
+  created_at: string;
+};
+
+/**
+ * Pulls a window of the most recent decision='review' rows, keeps only the
+ * latest per lead (rows are already newest-first, so first-seen wins), then
+ * drops any lead a human already ruled on. Good enough at current volume —
+ * a real per-lead "latest" query (like getLatestQualificationBundle) would be
+ * needed if this queue ever needs to scale past a few thousand rows.
+ */
+export async function getEvidenceReviewQueue(
+  limit = 50,
+  direction: "asc" | "desc" = "asc",
+): Promise<EvidenceReviewLead[]> {
+  await requireUser();
+  const sb = createAdminClient();
+
+  const { data: decisions } = await sb
+    .from("lead_qualification_decisions")
+    .select("id, lead_id, track, certainty, commercial_fit, decision_reasons, review_flags, payload, created_at")
+    .eq("decision", "review")
+    .order("created_at", { ascending: false })
+    .limit(1000);
+
+  const latestByLead = new Map<string, DecisionRow>();
+  for (const d of (decisions ?? []) as DecisionRow[]) {
+    if (!d.lead_id || latestByLead.has(d.lead_id)) continue;
+    latestByLead.set(d.lead_id, d);
+  }
+  const leadIds = [...latestByLead.keys()];
+  if (leadIds.length === 0) return [];
+
+  const { data: leads } = await sb
+    .from("leads")
+    .select("id, username, full_name, profile_url, bio, external_link, followers")
+    .in("id", leadIds)
+    .is("review_decision", null);
+
+  const rows: EvidenceReviewLead[] = [];
+  for (const lead of leads ?? []) {
+    const d = latestByLead.get(lead.id);
+    if (!d) continue;
+    rows.push({
+      id: lead.id,
+      decision_id: d.id,
+      username: lead.username,
+      full_name: lead.full_name,
+      profile_url: lead.profile_url,
+      bio: lead.bio,
+      external_link: lead.external_link,
+      followers: lead.followers,
+      track: d.track,
+      certainty: d.certainty,
+      commercial_fit: d.commercial_fit,
+      decision_reasons: d.decision_reasons ?? [],
+      review_flags: d.review_flags ?? [],
+      score_components: d.payload?.score_components ?? {},
+    });
+  }
+
+  rows.sort(
+    (a, b) => ((a.commercial_fit ?? 0) - (b.commercial_fit ?? 0)) * (direction === "asc" ? 1 : -1),
+  );
+  return rows.slice(0, limit);
+}
+
+/** Drives the "Evidence Review" tab badge count. */
+export async function getEvidenceReviewPendingCount(): Promise<number> {
+  await requireUser();
+  const sb = createAdminClient();
+
+  const { data: decisions } = await sb
+    .from("lead_qualification_decisions")
+    .select("lead_id")
+    .eq("decision", "review")
+    .order("created_at", { ascending: false })
+    .limit(1000);
+  const leadIds = [...new Set((decisions ?? []).map((d) => d.lead_id).filter((id): id is string => !!id))];
+  if (leadIds.length === 0) return 0;
+
+  const { count } = await sb
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .in("id", leadIds)
+    .is("review_decision", null);
+  return count ?? 0;
 }
