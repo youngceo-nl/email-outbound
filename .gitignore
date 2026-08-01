@@ -26,3 +26,6 @@ __pycache__/
 
 # TypeScript incremental build artifacts
 *.tsbuildinfo
+
+# Local isolated implementation worktrees.
+.worktrees/
