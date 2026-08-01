@@ -10,16 +10,17 @@ import { persistIgCookieStatus } from "@/app/actions/settings";
 // Backfill basic profile metadata (followers, following, posts, bio,
 // external_link, is_private, is_verified) for a batch of usernames.
 //
-// Two paths:
-//  1. PAID — Apify profile actor in batches. The standard path: fast, and it
-//     doesn't depend on a burner account staying alive. Costs Apify credits.
-//  2. FREE — direct fetch to IG's web_profile_info endpoint using the burner
-//     IG session cookie from Settings, throttled per profile to keep the
-//     account safe. Used only when no Apify token is configured.
+// Two paths, in preference order:
+//  1. OWN BROWSER — cookie + Playwright against Instagram directly, throttled
+//     per profile to keep the account safe. This is the path profile research
+//     is supposed to take: we control what is captured, so the qualification
+//     pipeline can distinguish a real absence from a failed capture.
+//  2. APIFY — profile actor in batches. Fallback only, for when no usable
+//     cookie exists. Apify's real job in this system is following lists.
 //
-// Apify is chosen whenever a token exists. The cookie fallback additionally
-// requires the cookie not be marked dead — a dead cookie is worse than no
-// cookie, since it fails every profile while looking configured.
+// The cookie path additionally requires the cookie not be marked dead — a dead
+// cookie is worse than no cookie, since it fails every profile while looking
+// configured.
 
 const APIFY_BATCH = 100;
 // How many APIFY_BATCH-sized actor runs to fire at once. Nothing in the Apify
@@ -69,16 +70,22 @@ export const backfillMetadata = inngest.createFunction(
     const cookiePool = buildCookiePool(settings);
     const entry = pickCookie(cookiePool);
 
-    // Apify is the standard path, matching the following scraper.
-    //
-    // This used to prefer the cookie whenever one merely *existed*, and
-    // pickCookie only screens out rate-limited cookies — not dead ones. A dead
-    // cookie therefore won the choice and backfill retried it forever instead
-    // of falling back, which is how leads sat unenriched with the pipeline
-    // reporting nothing obviously wrong.
+    /*
+     * Profile research runs on our own browser path, never Apify. Apify's role
+     * is scraping following lists; the profile data that feeds qualification
+     * comes from the cookie + Playwright path so we control exactly what is
+     * captured and can tell a real absence from a failed capture.
+     *
+     * Apify remains only as a fallback for when no usable cookie exists at all,
+     * so a dead burner degrades to something rather than nothing.
+     *
+     * pickCookie screens out rate-limited cookies but not dead ones, hence the
+     * explicit ig_cookie_status check — a dead cookie fails every profile while
+     * still looking configured.
+     */
     const cookieUsable = !!entry && settings.ig_cookie_status !== "dead";
-    const useApify = apifyTokens.length > 0;
-    const useFreePath = !useApify && cookieUsable;
+    const useFreePath = cookieUsable;
+    const useApify = !useFreePath && apifyTokens.length > 0;
 
     if (!useFreePath && !useApify) {
       await logError({

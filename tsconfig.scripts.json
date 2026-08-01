@@ -5,7 +5,15 @@
   // their own config with a real transform. Nothing else differs.
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    // lib/ modules guard themselves with `import "server-only"`, which throws
+    // by design outside a React Server Component. Scripts run the same modules
+    // deliberately, so the guard resolves to Next's own no-op stub rather than
+    // forcing every script to re-implement what it wanted to reuse.
+    "paths": {
+      "@/*": ["./*"],
+      "server-only": ["./node_modules/next/dist/compiled/server-only/empty.js"]
+    }
   },
   "include": ["scripts/**/*.ts", "scripts/**/*.tsx", "lib/**/*.ts", "lib/**/*.tsx"]
 }
