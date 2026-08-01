@@ -3,8 +3,9 @@
  *
  * Runs the full commercial qualification pipeline against Instagram profile
  * URLs or usernames and prints a reviewable report. Writes nothing to the
- * database — this is the harness for judging decision quality before the
- * pipeline is wired into production routing.
+ * database unless --persist is passed — by default this stays the harness
+ * for judging decision quality before the pipeline is wired into production
+ * routing (Task 10).
  *
  * Usage:
  *   npx tsx scripts/qualify-profiles.ts <url-or-username> [...]
@@ -15,6 +16,10 @@
  *   --model <id>
  *   --out <path>                  write the full JSON result bundle
  *   --concurrency <n>             default 3
+ *   --persist                     write snapshot/extraction/decision rows via
+ *                                  lib/qualification/repository.ts, and update
+ *                                  the lead's projection columns when the
+ *                                  username matches an existing lead row
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -32,6 +37,14 @@ import {
 } from "@/lib/qualification/run";
 import type { EvidenceSnapshot } from "@/lib/qualification/types";
 import { createLlmClient, type LlmProvider } from "@/lib/qualification/providers";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  createDecision,
+  createEvidenceSnapshot,
+  createExtraction,
+  setLeadQualificationProjection,
+} from "@/lib/qualification/repository";
+import { PIPELINE_VERSION } from "@/lib/evidence/versions";
 
 type Args = {
   inputs: string[];
@@ -42,6 +55,7 @@ type Args = {
   /** Re-run extraction and decisioning against stored snapshots, no acquisition. */
   replay: string | null;
   concurrency: number;
+  persist: boolean;
 };
 
 function parseArgs(argv: string[]): Args {
@@ -52,6 +66,7 @@ function parseArgs(argv: string[]): Args {
   let out: string | null = null;
   let replay: string | null = null;
   let concurrency = 2;
+  let persist = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -61,6 +76,7 @@ function parseArgs(argv: string[]): Args {
     else if (arg === "--out") out = argv[++i];
     else if (arg === "--replay") replay = argv[++i];
     else if (arg === "--concurrency") concurrency = Number(argv[++i]) || 3;
+    else if (arg === "--persist") persist = true;
     else if (arg === "--file") {
       const contents = readFileSync(argv[++i], "utf8");
       inputs.push(...contents.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
@@ -87,7 +103,83 @@ function parseArgs(argv: string[]): Args {
     out,
     replay,
     concurrency,
+    persist,
   };
+}
+
+/** Env-only mirror of lib/config/settings.ts's resolveApifyTokens — the CLI has no DB settings row. */
+function resolveApifyTokensFromEnv(): string[] | null {
+  const tokens = (process.env.APIFY_TOKENS ?? "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const single = process.env.APIFY_TOKEN?.trim();
+  if (single && !tokens.includes(single)) tokens.push(single);
+  return tokens.length > 0 ? tokens : null;
+}
+
+/**
+ * Writes one run's snapshot/extraction/decision through lib/qualification/repository.ts.
+ * Each call inserts new rows — never updates a prior run's rows — so replaying
+ * the same profile twice produces two full, independently queryable snapshots.
+ * When the username matches an existing `leads` row, that lead's projection
+ * columns are updated to point at the new decision.
+ */
+async function persistResult(username: string, result: QualificationRunResult): Promise<string> {
+  const supabase = createAdminClient();
+
+  const { data: lead, error: leadErr } = await supabase
+    .from("leads")
+    .select("id")
+    .eq("username", username.toLowerCase())
+    .maybeSingle();
+  if (leadErr) throw new Error(`lead lookup failed: ${leadErr.message}`);
+  const leadId = (lead?.id as string | undefined) ?? null;
+
+  if (!result.snapshot) return "no evidence snapshot to persist";
+
+  const { id: snapshotId } = await createEvidenceSnapshot({
+    snapshot: result.snapshot,
+    leadId,
+    supabase,
+  });
+
+  let extractionId: string | null = null;
+  if (result.extraction) {
+    const created = await createExtraction({
+      evidenceSnapshotId: snapshotId,
+      leadId,
+      extraction: result.extraction,
+      supabase,
+    });
+    extractionId = created.id;
+  }
+
+  const { id: decisionId } = await createDecision({
+    evidenceSnapshotId: snapshotId,
+    extractionId,
+    leadId,
+    decision: result.decision,
+    supabase,
+  });
+
+  if (leadId) {
+    await setLeadQualificationProjection({
+      leadId,
+      projection: {
+        qualification_state: "done",
+        qualification_outcome: result.decision.decision,
+        qualification_decision_id: decisionId,
+        qualification_ready_at: new Date().toISOString(),
+        qualification_review_reason: result.decision.review_flags[0] ?? null,
+        qualification_pipeline_version: PIPELINE_VERSION,
+        approval_source: result.decision.mode === "auto_approved" ? "automatic" : null,
+      },
+      supabase,
+    });
+  }
+
+  return `snapshot=${snapshotId} decision=${decisionId}${leadId ? ` lead=${leadId}` : " (no matching lead row)"}`;
 }
 
 async function main(): Promise<void> {
@@ -155,6 +247,7 @@ async function main(): Promise<void> {
           apiKey: scrapingBeeKey as string,
           username: item.username,
           sessionCookie: process.env.INSTAGRAM_SESSION_COOKIE ?? null,
+          apifyToken: resolveApifyTokensFromEnv(),
         });
         const instagram = normalizeInstagramEvidence(raw);
         const result = await runCommercialQualification({
@@ -166,6 +259,14 @@ async function main(): Promise<void> {
         });
         results.push({ input: item.input, result, error: null });
         process.stderr.write(`  done: @${item.username} -> ${result.decision.decision}/${result.decision.mode}\n`);
+        if (args.persist) {
+          try {
+            const persisted = await persistResult(item.username, result);
+            process.stderr.write(`  persisted: @${item.username} -> ${persisted}\n`);
+          } catch (err) {
+            process.stderr.write(`  PERSIST FAILED: @${item.username}: ${err}\n`);
+          }
+        }
       } catch (err) {
         results.push({
           input: item.input,

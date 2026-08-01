@@ -1,0 +1,2889 @@
+[
+  {
+    "input": "kingturf_miami",
+    "result": {
+      "username": "kingturf_miami",
+      "sufficiency": {
+        "verdict": "sufficient",
+        "data_quality": "complete",
+        "reasons": [],
+        "exclusion_evidence": null
+      },
+      "snapshot": {
+        "snapshot_id": "db629069-408a-4555-8545-e77df71183b7",
+        "lead_id": null,
+        "username": "kingturf_miami",
+        "captured_at": "2026-08-01T11:54:03.563Z",
+        "instagram": {
+          "username": "kingturf_miami",
+          "display_name": "King Turf",
+          "category": null,
+          "bio": "We are “The KING of TURF” ! \n⛳️Artificial Terrain Specialists that offer\n👑Modern & Luxury landscaping EXCELLENCE \n📞Call us today at (833) 305-KING",
+          "external_link": "http://www.kingturf.miami/",
+          "is_private": false,
+          "is_verified": false,
+          "followers": 2605,
+          "following": 1552,
+          "total_posts": 544,
+          "instagram_meta_description": null,
+          "profile_extraction_method": "provider",
+          "profile_capture_status": "captured",
+          "profile_captured_at": "2026-08-01T11:54:03.563Z",
+          "external_link_capture_status": "captured",
+          "recent_posts": [
+            {
+              "post_id": "DZdgglXkawC",
+              "caption": "1,500 SF Artificial Turf ✅\n2-tone Shellstone Pavers ✅\nConcrete Slab Walkways ✅\nEXCELLENCE! ✅✅✅\n\n“We are the KING of Turf” 👑⛳️",
+              "taken_at": "2026-06-11T21:41:36.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 14,
+              "comments": 0,
+              "views": null
+            },
+            {
+              "post_id": "DY29JDrkbch",
+              "caption": "- We Are Clean, Keen, And definitely the Most GREEN ! 💚👑⛳️✅ •\n• We are the HOTTEST Turf company in ALL of south Florida ! •\n• We are the King of Turf ! 👑⛳️🔥✅\n• Save TONS on Water, Irrigation, Landscaping, and Of your TIME!  NO more Mud, NO more Grass stains on your Children’s clothes, \nNO MORE HASSLE !\n•\nCall us for a Free estimate/ quote ! •\n• 📞(833)-305-KING 👑\n•\n#artificialgrass #Exteriordesign #ArtificialIvy #Driveway #ConcreteSlab CustomFence Paver PuttingGreen IngroundTrampoline SportsFields Exteriordesign miami Miamibeach Doral Kendall Pinecrest SouthMiamiCoralGables",
+              "taken_at": "2026-05-27T22:21:24.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 27,
+              "comments": 0,
+              "views": null
+            },
+            {
+              "post_id": "DTQ6uTUkQ2F",
+              "caption": "- Clean, Green, And PRISTINE! ✅🍃💚⛳️\n\n• Save TONS on Water, Irrigation, Landscaping and Of your TIME!  NO more Mud! No more dead Grass!\nNo more Grass stains on your Children’s clothes, \nNO MORE HASSLE !\n•\nCall us for a Free estimate/ quote ! •\n• 📞(833)-305-KING 👑\n•\n#artificialgrass #Exteriordesign #ArtificialIvy #Driveway #ConcreteSlab CustomFence Paver PuttingGreen IngroundTrampoline SportsFields Exteriordesign miami Miamibeach Doral Kendall Pinecrest SouthMiamiCoralGables KeyBiscayne VenetianIslands CoconutGrove FakeGrass Medley\nHollywood westKendall Hammocks Jesus",
+              "taken_at": "2026-01-08T21:12:10.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 14,
+              "comments": 1,
+              "views": null
+            },
+            {
+              "post_id": "DS3Hx8MEWQV",
+              "caption": "Excellence is PARAMOUNT! 🥇👑⛳️\n\nCall us for a Free estimate/ quote ! •\n• 📞(833)-305-KING 👑\n•\n#artificialgrass #Exteriordesign #ArtificialIvy #Driveway #ConcreteSlab CustomFence Paver PuttingGreen IngroundTrampoline SportsFields Exteriordesign miami Miamibeach Doral Kendall Pinecrest SouthMiamiCoralGables davie GrandOaks",
+              "taken_at": "2025-12-29T20:46:00.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 11,
+              "comments": 0,
+              "views": null
+            },
+            {
+              "post_id": "DSvrsSTkRZN",
+              "caption": "Treat yourself or others to a #PuttingGreen this Christmas!! Thank us Later ! ⛳️🎄🎅🏻\n\n#ArtificialGrass #PuttingGreen #MiniGolf #BackyardFun MiamiGolf Golfmiami Putt AstroTurf FakeGrass IvyWalls GrassWall homeimprovement OutdoorFun Playground SportsField Driveway ConcreteSlab LasOlas ftlauderdale Downtown Miami Miamibeach MiamiLakes KeyBiscayne\n CoralGables Pinecrest",
+              "taken_at": "2025-12-26T23:25:53.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 11,
+              "comments": 1,
+              "views": null
+            },
+            {
+              "post_id": "DSlkc95keJV",
+              "caption": "The wrestling with your rake is OVER, with this MAKE OVER! 😄\n\nWe are “The KING of TURF” ! 👑⛳️\nCall us Today ! \n• 📞(833)-305-KING\n\n#KingTurf #Modernlandscape #ExteriorDesign#ArtificialGrass #SyntheticGrass CespedArtificial AstroTurf ArtificialIvy Ivywalls DrivewayDesign miami miamibeach pinecrest CoralGables Cocoplum coconutgrove GoldenBeach KeyBiscayne Starisland FisherIsland Doral SouthMiami HialeahGardens",
+              "taken_at": "2025-12-23T01:10:13.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 12,
+              "comments": 2,
+              "views": null
+            },
+            {
+              "post_id": "DKz-d0OvCPe",
+              "caption": "Excellence is PARAMOUNT! 🥇👑⛳️\n\nCall us for a Free estimate/ quote ! •\n• 📞(833)-305-KING 👑\n•\n#artificialgrass #Exteriordesign #ArtificialIvy #Driveway #ConcreteSlab #CustomFence #Paver #PuttingGreen #IngroundTrampoline #SportsFields #Exteriordesign #miami #Miamibeach #Doral #Kendall #Pinecrest #SouthMiami#CoralGables #davie #GrandOaks",
+              "taken_at": "2025-06-12T19:15:44.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 16,
+              "comments": 1,
+              "views": null
+            },
+            {
+              "post_id": "DKsxkteNBMk",
+              "caption": "- Here are the BEFORE & AFTERS of our Newly/Excellently Installed Project. Wow! WOW! 💚💚💚\n\nWe are “The KING of TURF” ! 👑⛳️\nCall us Today ! \n• 📞(833)-305-KING\n\n#KingTurf #Modernlandscape #ExteriorDesign#ArtificialGrass #SyntheticGrass #CespedArtificial #AstroTurf #ArtificialIvy #Ivywalls #DrivewayDesign #miami #miamibeach #pinecrest #CoralGables #Cocoplum #coconutgrove #GoldenBeach #KeyBiscayne #Starisland #FisherIsland #Doral #SouthMiami #HialeahGardens #VenetianIslands",
+              "taken_at": "2025-06-10T00:08:24.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 26,
+              "comments": 1,
+              "views": null
+            },
+            {
+              "post_id": "DJujceASCpP",
+              "caption": "It was Truly and honor to have the Privilege to Revamp this home for - a Former @canesfootball and NFL star @sco_e1  #StayBlessed \nThank you for Your business & Friendship \n🟧🙌🏽🟩 🏈 👑⛳️\n\n• Give us a call ! \n\n• 📞(833)-305-KING 👑⛳️\n\n• Let us Design, Install, and deliver on our GUARANTEE to transform your home or business into An absolute paradise ! \n#artificialgrass #astroturf #puttinggreen #sportsfield #Ivywalls #exteriordesign #paver #pooldeck #patio #hardscape #modernlandscape #driveway #concreteslabs #modernfence #KINGTURF #miami #miamibeach #keybiscayne #coralgables #pinecrest #southmiami #doral #palmettobay #goldenbeach #aventura #miamilakes",
+              "taken_at": "2025-05-16T20:12:02.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 32,
+              "comments": 7,
+              "views": null
+            },
+            {
+              "post_id": "DHuBYsCvd3P",
+              "caption": "We are “THE KING OF TURF” ! 👑⛳️\n\nSave TONS on Water, Irrigation, Landscaping, and Of your TIME!  NO more Mud, NO more Grass stains on your Children’s clothes, No more Dead spots, \nNO MORE HASSLE !\n•\nCall us for a Free estimate/ quote ! •\n• 📞(833)-305-KING 👑\n•\n#artificialgrass #Exteriordesign #ArtificialIvy #Driveway #ConcreteSlab #CustomFence #Paver #PuttingGreen #IngroundTrampoline #SportsFields #Exteriordesign #miami #Miamibeach #Doral #Kendall #Pinecrest #SouthMiami#CoralGables",
+              "taken_at": "2025-03-27T22:11:38.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 29,
+              "comments": 2,
+              "views": null
+            },
+            {
+              "post_id": "DHYqtQNsqI0",
+              "caption": "We Are Clean, Keen, And definitely the Most GREEN ! 💚 ✅ •\n• We are the HOTTEST Turf company in ALL of south Florida ! •\n• We are the King of Turf ! 👑⛳️🔥✅\n• Save TONS on Water, Irrigation, Landscaping, and Of your TIME!  NO more Mud, NO more Grass stains on your Children’s clothes, \nNO MORE HASSLE !\n•\nCall us for a Free estimate/ quote ! •\n• 📞(833)-305-KING 👑\n•\n#artificialgrass #Exteriordesign #ArtificialIvy #Driveway #ConcreteSlab #CustomFence #Paver #PuttingGreen #IngroundTrampoline #SportsFields #Exteriordesign #miami #Miamibeach #Doral #Kendall #Pinecrest #SouthMiami#CoralGables",
+              "taken_at": "2025-03-19T15:09:24.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 18,
+              "comments": 0,
+              "views": null
+            },
+            {
+              "post_id": "DFvW7NnvF1F",
+              "caption": "This front lawn, definitely won’t make you YAWN ! 🥱🔥😳\n\n• We are “The KING of TURF” ! 👑⛳️\n• Call us Today ! \n• 📞(833)-305-KING\n\n#KingTurf #Modernlandscape #ExteriorDesign#ArtificialGrass #SyntheticGrass #CespedArtificial #AstroTurf #ArtificialIvy #Ivywalls #DrivewayDesign #miami #miamibeach #pinecrest #CoralGables #Cocoplum #coconutgrove #GoldenBeach #KeyBiscayne #Starisland #FisherIsland #Doral #SouthMiami #HialeahGardens #Turf #FakeGrass",
+              "taken_at": "2025-02-06T17:36:18.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 13,
+              "comments": 0,
+              "views": null
+            }
+          ],
+          "recent_posts_capture_status": "captured",
+          "pinned_posts": [],
+          "pinned_posts_capture_status": "captured",
+          "story_highlight_titles": [],
+          "story_highlights_capture_status": "not_attempted",
+          "story_highlights_captured_at": null
+        },
+        "external_destinations": [
+          {
+            "destination_id": "destination_0",
+            "source_url": "http://kingturf.miami/",
+            "final_url": "https://kingturfmiami.com/",
+            "redirect_chain": [
+              "http://kingturf.miami/",
+              "https://kingturfmiami.com/"
+            ],
+            "visible_label": null,
+            "page_title": "King Turf | South Florida Turf Experts - King Turf | Artificial Grass Installation Miami",
+            "meta_description": "King Turf provides premium artificial grass installation in Miami and South Florida. Residential, commercial, pet turf, putting greens, and custom outdoor solutions. Free estimates available.",
+            "headings": [
+              "Artificial Turf Installations in Miami That Looks Real and Lasts",
+              "No Mowing, No Mud, No Hassle, Perfect Lawn Year-Round.",
+              "⭐ 4.8 Google Rating | Licensed & Insured | Miami-Based",
+              "No call centers. No middlemen. Speak directly with our team.",
+              "Get Your Free Turf Estimate in Miami-Dade & Broward",
+              "Tell us about your project and we’ll get back to you quickly with clear pricing and options.",
+              "Popular Turf Installations for Families and Businesses in Miami!",
+              "Designed for kids, pets, and everyday living — clean, durable, and low-maintenance.",
+              "Built for Miami Homes & Businesses.",
+              "Designed to Last.",
+              "Testimonials"
+            ],
+            "cta_labels": [
+              {
+                "label": "Get My Free Estimate",
+                "url": null
+              }
+            ],
+            "offer_copy": [
+              "It’s a dirty job — but we keep it clean.",
+              "Tell us about your project and we’ll provide a fast, no-obligation estimate.",
+              "📞 Call Now: (833) 305-KING",
+              "Serving Miami-Dade, Broward and Palm Beach Surrounding Areas",
+              "Clean, low-maintenance artificial grass for Miami homes. Enjoy a beautiful lawn year-round with no mowing, no mud, and no watering—built for Florida weather and everyday living.",
+              "Safe, durable artificial turf designed for pets across South Florida, including Miami and surrounding areas. No mud 🐾 • No mess 🧼 • Easy to clean 💦 • Helps reduce fleas 🐜 with built-in drainage and odor control for a cleaner, healthier yard.",
+              "Custom backyard putting greens built for performance, practice, and outdoor entertainment across South Florida, including Miami. Enjoy smooth, realistic ball roll with premium, low-maintenance turf. Smooth roll ⛳ • No maintenance 🌱 • Built to last 🛠️",
+              "We install high-quality artificial grass designed for Miami’s heat, rain, and everyday use.Clean, durable, and low-maintenance — built for families, pets, and real life.",
+              "* No mowing, no mud, no hassle* Pet-friendly & easy to clean* Built for South Florida weather* Fast, professional installation",
+              "Every project is different — and we build each one to fit your space, your needs, and your lifestyle.",
+              "We install high-quality artificial grass designed for Miami’s heat, rain, and everyday use — clean, durable, and built to last.",
+              "Whether it’s your home, pet area, or outdoor living space, we create low-maintenance turf solutions that look great year-round.",
+              "✔ No mowing. No mud. No hassle.✔ Pet-friendly and easy to clean✔ Built for South Florida weather✔ Professional installation you can trust.",
+              "The cost of artificial grass installation depends on your space, the type of turf you choose, and the complexity of the project.",
+              "Most installations in Miami typically range between $8–$18 per square foot, including materials and labor.",
+              "The fastest way to get accurate pricing is with a free on-site estimate, where we evaluate your space and recommend the best option for your needs.",
+              "Yes — artificial turf is safe for both pets and children.",
+              "Modern turf is made with non-toxic materials and designed to be comfortable underfoot, making it ideal for everyday play.",
+              "It also helps keep your yard cleaner and more sanitary, with no mud, fewer pests, and easy cleanup for pet waste.",
+              "Many turf systems include proper drainage, so everything rinses through quickly and the surface stays usable year-round.",
+              "Choosing the right artificial turf depends on how you plan to use your space — whether it’s for a backyard, pets, or a custom feature like a putting green.",
+              "The main differences come down to look, feel, durability, and drainage — not complicated technical specs.",
+              "We help you choose the best option based on your space, how it will be used, and the level of maintenance you want.",
+              "The easiest way to get it right is with a free on-site estimate, where we walk you through the options and show you what will work best for your yard.",
+              "It was a pleasure working with Huby and his associates. I would definitely be contacting him again for more work and recommending him to all my family and friends! Thank you King Turf!!!!"
+            ],
+            "prices": [
+              "$8",
+              "$18"
+            ],
+            "destination_type": "unknown",
+            "candidate_types": [],
+            "classification_state": "unknown",
+            "form_signals": [
+              "form_action:https://kingturfmiami.com/"
+            ],
+            "service_delivery_signals": [
+              "imate Built for Miami Homes & Businesses. Designed to Last. We install high-quality artificial grass designed for Miami’s heat, rain, and everyday use.Clean, du",
+              "mi-Based No call centers. No middlemen. Speak directly with our team. Get Your Free Turf Estimate in Miami-Dade & Broward For immediate help, call (833) 305-K"
+            ],
+            "education_delivery_signals": [],
+            "proof_claims": [],
+            "visitor_receives": [
+              "unknown"
+            ],
+            "commercial_relevance": "primary",
+            "selection_reason": "instagram bio external link | no decisive host, path, form, or content signal",
+            "rank": 0,
+            "hop": 0,
+            "text_excerpt": "King Turf | South Florida Turf Experts Select Page Artificial Turf Installations in Miami That Looks Real and Lasts No Mowing, No Mud, No Hassle, Perfect Lawn Year-Round. Get Free Estimate ⭐ 4.8 Google Rating | Licensed & Insured | Miami-Based No call centers. No middlemen. Speak directly with our team. Get Your Free Turf Estimate in Miami-Dade & Broward For immediate help, call (833) 305-KING It’s a dirty job — but we keep it clean. Tell us about your project and we’ll provide a fast, no-obligation estimate. Tell us about your project and we’ll get back to you quickly with clear pricing and options. 📞 Call Now: (833) 305-KING ☎️ (833)-305-5464 📩 Email us info@kingturfmiami.com Serving Miami-Dade, Broward and Palm Beach Surrounding Areas Local artificial turf experts providing fast, professional installation across South Florida. Get in touch Name Phone Message Get My Free Estimate Popular Turf Installations for Families and Businesses in Miami! Designed for kids, pets, and everyday living — clean, durable, and low-maintenance. Residential Turf InstallationClean, low-maintenance artificial grass for Miami homes. Enjoy a beautiful lawn year-round with no mowing, no mud, and no watering—built for Florida weather and everyday living. Pet-Friendly Artificial Turf in South FloridaSafe, durable artificial turf designed for pets across South Florida, including Miami and surrounding areas. No mud 🐾 • No mess 🧼 • Easy to clean 💦 • Helps reduce fleas 🐜 with built-in drainage and odor control for a cleaner, healthier yard. Putting Green TurfCustom backyard putting greens built for performance, practice, and outdoor entertainment across South Florida, including Miami. Enjoy smooth, realistic ball roll with premium, low-maintenance turf. Smooth roll ⛳ • No maintenance 🌱 • Built to last 🛠️ Get Free Estimate Built for Miami Homes & Businesses. Designed to Last. We install high-quality artificial grass designed for Miami’s heat, rain, and everyday use.Clean, durable, and low-maintenance — built for families, pets, and real life. * No mowing, no mud, no hassle* Pet-friendly & easy to clean* Built for South Florida weather* Fast, professional installation Benefits of artificial grass installationEvery project is different — and we build each one to fit your space, your needs, and your lifestyle. We install high-quality artificial grass designed for Miami’s heat, rain, and everyday use — clean, durable, and built to last. Whether it’s your home, pet area, or outdoor living space, we create low-maintenance turf solutions that look great year-round. ✔ No mowing. No mud. No hassle.✔ Pet-friendly and easy to clean✔ Built for South Florida weather✔ Professional installation you can trust. What does installation cost?The cost of artificial grass installation depends on your space, the type of turf you choose, and the complexity of the project. Most installations in Miami typically range between $8–$18 per square foot, including materials and labor. The fastest way to get accurate pricing is with a free on-site estimate, where we evaluate your space and recommend the best option for your needs. Is turf durable and worth it? High-quality artificial turf typically lasts 15 to 20 years with minimal maintenance. While the upfront cost may be higher than natural grass, it can save you money over time by eliminating lawn care costs, water bills, and maintenance. It’s a long-term investment that offers consistent value. We’ll walk you through the best turf options during your free estimate so you get the most value for your space. Is Turf safe for pets and children?Yes — artificial turf is safe for both pets and children. Modern turf is made with non-toxic materials and designed to be comfortable underfoot, making it ideal for everyday play. It also helps keep your yard cleaner and more sanitary, with no mud, fewer pests, and easy cleanup for pet waste. Many turf systems include proper drainage, so everything rinses through quickly and the surface sta",
+            "capture_status": "captured",
+            "capture_method": "free_fetch",
+            "captured_at": "2026-08-01T11:54:08.718Z",
+            "error": null
+          },
+          {
+            "destination_id": "destination_1",
+            "source_url": "https://kingturfmiami.com/wp-content/uploads/2026/05/King-Turf-LLC-Privacy-Policy.pdf",
+            "final_url": "https://kingturfmiami.com/wp-content/uploads/2026/05/King-Turf-LLC-Privacy-Policy.pdf",
+            "redirect_chain": [
+              "https://kingturfmiami.com/wp-content/uploads/2026/05/King-Turf-LLC-Privacy-Policy.pdf"
+            ],
+            "visible_label": "Privacy Policy",
+            "page_title": null,
+            "meta_description": null,
+            "headings": [],
+            "cta_labels": [],
+            "offer_copy": [],
+            "prices": [
+              "$4",
+              "$6K"
+            ],
+            "destination_type": "unknown",
+            "candidate_types": [],
+            "classification_state": "unknown",
+            "form_signals": [],
+            "service_delivery_signals": [],
+            "education_delivery_signals": [],
+            "proof_claims": [],
+            "visitor_receives": [
+              "unknown"
+            ],
+            "commercial_relevance": "supporting",
+            "selection_reason": "same_origin | no decisive host, path, form, or content signal",
+            "rank": 0,
+            "hop": 1,
+            "text_excerpt": "%PDF-1.6 %���� 119 0 obj <>stream h�d�� �@\u0014��W�]�(��f�\b���@(h=:W�J���·o�h��_\u001c���\u0005�4 ֽ�\u0010{�z\u001a-6�t�Z?p�`k\u001f�';�\u000ec1*k�͕E/_I� �! �(��\u0014� ��r�b*�\u0015E�=�\u001b��R���L��`����xp �'�s�?�`�}���T�\b��)Y���Y8 ��\u000f��s��2�A��c_^���N�����-�x�I� endstream endobj 120 0 obj <>stream h�27R0P���w�/�+Q0���L)�67\u0003 \u0006)\u0018��X��ʂT�����b;;�\u0003%� � endstream endobj 121 0 obj <>stream hބSێ�0\u0010��yd�B��-����.Uw�\u0012��\"\u001e �`5$(�J��;v ��*2Lf�̜��\b \u0014$���d�e\b�C\u0018\b�\u0001�a �\" 2\u0002A)<<�/�F\u0017&۶�\u001b�Yc�wd����ű���+}G���!�{ \u0003�v1�W�� �4\"��0�\u0016\u0004Ǿ\u00132P�Gm�; \u001dJ�PW�6甌R�-!$�<��~�{A�\u001f\u0018c�/����ڛ��J��U��U.�j\u000e\"�\u001d��Y�5\u0019~{����+���\u0007\u0012[h�ޑ�ثԻf\u0015�\u0010錭Jͺ�mS �$V�_�\u0013���=��-���\u0005����h5q_��A����?�Xj���A�j ��4�8\u001e>�\u00039�� gnJ����ʥ$�+�x`�\u00038N��\u0016��E\u0018���]�����ūZ�F��0\\�[��|���\u0006ծi�\u001f�֮\u001b%��{f\u0010�����DSz\u0011\\����\u0001��\u000e�E�6ë�b�b!|���¨\u0014��Z�j�\u001e6U��H&_?�{tۣ�#����\u001c�7�g���;��m�L��JS��LQ��N\u0015�\u0015\\ ^M�Y�\u0010���\u0004ū��.*tDS\u0005쵱�r\u0011\u0004�{�� �#�� �7�\u0016ڈ8\u001f�e�s�s��������c\u0005�ܩz9�ye\u0018�\u0011��u�;��v��)@O�g��]Z.Zۧqζ/�6!D\u00161cտ�-/6~@\u0004\u0018�ix� endstream endobj 122 0 obj <>stream hޜVMo�8\u0010�+s�=,$\u000e��\"@Ӧ@�n6��S�������d�2P��}\u0014\u0019�fdA^����73o������'g�Kb��\u0005If�GkA,�)\u0018E�{bM� K\u0003�$�%!\u0018~\u0007k5�`���d�I \u0012\u0012��a�$)I�R�T�ʒ\u0004��$�4�%��1$��=��38��gp\u001e��- )�Y�I��z&\u0005>\u00072\u0005>g\u001d)�y\u0014�\u0010�\u001bEʡ:\u0001\u001cR-MI\u001a�� \u0005\"0���FI 2 \u0019�\u0007\u0005 �k�#���P\u0002�j�)�� �0\u0004Jֈc�4�c�g�/,�{W| ]*鶸����ﺺ\u000e\u001d;�\\׿�/��dqۮ뿫M�f���6u���À�m���\"��ˁ5(<\u0018\u0011 G#�Q��h�`L<��9\u001dϙ\b��D$D\u001b���H͑�#RF$GN\u00199e�\u0011)�\\�� :<��(\u0016�C��z���}\u0019F6 ��\u001d�0��k9��7M�W��m�Ŧj��]��Q=��Mq���^�O]�yޅ�U�w���s��ŧ�Ӷ���� �?�ˮ�|�6/˫�\u0011�uq\u001d�>A����f�j��s�\u000e$�?�>�b\u001a���ߺ��i����[m��M�\u001d:�����wȾ��<�ݞ���7�ٮ��K��\u0011�n��3��0\u001c�y츖�^�\u001f�\u0018�\u0003�\u001f#3�wy�\u0012��h7�\u0016���$\\��:�*)�\u001b��/��\u000f�!_�o\u001f\\�\u0004d1?kN}��1'��s0(����\u001c'0� I�|%\u0003�Ü�HS<�uzج�=mo�<\u001f*�C�|��\u000f5�� �ram�\u0006{t+�⬘��wԸI<�ӽ3�ǹ��L��s����|>��Ɵ�NyF?�;\u0003�Ϙ�\\k#'�Sy}fzNL\u001a���u�d��\u0012��#E�S�ӿt��ox��a|p�~���)��j0���I�>stream h�240R0P�����\u0006\u0012�IY ��&@� ��ʂT}'� ;;#�X�\u0005c\u0003�x@��!�\u0011��_bg\u0007\u0010`/ \u0010� endstream endobj 124 0 obj <>stream h޼�� �0 �_%O��\u001d�\b�a\u000eo\u0003��D�sa�b����~ѝ\u0006�i�CB�\u0007��?:\u0001\u0001\u0012���eX�1�\u0018\u0003H�Y���n:��\u0015;\u0001k%Rq�)�\u000e�t�ۯ��z�\u0002�6�����@�)%SV��\u0005���l ��u�s��\u001b\u001a�-V�\u0012 -�c�v�F\u0002�M��\u0010_�wc/\u0001\u001b4���y�< \"��\u0004��� �z�s*�!�S�\u0001Vmx\u0013 endstream endobj 125 0 obj <>stream h�t�A �@\u0010����Cf�\u0002=��X���2\u000f��u�%[%��߬��C�\u0019�y�{3J*!�� �T�}.T\u0018�8�\u0014\u0007Zw�A���j?[> �Aڢ�AF�&۠u^1�-d�\u0001VVw��W�6d�qc���Y��'(�H(��5,\"�D����c��;���%cT�n�\u001dމ'Y�CS��9�/rF���9�6���?�-���Y\u001e endstream endobj 10 0 obj <>stream 2026-05-04T17:53:02-04:00 2026-05-04T17:47:08-04:00 2026-05-04T17:53:02-04:00 Acrobat PDFMaker 22 for Word uuid:65d6e18d-1b5d-4984-a7d8-26b14fa72741 uuid:10943a9f-94c8-4850-a70e-4e7cda075434 1 application/pdf David Compton Adobe PDF Library 22.1.117 endstream endobj 75 0 obj <>/Metadata 10 0 R/PageLayout/OneColumn/Pages 72 0 R/StructTreeRoot 18 0 R/Type/Catalog>> endobj 78 0 obj <>stream H�\\�͊�@\u0014��>E-�\u0017�I�?� �t� Y�\u000f��\u00070Z�\b\u0013\u0015c\u0016y���iz`��O���8R���nߵSȿ�}}�S8�]3�k\u001b�\u0018���v�r\u0015���>����R Y�\u0016\u001f��)^�ݩ��2�?���4��æ��1˿�M\u001c��\u001c\u001e~m\u000f�!?܆�O��n ��^�&�RЗj�Z]b��eO�&�o��SZ��!��|��L�7�:Tu\u001c��\u001c�r��u(�ӱ�b��wߌˎ��w5f� \u000f/\u0016�xE^��l�g�3���\u0002ޒ��\u001dy\u0007~#����I�,8���bI^�9��ܢ \u0017`! X� �[\u0001���\u000eސ7����|a� _�/�\u0017� ���|a� _�/�\u0017� �A؃�\u0007y%��ى�\u0013a'�N��\b:\u0011v\"�Dى�\u0013���S��Tz*<�� O���M��Q�(|�\u000e \u0007c'�N�� ��� ��� ��� ���\u0018:1�5�5vb���`p0� û0�\u0018|��\u0018�1����~ �\u0018�1����я�����w�;�\u001d�N�������w�;�\u001d�N���?��q>v\b�P���sַqL[s�\u001c�{\u0012�����\u0017c臐V��\u0015`�`\b\u0010 endstream endobj 80 0 obj <>stream H�\\��j�0 ��~ \u001d�Cq��v\b��1ȡ�X�\u0007pl%3,�Q�C�~�\u0017:��\u0006��?�[��>�\u00142�7��� C �8ǅ\u001dB�c u6���{Wn7٤���:g�Z\u001a��k��\"ΙW8<���Q�W�ȁF8|^�#�nI�\u001b'� \u00154 x\u001cd�զ��\u0010t�N�\u0017=��$̟�cM\b����0.z��uȖFTu%�@�\"�($�Oߩ~p_�7�ã�MeLq��\u001b'߃{(�0K���\u0012d�\u0010\b�kJ1�P�Q?\u0002 �\u0016o� endstream endobj 82 0 obj <>stream H�j`@\u0001 \u0001\u0006\b�\u0001\u0001 endstream endobj 83 0 obj <>stream H��V{t\u0014�\u0015����]�@6 �2�!���� �$��͆G\u0010�\u0002v��]6!\u0001\u0004S�<*�\u0014\u000e5]\u001eR�\u0001 \u0015�\u0002�Җ�H��B@Q�)�\u001c{��(ZE�9T�cUJ!;�� ��GO����߽������\u0007\u0002��FH��U9�a�o��Œ?�='�f�6�ۛ\u0001� ��↺� ��%`\u001b�x�\u0013�\u0017��^8�\u0013��}s}m��}��H�c<��\u0005�\u0007�\u0018��xp����֖M+b|\u001a\u0010w�x2\u0014L+L+\u0004�_c\u001f\u001b�\u0007�5�t�8 e\"�k+��k۟�y���l�mXY�0��a��;\u0004�U �<� ��G\u001d�3du��\u0001,\u0016}���� �M�v�wU=��ྡ݈�[c%4ڑHg\u001a�t�\u0002�Rg`\u0010�\u0003�Nd\u0002��]���߼�.�\u001e[j^\u001a���'���+�,,�PL�\u0019��I\u001a�2��\u0017\u0010�O�E\u001e˟��ц\u000fQ�\u001a\bd�\u0006h�/�\u0015�؄\u0003��d�-��vG2\u0006`0��I��\u001fu�G�0 ���a\u0017�|�}��t\u0003\u001d4� ���Q\u0005=G?���o�#�\u0017�e\u001f�,s�_\u0006�\u0006yY�r�\u001d�b�c\u0017�2s\u001dג�� ��\u001eγ �рUX� �G���i\u0007W�\u0018���<��:>�'LWюϸ�T�1��1�d* 7M���8��*�M�R�N�Y�F_�1b�� f� Q'\u001a�j�C\u0018\"\"N�+�_\u001ce���U�\u0019yL��o�w�{ ��JPY�|_٩\u0018ʻ� �+%�Bՙ��A�",
+            "capture_status": "captured",
+            "capture_method": "scrapingbee",
+            "captured_at": "2026-08-01T11:54:10.171Z",
+            "error": null
+          }
+        ],
+        "external_capture_status": "captured",
+        "youtube_channels": [],
+        "youtube_videos": [],
+        "cta_chain": [
+          {
+            "hop": 0,
+            "source_type": "instagram_profile",
+            "source_id": "profile",
+            "action": "visit_page",
+            "destination_url": "https://kingturfmiami.com/",
+            "visitor_receives": "unknown",
+            "evidence": "King Turf | South Florida Turf Experts - King Turf | Artificial Grass Installation Miami"
+          },
+          {
+            "hop": 1,
+            "source_type": "external_page",
+            "source_id": "destination_0",
+            "action": "privacy_policy",
+            "destination_url": "https://kingturfmiami.com/wp-content/uploads/2026/05/King-Turf-LLC-Privacy-Policy.pdf",
+            "visitor_receives": "unknown",
+            "evidence": "Privacy Policy"
+          }
+        ],
+        "primary_cta": "Get My Free Estimate",
+        "ultimate_cta": "privacy_policy",
+        "offer_inventory_seed": [],
+        "proof_inventory_seed": [],
+        "direct_response_ctas": [],
+        "acquisition_stop_reason": "complete",
+        "acquisition_sufficiency": "partial",
+        "unknown_surfaces": [
+          {
+            "surface": "story_highlights",
+            "capture_status": "not_attempted",
+            "reason": "highlight titles require an authenticated surface not attempted in v1"
+          }
+        ],
+        "hops_used": 1,
+        "activity": {
+          "data_quality": "complete",
+          "median_unpinned_reel_views": null,
+          "reel_view_rate": null,
+          "posts_last_30_days": 0,
+          "reels_last_30_days": 0,
+          "days_since_latest_post": 50,
+          "median_likes_per_follower": 0.005758157389635317
+        },
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "fixture_revision": "fixtures-2026-07-31"
+        }
+      },
+      "extraction": {
+        "ok": true,
+        "extraction": {
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "evidence_snapshot_id": "db629069-408a-4555-8545-e77df71183b7",
+          "human_personal_brand": {
+            "state": "present",
+            "strength": "credible",
+            "evidence": [
+              {
+                "source_type": "display_name",
+                "source_id": "profile",
+                "url": null,
+                "field": "display_name",
+                "phrase": "King Turf"
+              },
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "We are \"The KING of TURF\" ! ⛳️Artificial Terrain Specialists that offer 👑Modern & Luxury landscaping EXCELLENCE 📞Call us today at (833) 305-KING"
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "page_title",
+                "phrase": "King Turf | South Florida Turf Experts - King Turf | Artificial Grass Installation Miami"
+              }
+            ]
+          },
+          "audience": {
+            "label": "specific",
+            "value": "Miami-area homeowners and businesses seeking artificial grass installation, pet turf, and outdoor landscaping solutions",
+            "evidence": [
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "description",
+                "phrase": "King Turf provides premium artificial grass installation in Miami and South Florida. Residential, commercial, pet turf, putting greens, and custom outdoor solutions. Free estimates available."
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "heading",
+                "phrase": "Artificial Turf Installations in Miami That Looks Real and Lasts"
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "heading",
+                "phrase": "No Mowing, No Mud, No Hassle, Perfect Lawn Year-Round."
+              }
+            ]
+          },
+          "transformation": {
+            "state": "absent",
+            "strength": "absent",
+            "label": "none",
+            "outcome": null,
+            "evidence": []
+          },
+          "information_funnel": {
+            "state": "absent",
+            "strength": "absent",
+            "label": "none",
+            "visitor_receives": [
+              "done_for_you_service"
+            ],
+            "asset_or_offer": null,
+            "evidence": []
+          },
+          "cta": {
+            "state": "present",
+            "strength": "credible",
+            "label": "commercial_action",
+            "action": "Request free estimate via form or phone call",
+            "token_or_asset": "(833) 305-KING or web form",
+            "evidence": [
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "cta",
+                "phrase": "Get My Free Estimate"
+              },
+              {
+                "source_type": "recent_post",
+                "source_id": "DKsxkteNBMk",
+                "url": null,
+                "field": "caption",
+                "phrase": "Here are the BEFORE & AFTERS of our Newly/Excellently Installed Project. Wow! WOW!"
+              }
+            ]
+          },
+          "proof": {
+            "state": "present",
+            "strength": "credible",
+            "label": "credible",
+            "claims": [
+              {
+                "proof_id": "proof_1",
+                "claim": "Revamped home for former Canes football and NFL star",
+                "beneficiary": "agency_client",
+                "result_type": "transformation",
+                "value": null,
+                "currency": null,
+                "attributed_offer_id": "offer_1",
+                "producing_model": null,
+                "self_reported": true,
+                "evidence": [
+                  {
+                    "source_type": "recent_post",
+                    "source_id": "DJujceASCpP",
+                    "url": null,
+                    "field": "caption",
+                    "phrase": "Let us Design, Install, and deliver on our GUARANTEE to transform your home or business into An absolute paradise !"
+                  }
+                ]
+              }
+            ],
+            "evidence": [
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "heading",
+                "phrase": "⭐ 4.8 Google Rating | Licensed & Insured | Miami-Based"
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "form_signal",
+                "phrase": "form_action:https://kingturfmiami.com/"
+              },
+              {
+                "source_type": "recent_post",
+                "source_id": "DJujceASCpP",
+                "url": null,
+                "field": "caption",
+                "phrase": "It was Truly and honor to have the Privilege to Revamp this home for - a Former @canesfootball and NFL star @sco_e1"
+              }
+            ]
+          },
+          "authority": {
+            "state": "present",
+            "strength": "credible",
+            "label": "credible",
+            "types": [
+              "licensed_and_insured",
+              "google_rating",
+              "direct_team_delivery",
+              "celebrity_client_work"
+            ],
+            "evidence": [
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "heading",
+                "phrase": "⭐ 4.8 Google Rating | Licensed & Insured | Miami-Based"
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "heading",
+                "phrase": "No call centers. No middlemen. Speak directly with our team."
+              }
+            ]
+          },
+          "business_models": [
+            {
+              "type": "agency_service",
+              "prominence": "primary",
+              "evidence": [
+                {
+                  "source_type": "external_page",
+                  "source_id": "destination_0",
+                  "url": "https://kingturfmiami.com/",
+                  "field": "page_title",
+                  "phrase": "King Turf | South Florida Turf Experts - King Turf | Artificial Grass Installation Miami"
+                },
+                {
+                  "source_type": "external_page",
+                  "source_id": "destination_0",
+                  "url": "https://kingturfmiami.com/",
+                  "field": "relevant_paragraphs",
+                  "phrase": "We install high-quality artificial grass designed for Miami's heat, rain, and everyday use. Clean, durable, and low-maintenance — built for families, pets, and real life."
+                },
+                {
+                  "source_type": "external_page",
+                  "source_id": "destination_0",
+                  "url": "https://kingturfmiami.com/",
+                  "field": "headings",
+                  "phrase": "No call centers. No middlemen. Speak directly with our team."
+                },
+                {
+                  "source_type": "external_page",
+                  "source_id": "destination_0",
+                  "url": "https://kingturfmiami.com/",
+                  "field": "ctas",
+                  "phrase": "Get My Free Estimate"
+                },
+                {
+                  "source_type": "external_page",
+                  "source_id": "destination_0",
+                  "url": "https://kingturfmiami.com/",
+                  "field": "relevant_paragraphs",
+                  "phrase": "Tell us about your project and we'll provide a fast, no-obligation estimate."
+                },
+                {
+                  "source_type": "recent_post",
+                  "source_id": "DJujceASCpP",
+                  "url": null,
+                  "field": "caption",
+                  "phrase": "Let us Design, Install, and deliver on our GUARANTEE to transform your home or business into An absolute paradise !"
+                }
+              ]
+            }
+          ],
+          "offers": [
+            {
+              "offer_id": "offer_1",
+              "name": "Artificial Turf Installation Service",
+              "type": "done_for_you_service",
+              "prominence": "primary",
+              "audience": "Residential and commercial property owners in Miami-Dade, Broward, and Palm Beach areas",
+              "delivery": "On-site installation by company team",
+              "visitor_receives": [
+                "done_for_you_service"
+              ],
+              "customer_implementation_role": "none",
+              "price": "Free estimate; pricing varies by project scope ($8-$18 per square foot range indicated)",
+              "cta": "Get My Free Estimate or call (833) 305-KING",
+              "evidence": [
+                {
+                  "source_type": "external_page",
+                  "source_id": "destination_0",
+                  "url": "https://kingturfmiami.com/",
+                  "field": "page_title",
+                  "phrase": "King Turf | South Florida Turf Experts - King Turf | Artificial Grass Installation Miami"
+                },
+                {
+                  "source_type": "external_page",
+                  "source_id": "destination_0",
+                  "url": "https://kingturfmiami.com/",
+                  "field": "relevant_paragraphs",
+                  "phrase": "We install high-quality artificial grass designed for Miami's heat, rain, and everyday use. Clean, durable, and low-maintenance — built for families, pets, and real life."
+                },
+                {
+                  "source_type": "external_page",
+                  "source_id": "destination_0",
+                  "url": "https://kingturfmiami.com/",
+                  "field": "headings",
+                  "phrase": "No call centers. No middlemen. Speak directly with our team."
+                },
+                {
+                  "source_type": "external_page",
+                  "source_id": "destination_0",
+                  "url": "https://kingturfmiami.com/",
+                  "field": "ctas",
+                  "phrase": "Get My Free Estimate"
+                },
+                {
+                  "source_type": "external_page",
+                  "source_id": "destination_0",
+                  "url": "https://kingturfmiami.com/",
+                  "field": "relevant_paragraphs",
+                  "phrase": "Tell us about your project and we'll provide a fast, no-obligation estimate."
+                },
+                {
+                  "source_type": "recent_post",
+                  "source_id": "DJujceASCpP",
+                  "url": null,
+                  "field": "caption",
+                  "phrase": "Let us Design, Install, and deliver on our GUARANTEE to transform your home or business into An absolute paradise !"
+                }
+              ]
+            },
+            {
+              "offer_id": "offer_2",
+              "name": "Pet-Friendly Artificial Turf",
+              "type": "done_for_you_service",
+              "prominence": "secondary",
+              "audience": "Pet owners in South Florida",
+              "delivery": "On-site installation by company team",
+              "visitor_receives": [
+                "done_for_you_service"
+              ],
+              "customer_implementation_role": "none",
+              "price": "Free estimate; project-based pricing",
+              "cta": "Call (833) 305-KING for free estimate",
+              "evidence": [
+                {
+                  "source_type": "external_page",
+                  "source_id": "destination_0",
+                  "url": "https://kingturfmiami.com/",
+                  "field": "relevant_paragraphs",
+                  "phrase": "Safe, durable artificial turf designed for pets across South Florida, including Miami and surrounding areas. No mud 🐾 • No mess 🧼 • Easy to clean 💦 • Helps reduce fleas 🐜 with built-in drainage and odor control for a cleaner, healthier yard."
+                }
+              ]
+            },
+            {
+              "offer_id": "offer_3",
+              "name": "Custom Putting Green Installation",
+              "type": "done_for_you_service",
+              "prominence": "secondary",
+              "audience": "Homeowners and businesses seeking outdoor entertainment features",
+              "delivery": "On-site installation by company team",
+              "visitor_receives": [
+                "done_for_you_service"
+              ],
+              "customer_implementation_role": "none",
+              "price": "Free estimate; project-based pricing",
+              "cta": "Call (833) 305-KING for free estimate",
+              "evidence": [
+                {
+                  "source_type": "external_page",
+                  "source_id": "destination_0",
+                  "url": "https://kingturfmiami.com/",
+                  "field": "relevant_paragraphs",
+                  "phrase": "Custom backyard putting greens built for performance, practice, and outdoor entertainment across South Florida, including Miami. Enjoy smooth, realistic ball roll with premium, low-maintenance turf."
+                }
+              ]
+            }
+          ],
+          "proof_attribution": [
+            {
+              "proof_id": "proof_1",
+              "claim": "Revamped home for former Canes football and NFL star",
+              "beneficiary": "agency_client",
+              "result_type": "transformation",
+              "value": null,
+              "currency": null,
+              "attributed_offer_id": "offer_1",
+              "producing_model": null,
+              "self_reported": true,
+              "evidence": [
+                {
+                  "source_type": "recent_post",
+                  "source_id": "DJujceASCpP",
+                  "url": null,
+                  "field": "caption",
+                  "phrase": "Let us Design, Install, and deliver on our GUARANTEE to transform your home or business into An absolute paradise !"
+                }
+              ]
+            }
+          ],
+          "primary_visitor_outcome": "done_for_you_service",
+          "primary_cta": "Request free estimate via form or phone call",
+          "ultimate_cta": "Get My Free Estimate or call (833) 305-KING",
+          "cta_chain_resolved": true,
+          "acquisition_sufficiency": "sufficient",
+          "agency_evidence_bundle": {
+            "service_delivery": [
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "relevant_paragraphs",
+                "phrase": "We install high-quality artificial grass designed for Miami's heat, rain, and everyday use. Clean, durable, and low-maintenance — built for families, pets, and real life."
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "headings",
+                "phrase": "No call centers. No middlemen. Speak directly with our team."
+              },
+              {
+                "source_type": "recent_post",
+                "source_id": "DHuBYsCvd3P",
+                "url": null,
+                "field": "caption",
+                "phrase": "Call us for a Free estimate/ quote ! 📞(833)-305-KING"
+              }
+            ],
+            "team_performance": [
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "headings",
+                "phrase": "No call centers. No middlemen. Speak directly with our team."
+              },
+              {
+                "source_type": "recent_post",
+                "source_id": "DJujceASCpP",
+                "url": null,
+                "field": "caption",
+                "phrase": "Let us Design, Install, and deliver on our GUARANTEE to transform your home or business into An absolute paradise !"
+              }
+            ],
+            "service_cta": [
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "ctas",
+                "phrase": "Get My Free Estimate"
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "relevant_paragraphs",
+                "phrase": "Tell us about your project and we'll provide a fast, no-obligation estimate."
+              },
+              {
+                "source_type": "recent_post",
+                "source_id": "DHuBYsCvd3P",
+                "url": null,
+                "field": "caption",
+                "phrase": "Call us for a Free estimate/ quote ! 📞(833)-305-KING"
+              }
+            ],
+            "reliability": "reliable"
+          },
+          "agency_service_evidence": [
+            {
+              "source_type": "external_page",
+              "source_id": "destination_0",
+              "url": "https://kingturfmiami.com/",
+              "field": "relevant_paragraphs",
+              "phrase": "We install high-quality artificial grass designed for Miami's heat, rain, and everyday use. Clean, durable, and low-maintenance — built for families, pets, and real life."
+            },
+            {
+              "source_type": "external_page",
+              "source_id": "destination_0",
+              "url": "https://kingturfmiami.com/",
+              "field": "headings",
+              "phrase": "No call centers. No middlemen. Speak directly with our team."
+            },
+            {
+              "source_type": "recent_post",
+              "source_id": "DHuBYsCvd3P",
+              "url": null,
+              "field": "caption",
+              "phrase": "Call us for a Free estimate/ quote ! 📞(833)-305-KING"
+            }
+          ],
+          "exclusion_evidence": [],
+          "conflicts": [],
+          "data_quality": "complete",
+          "unknown_surfaces": [
+            "story_highlights",
+            "Story highlights were not captured; potential additional service or product information is unknown",
+            "Exact pricing structure and project scope details are not fully specified",
+            "Whether the company offers any educational content, training, or information products beyond service delivery"
+          ],
+          "independent_information_offer": {
+            "own_audience": "absent",
+            "own_transformation": "absent",
+            "own_cta_path": "absent",
+            "information_delivery": "absent",
+            "sufficient_prominence": "absent",
+            "evidence": []
+          },
+          "named_mechanisms": []
+        },
+        "provider": "anthropic",
+        "model": "claude-haiku-4-5",
+        "usage": {
+          "inputTokens": 21738,
+          "outputTokens": 2531
+        },
+        "repaired": false,
+        "citation_warnings": [
+          "phrase not found verbatim in snapshot (external_page:destination_0): \"form_action:https://kingturfmiami.com/\"",
+          "phrase not found verbatim in snapshot (external_page:destination_0): \"We install high-quality artificial grass designed for Miami's heat, rain, and everyday use\"",
+          "phrase not found verbatim in snapshot (external_page:destination_0): \"We install high-quality artificial grass designed for Miami's heat, rain, and everyday use\"",
+          "phrase not found verbatim in snapshot (external_page:destination_0): \"We install high-quality artificial grass designed for Miami's heat, rain, and everyday use\"",
+          "phrase not found verbatim in snapshot (external_page:destination_0): \"We install high-quality artificial grass designed for Miami's heat, rain, and everyday use\""
+        ]
+      },
+      "challenger": null,
+      "challenger_trigger": "none",
+      "decision": {
+        "scorecard_version": "personal-brand-score-v1",
+        "evidence_snapshot_id": "db629069-408a-4555-8545-e77df71183b7",
+        "extraction_id": null,
+        "track": "agency_service",
+        "icp_eligible": false,
+        "hard_exclusion": true,
+        "rejection_reason": "primary_offer_done_for_you_service",
+        "signal_states": {
+          "human_personal_brand": "present",
+          "information_funnel": "absent",
+          "cta": "present",
+          "transformation": "absent",
+          "proof": "present",
+          "authority": "present"
+        },
+        "primary_visitor_outcome": "done_for_you_service",
+        "scores": {
+          "buyer_clarity": 1.5,
+          "transformation_clarity": 0,
+          "information_funnel_evidence": 0,
+          "conversion_intent": 1.5,
+          "proof_strength": 0.75,
+          "authority_strength": 0.75,
+          "proof_maturity": 1.5,
+          "commercial_fit": 4.5
+        },
+        "score_components": {
+          "buyer_clarity": {
+            "value": 1.5,
+            "label": "specific",
+            "reason": "buyer_clarity=specific -> 1.5 (Miami-area homeowners and businesses seeking artificial grass installation, pet turf, and outdoor landscaping solutions)",
+            "citations": [
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "description",
+                "phrase": "King Turf provides premium artificial grass installation in Miami and South Florida. Residential, commercial, pet turf, putting greens, and custom outdoor solutions. Free estimates available."
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "heading",
+                "phrase": "Artificial Turf Installations in Miami That Looks Real and Lasts"
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "heading",
+                "phrase": "No Mowing, No Mud, No Hassle, Perfect Lawn Year-Round."
+              }
+            ]
+          },
+          "transformation_clarity": {
+            "value": 0,
+            "label": "none",
+            "reason": "transformation_clarity=none -> 0 (no transformation outcome returned)",
+            "citations": []
+          },
+          "information_funnel_evidence": {
+            "value": 0,
+            "label": "none",
+            "reason": "information_funnel_evidence=none -> 0 (no offer named)",
+            "citations": []
+          },
+          "conversion_intent": {
+            "value": 1.5,
+            "label": "commercial_action",
+            "reason": "conversion_intent=commercial_action -> 1.5 (Request free estimate via form or phone call)",
+            "citations": [
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "cta",
+                "phrase": "Get My Free Estimate"
+              },
+              {
+                "source_type": "recent_post",
+                "source_id": "DKsxkteNBMk",
+                "url": null,
+                "field": "caption",
+                "phrase": "Here are the BEFORE & AFTERS of our Newly/Excellently Installed Project. Wow! WOW!"
+              }
+            ]
+          },
+          "proof_strength": {
+            "value": 0.75,
+            "label": "credible",
+            "reason": "proof_strength=credible -> 0.75 (Revamped home for former Canes football and NFL star (agency_client); Revamped home for former Canes football and NFL star (agency_client))",
+            "citations": [
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "heading",
+                "phrase": "⭐ 4.8 Google Rating | Licensed & Insured | Miami-Based"
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "form_signal",
+                "phrase": "form_action:https://kingturfmiami.com/"
+              },
+              {
+                "source_type": "recent_post",
+                "source_id": "DJujceASCpP",
+                "url": null,
+                "field": "caption",
+                "phrase": "It was Truly and honor to have the Privilege to Revamp this home for - a Former @canesfootball and NFL star @sco_e1"
+              }
+            ]
+          },
+          "authority_strength": {
+            "value": 0.75,
+            "label": "credible",
+            "reason": "authority_strength=credible -> 0.75 (licensed_and_insured, google_rating, direct_team_delivery, celebrity_client_work)",
+            "citations": [
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "heading",
+                "phrase": "⭐ 4.8 Google Rating | Licensed & Insured | Miami-Based"
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_0",
+                "url": "https://kingturfmiami.com/",
+                "field": "heading",
+                "phrase": "No call centers. No middlemen. Speak directly with our team."
+              }
+            ]
+          }
+        },
+        "certainty": "medium",
+        "challenger_agreement": null,
+        "challenger_result": null,
+        "decision": "rejected",
+        "mode": "hard_excluded",
+        "automatic_approval_eligible": false,
+        "decision_reasons": [
+          "primary_offer_done_for_you_service"
+        ],
+        "review_flags": [
+          "missing_core_evidence"
+        ],
+        "priority": null,
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "challenger_prompt_version": "personal-brand-challenger-v1",
+          "scorecard_version": "personal-brand-score-v1",
+          "config_version": "config-v1",
+          "pipeline_version": "commercial-qualification-1.0.0"
+        },
+        "decided_at": "2026-08-01T11:54:36.695Z"
+      },
+      "timings_ms": {
+        "acquisition": 6609,
+        "extraction": 26522,
+        "challenger": 0,
+        "total": 33132
+      },
+      "usage": {
+        "inputTokens": 21738,
+        "outputTokens": 2531
+      }
+    },
+    "error": null
+  },
+  {
+    "input": "eazynowjai",
+    "result": {
+      "username": "eazynowjai",
+      "sufficiency": {
+        "verdict": "sufficient",
+        "data_quality": "complete",
+        "reasons": [],
+        "exclusion_evidence": null
+      },
+      "snapshot": {
+        "snapshot_id": "752fd5fc-096a-4b23-a5d5-cef7193d7ae6",
+        "lead_id": null,
+        "username": "eazynowjai",
+        "captured_at": "2026-08-01T11:53:54.249Z",
+        "instagram": {
+          "username": "eazynowjai",
+          "display_name": "jai",
+          "category": null,
+          "bio": "digital trappin",
+          "external_link": "https://youtu.be/L0zzmffPPrA",
+          "is_private": false,
+          "is_verified": true,
+          "followers": 4083,
+          "following": 511,
+          "total_posts": 8,
+          "instagram_meta_description": null,
+          "profile_extraction_method": "provider",
+          "profile_capture_status": "captured",
+          "profile_captured_at": "2026-08-01T11:53:54.247Z",
+          "external_link_capture_status": "captured",
+          "recent_posts": [
+            {
+              "post_id": "DSnur0ElYWJ",
+              "caption": "tomorrow is won today.",
+              "taken_at": "2025-12-23T21:18:06.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 306,
+              "comments": 19,
+              "views": null
+            },
+            {
+              "post_id": "DRBHmcXDQ5o",
+              "caption": "eazy",
+              "taken_at": "2025-11-14T00:54:03.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 589,
+              "comments": 44,
+              "views": null
+            },
+            {
+              "post_id": "DLkqFj-u6AB",
+              "caption": "double down",
+              "taken_at": "2025-07-01T17:00:27.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 431,
+              "comments": 73,
+              "views": null
+            },
+            {
+              "post_id": "DIXxcGkOVbC",
+              "caption": "Mr Get it done",
+              "taken_at": "2025-04-13T03:20:23.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 298,
+              "comments": 32,
+              "views": null
+            },
+            {
+              "post_id": "DIIg6rrRqRi",
+              "caption": "acqua panna",
+              "taken_at": "2025-04-07T05:07:24.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 361,
+              "comments": 40,
+              "views": null
+            },
+            {
+              "post_id": "DFod1dIvf-W",
+              "caption": null,
+              "taken_at": "2025-02-04T01:21:59.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 311,
+              "comments": 44,
+              "views": null
+            },
+            {
+              "post_id": "DDK0g5mTcdI",
+              "caption": "⭐️",
+              "taken_at": "2024-12-04T20:00:09.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 351,
+              "comments": 25,
+              "views": null
+            },
+            {
+              "post_id": "DB2XMtnS1ZS",
+              "caption": "@justaniillusion",
+              "taken_at": "2024-11-02T00:47:47.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 389,
+              "comments": 17,
+              "views": null
+            }
+          ],
+          "recent_posts_capture_status": "captured",
+          "pinned_posts": [],
+          "pinned_posts_capture_status": "captured",
+          "story_highlight_titles": [],
+          "story_highlights_capture_status": "not_attempted",
+          "story_highlights_captured_at": null
+        },
+        "external_destinations": [
+          {
+            "destination_id": "destination_0",
+            "source_url": "https://youtu.be/L0zzmffPPrA",
+            "final_url": null,
+            "redirect_chain": [
+              "https://youtu.be/L0zzmffPPrA"
+            ],
+            "visible_label": null,
+            "page_title": null,
+            "meta_description": null,
+            "headings": [],
+            "cta_labels": [],
+            "offer_copy": [],
+            "prices": [],
+            "destination_type": "youtube",
+            "candidate_types": [],
+            "classification_state": "unknown",
+            "form_signals": [],
+            "service_delivery_signals": [],
+            "education_delivery_signals": [],
+            "proof_claims": [],
+            "visitor_receives": [],
+            "commercial_relevance": "primary",
+            "selection_reason": "instagram bio external link",
+            "rank": 0,
+            "hop": 0,
+            "text_excerpt": null,
+            "capture_status": "not_attempted",
+            "capture_method": "none",
+            "captured_at": "2026-08-01T11:53:54.249Z",
+            "error": "handed to youtube collector"
+          }
+        ],
+        "external_capture_status": "not_attempted",
+        "youtube_channels": [],
+        "youtube_videos": [
+          {
+            "video_id": "L0zzmffPPrA",
+            "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+            "title": "$9000 in one week at 22 (just copy me)",
+            "description": "DM on IG for any help\n\nInstagram - https://instagram.com/eazynowjai",
+            "published_at": "2025-11-20T16:19:41-08:00",
+            "views": 2394,
+            "outbound_urls": [],
+            "selection_reason": "linked_from_profile",
+            "capture_status": "captured"
+          }
+        ],
+        "cta_chain": [
+          {
+            "hop": 0,
+            "source_type": "instagram_profile",
+            "source_id": "profile",
+            "action": "watch_on_youtube",
+            "destination_url": "https://youtu.be/L0zzmffPPrA",
+            "visitor_receives": null,
+            "evidence": "instagram bio external link"
+          }
+        ],
+        "primary_cta": "watch_on_youtube",
+        "ultimate_cta": "watch_on_youtube",
+        "offer_inventory_seed": [],
+        "proof_inventory_seed": [],
+        "direct_response_ctas": [],
+        "acquisition_stop_reason": "complete",
+        "acquisition_sufficiency": "partial",
+        "unknown_surfaces": [
+          {
+            "surface": "story_highlights",
+            "capture_status": "not_attempted",
+            "reason": "highlight titles require an authenticated surface not attempted in v1"
+          }
+        ],
+        "hops_used": 0,
+        "activity": {
+          "data_quality": "complete",
+          "median_unpinned_reel_views": null,
+          "reel_view_rate": null,
+          "posts_last_30_days": 0,
+          "reels_last_30_days": 0,
+          "days_since_latest_post": 220,
+          "median_likes_per_follower": 0.08719079108498654
+        },
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "fixture_revision": "fixtures-2026-07-31"
+        }
+      },
+      "extraction": {
+        "ok": true,
+        "extraction": {
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "evidence_snapshot_id": "752fd5fc-096a-4b23-a5d5-cef7193d7ae6",
+          "human_personal_brand": {
+            "state": "present",
+            "strength": "weak",
+            "evidence": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "digital trappin"
+              },
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "title",
+                "phrase": "$9000 in one week at 22 (just copy me)"
+              },
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "description",
+                "phrase": "DM on IG for any help"
+              }
+            ]
+          },
+          "audience": {
+            "label": "inferred",
+            "value": "people interested in making money quickly or online income",
+            "evidence": [
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "title",
+                "phrase": "$9000 in one week at 22 (just copy me)"
+              }
+            ]
+          },
+          "transformation": {
+            "state": "present",
+            "strength": "weak",
+            "label": "implied_result",
+            "outcome": "earn $9000 in one week",
+            "evidence": [
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "title",
+                "phrase": "$9000 in one week at 22 (just copy me)"
+              }
+            ]
+          },
+          "information_funnel": {
+            "state": "present",
+            "strength": "weak",
+            "label": "indirect_funnel",
+            "visitor_receives": [],
+            "asset_or_offer": "YouTube video with DM instruction for help",
+            "evidence": [
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "title",
+                "phrase": "$9000 in one week at 22 (just copy me)"
+              },
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "description",
+                "phrase": "DM on IG for any help"
+              }
+            ]
+          },
+          "cta": {
+            "state": "present",
+            "strength": "credible",
+            "label": "direct_sales_action",
+            "action": "DM on Instagram",
+            "token_or_asset": "unspecified keyword",
+            "evidence": [
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "description",
+                "phrase": "DM on IG for any help"
+              }
+            ]
+          },
+          "proof": {
+            "state": "absent",
+            "strength": "absent",
+            "label": "absent",
+            "claims": [
+              {
+                "proof_id": "proof_1",
+                "claim": "$9000 in one week at age 22",
+                "beneficiary": "self",
+                "result_type": "revenue",
+                "value": null,
+                "currency": "USD",
+                "attributed_offer_id": "offer_1",
+                "producing_model": null,
+                "self_reported": true,
+                "evidence": [
+                  {
+                    "source_type": "youtube_video",
+                    "source_id": "L0zzmffPPrA",
+                    "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                    "field": "title",
+                    "phrase": "$9000 in one week at 22 (just copy me)"
+                  },
+                  {
+                    "source_type": "youtube_video",
+                    "source_id": "L0zzmffPPrA",
+                    "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                    "field": "description",
+                    "phrase": "DM on IG for any help"
+                  }
+                ]
+              }
+            ],
+            "evidence": []
+          },
+          "authority": {
+            "state": "absent",
+            "strength": "absent",
+            "label": "absent",
+            "types": [],
+            "evidence": []
+          },
+          "business_models": [
+            {
+              "type": "information_education",
+              "prominence": "primary",
+              "evidence": [
+                {
+                  "source_type": "youtube_video",
+                  "source_id": "L0zzmffPPrA",
+                  "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                  "field": "title",
+                  "phrase": "$9000 in one week at 22 (just copy me)"
+                },
+                {
+                  "source_type": "youtube_video",
+                  "source_id": "L0zzmffPPrA",
+                  "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                  "field": "description",
+                  "phrase": "DM on IG for any help"
+                },
+                {
+                  "source_type": "display_name",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "display_name",
+                  "phrase": "jai"
+                }
+              ]
+            }
+          ],
+          "offers": [
+            {
+              "offer_id": "offer_1",
+              "name": "YouTube content on making money",
+              "type": "information_product",
+              "prominence": "primary",
+              "audience": "people interested in making money quickly",
+              "delivery": "YouTube video",
+              "visitor_receives": [
+                "information_product",
+                "education"
+              ],
+              "customer_implementation_role": "self_implemented",
+              "price": "unknown",
+              "cta": "watch YouTube video, DM on Instagram for help",
+              "evidence": [
+                {
+                  "source_type": "youtube_video",
+                  "source_id": "L0zzmffPPrA",
+                  "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                  "field": "title",
+                  "phrase": "$9000 in one week at 22 (just copy me)"
+                },
+                {
+                  "source_type": "youtube_video",
+                  "source_id": "L0zzmffPPrA",
+                  "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                  "field": "description",
+                  "phrase": "DM on IG for any help"
+                },
+                {
+                  "source_type": "display_name",
+                  "source_id": "profile",
+                  "url": null,
+                  "field": "display_name",
+                  "phrase": "jai"
+                }
+              ]
+            }
+          ],
+          "proof_attribution": [
+            {
+              "proof_id": "proof_1",
+              "claim": "$9000 in one week at age 22",
+              "beneficiary": "self",
+              "result_type": "revenue",
+              "value": null,
+              "currency": "USD",
+              "attributed_offer_id": "offer_1",
+              "producing_model": null,
+              "self_reported": true,
+              "evidence": [
+                {
+                  "source_type": "youtube_video",
+                  "source_id": "L0zzmffPPrA",
+                  "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                  "field": "title",
+                  "phrase": "$9000 in one week at 22 (just copy me)"
+                },
+                {
+                  "source_type": "youtube_video",
+                  "source_id": "L0zzmffPPrA",
+                  "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                  "field": "description",
+                  "phrase": "DM on IG for any help"
+                }
+              ]
+            }
+          ],
+          "primary_visitor_outcome": null,
+          "primary_cta": "DM on Instagram",
+          "ultimate_cta": "watch YouTube video, DM on Instagram for help",
+          "cta_chain_resolved": true,
+          "acquisition_sufficiency": "partial",
+          "agency_evidence_bundle": {
+            "service_delivery": [],
+            "team_performance": [],
+            "service_cta": [],
+            "reliability": "absent"
+          },
+          "agency_service_evidence": [],
+          "exclusion_evidence": [],
+          "conflicts": [],
+          "data_quality": "partial",
+          "unknown_surfaces": [
+            "Story Highlights (not captured)",
+            "Content of YouTube video (title only, no transcript or detailed description)",
+            "Destination of DM CTA (unknown)",
+            "Whether the YouTube video content teaches a method or system",
+            "Whether there is a coaching, course, or structured program beyond the video",
+            "Whether the DM CTA leads to a paid offer, free consultation, or information product",
+            "The specific transformation or learning outcome promised to viewers",
+            "Whether results are reproducible or specific to the creator's circumstances"
+          ],
+          "independent_information_offer": {
+            "own_audience": "present",
+            "own_transformation": "absent",
+            "own_cta_path": "present",
+            "information_delivery": "present",
+            "sufficient_prominence": "present",
+            "evidence": [
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "title",
+                "phrase": "$9000 in one week at 22 (just copy me)"
+              },
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "description",
+                "phrase": "DM on IG for any help"
+              },
+              {
+                "source_type": "display_name",
+                "source_id": "profile",
+                "url": null,
+                "field": "display_name",
+                "phrase": "jai"
+              }
+            ]
+          },
+          "named_mechanisms": []
+        },
+        "provider": "anthropic",
+        "model": "claude-haiku-4-5",
+        "usage": {
+          "inputTokens": 15030,
+          "outputTokens": 1209
+        },
+        "repaired": false,
+        "citation_warnings": []
+      },
+      "challenger": null,
+      "challenger_trigger": "none",
+      "decision": {
+        "scorecard_version": "personal-brand-score-v1",
+        "evidence_snapshot_id": "752fd5fc-096a-4b23-a5d5-cef7193d7ae6",
+        "extraction_id": null,
+        "track": "information_personal_brand",
+        "icp_eligible": true,
+        "hard_exclusion": false,
+        "rejection_reason": null,
+        "signal_states": {
+          "human_personal_brand": "present",
+          "information_funnel": "present",
+          "cta": "present",
+          "transformation": "present",
+          "proof": "absent",
+          "authority": "absent"
+        },
+        "primary_visitor_outcome": null,
+        "scores": {
+          "buyer_clarity": 1,
+          "transformation_clarity": 1.5,
+          "information_funnel_evidence": 1,
+          "conversion_intent": 2,
+          "proof_strength": 0,
+          "authority_strength": 0,
+          "proof_maturity": 0,
+          "commercial_fit": 5.5
+        },
+        "score_components": {
+          "buyer_clarity": {
+            "value": 1,
+            "label": "inferred",
+            "reason": "buyer_clarity=inferred -> 1 (people interested in making money quickly or online income)",
+            "citations": [
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "title",
+                "phrase": "$9000 in one week at 22 (just copy me)"
+              }
+            ]
+          },
+          "transformation_clarity": {
+            "value": 1.5,
+            "label": "implied_result",
+            "reason": "transformation_clarity=implied_result -> 1.5 (earn $9000 in one week)",
+            "citations": [
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "title",
+                "phrase": "$9000 in one week at 22 (just copy me)"
+              }
+            ]
+          },
+          "information_funnel_evidence": {
+            "value": 1,
+            "label": "indirect_funnel",
+            "reason": "information_funnel_evidence=indirect_funnel -> 1 (YouTube video with DM instruction for help)",
+            "citations": [
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "title",
+                "phrase": "$9000 in one week at 22 (just copy me)"
+              },
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "description",
+                "phrase": "DM on IG for any help"
+              }
+            ]
+          },
+          "conversion_intent": {
+            "value": 2,
+            "label": "direct_sales_action",
+            "reason": "conversion_intent=direct_sales_action -> 2 (DM on Instagram)",
+            "citations": [
+              {
+                "source_type": "youtube_video",
+                "source_id": "L0zzmffPPrA",
+                "url": "https://www.youtube.com/watch?v=L0zzmffPPrA",
+                "field": "description",
+                "phrase": "DM on IG for any help"
+              }
+            ]
+          },
+          "proof_strength": {
+            "value": 0,
+            "label": "absent",
+            "reason": "proof_strength=absent -> 0 ($9000 in one week at age 22 (self); $9000 in one week at age 22 (self))",
+            "citations": []
+          },
+          "authority_strength": {
+            "value": 0,
+            "label": "absent",
+            "reason": "authority_strength=absent -> 0 (no authority type returned)",
+            "citations": []
+          }
+        },
+        "certainty": "medium",
+        "challenger_agreement": null,
+        "challenger_result": null,
+        "decision": "review",
+        "mode": "manual_review",
+        "automatic_approval_eligible": false,
+        "decision_reasons": [
+          "information_personal_brand",
+          "score_below_threshold"
+        ],
+        "review_flags": [
+          "proof_unverified",
+          "authority_unverified"
+        ],
+        "priority": {
+          "value": 3.24,
+          "data_completeness": "partial",
+          "components": {
+            "commercial_fit": 0.55,
+            "proof_maturity": 0,
+            "reel_view_rate": null,
+            "posting_recency": 0,
+            "posting_consistency": 0
+          }
+        },
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "challenger_prompt_version": "personal-brand-challenger-v1",
+          "scorecard_version": "personal-brand-score-v1",
+          "config_version": "config-v1",
+          "pipeline_version": "commercial-qualification-1.0.0"
+        },
+        "decided_at": "2026-08-01T11:54:09.703Z"
+      },
+      "timings_ms": {
+        "acquisition": 692,
+        "extraction": 14761,
+        "challenger": 0,
+        "total": 15455
+      },
+      "usage": {
+        "inputTokens": 15030,
+        "outputTokens": 1209
+      }
+    },
+    "error": null
+  },
+  {
+    "input": "owenfithyan",
+    "result": {
+      "username": "owenfithyan",
+      "sufficiency": {
+        "verdict": "sufficient",
+        "data_quality": "complete",
+        "reasons": [],
+        "exclusion_evidence": null
+      },
+      "snapshot": {
+        "snapshot_id": "22882777-5f39-422f-a2df-97f5f4a07cdd",
+        "lead_id": null,
+        "username": "owenfithyan",
+        "captured_at": "2026-08-01T11:54:28.309Z",
+        "instagram": {
+          "username": "owenfithyan",
+          "display_name": "owen🧛🏻‍♀️",
+          "category": "Blood Bank",
+          "bio": "Activist | Marxist-Leninist | Anti-Fascist |",
+          "external_link": "https://linktr.ee/owenfithyan",
+          "is_private": false,
+          "is_verified": false,
+          "followers": 738,
+          "following": 1413,
+          "total_posts": 10,
+          "instagram_meta_description": null,
+          "profile_extraction_method": "provider",
+          "profile_capture_status": "captured",
+          "profile_captured_at": "2026-08-01T11:54:28.309Z",
+          "external_link_capture_status": "captured",
+          "recent_posts": [
+            {
+              "post_id": "DaMYKh1FDro",
+              "caption": "Australia dump!",
+              "taken_at": "2026-06-30T02:32:59.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 78,
+              "comments": 22,
+              "views": null
+            },
+            {
+              "post_id": "DQm2WYxEuVd",
+              "caption": "Annual Halloween Post🎃",
+              "taken_at": "2025-11-03T20:03:03.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 74,
+              "comments": 4,
+              "views": null
+            },
+            {
+              "post_id": "DMYekwUB8CS",
+              "caption": "Didn’t get the south park tattoo I wanted, but had a great trip with the greatest people in my life.",
+              "taken_at": "2025-07-21T20:00:22.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 76,
+              "comments": 6,
+              "views": null
+            },
+            {
+              "post_id": "C6IRnoGrIQO",
+              "caption": "♉︎ princess",
+              "taken_at": "2024-04-24T03:34:13.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 98,
+              "comments": 37,
+              "views": null
+            },
+            {
+              "post_id": "C2_rlinOdNe",
+              "caption": "Oregon weed > Cali weed",
+              "taken_at": "2024-02-06T05:53:46.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 104,
+              "comments": 24,
+              "views": null
+            },
+            {
+              "post_id": "Cwd1slWvw99",
+              "caption": "Roadtrip Photos.\n\nP.S. Capitalism is destroying our planet. Go donate to Maui in my bio.",
+              "taken_at": "2023-08-27T23:19:34.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 81,
+              "comments": 6,
+              "views": null
+            },
+            {
+              "post_id": "Ct1y_xFJguf",
+              "caption": "Love is the only thing that really matters at all. Love for others, love for self, love for earth, love for life.",
+              "taken_at": "2023-06-23T17:03:34.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 118,
+              "comments": 8,
+              "views": null
+            },
+            {
+              "post_id": "CaslgNks-dB",
+              "caption": "When in Rome…",
+              "taken_at": "2022-03-04T21:16:01.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 191,
+              "comments": 19,
+              "views": null
+            },
+            {
+              "post_id": "CaiAYMpsOv6",
+              "caption": "Trip to Italy for you, miss you more and more each day grandma🤍🕊",
+              "taken_at": "2022-02-28T18:39:12.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 183,
+              "comments": 16,
+              "views": null
+            },
+            {
+              "post_id": "CZSlW-6v7zH",
+              "caption": "I ain’t got no issues, i’m just doin my thing. real friends.",
+              "taken_at": "2022-01-28T22:23:06.000Z",
+              "is_video": false,
+              "is_pinned": false,
+              "likes": 144,
+              "comments": 1,
+              "views": null
+            }
+          ],
+          "recent_posts_capture_status": "captured",
+          "pinned_posts": [],
+          "pinned_posts_capture_status": "captured",
+          "story_highlight_titles": [],
+          "story_highlights_capture_status": "not_attempted",
+          "story_highlights_captured_at": null
+        },
+        "external_destinations": [
+          {
+            "destination_id": "destination_0",
+            "source_url": "https://linktr.ee/owenfithyan",
+            "final_url": "https://linktr.ee/owenfithyan",
+            "redirect_chain": [
+              "https://linktr.ee/owenfithyan"
+            ],
+            "visible_label": null,
+            "page_title": "owenfithyan Official: Instagram | Linktree",
+            "meta_description": "Please read links and donate if possible to any of the organizations down below.",
+            "headings": [
+              "@owenfithyan",
+              "Please read links and donate if possible to any of the organizations down below.",
+              "Explore other Linktrees",
+              "About this account",
+              "More from Linktree"
+            ],
+            "cta_labels": [
+              {
+                "label": "Join owenfithyan on Linktree",
+                "url": "https://linktr.ee/?utm_source=linktree&utm_medium=profile&utm_campaign=footer_logo_cta&utm_content=owenfithyan"
+              },
+              {
+                "label": "Schedule and auto-postHands-free, hassle-free social media planning",
+                "url": "https://linktr.ee/features/social-planner"
+              },
+              {
+                "label": "Collect leads with contact formsTurn visitors into subscribers",
+                "url": "https://linktr.ee/features/contact-forms"
+              }
+            ],
+            "offer_copy": [
+              "To help keep our community authentic, we're showing information about accounts on Linktree.",
+              "ProductsLink in bio + toolsManage your social mediaGrow and engage your audienceMonetize your followingMeasure your success",
+              "Grow and engage your audience",
+              "LearnResourcesHow to use Linktree",
+              "BlogLinktree for Non-Profits & CharitiesHow to add a Linktree to your TikTok bio (2026 guide)How to add multiple links to your Instagram bioAutomate Instagram Replies with Linktree4 Great Examples Of Linktree in ActionWe're partnering with Amazon & here's how you'll benefitIntroducing Music Links: Linktree’s enhanced music sharing experience",
+              "Linktree for Non-Profits & Charities",
+              "How to add a Linktree to your TikTok bio (2026 guide)",
+              "How to add multiple links to your Instagram bio",
+              "Automate Instagram Replies with Linktree",
+              "4 Great Examples Of Linktree in Action",
+              "We're partnering with Amazon & here's how you'll benefit",
+              "Introducing Music Links: Linktree’s enhanced music sharing experience",
+              "Ariana Grande Brings 'petal' to Life on Linktree",
+              "Joy and Vigilance: A Pride Reflection",
+              "Not All Clicks Are Equal: A Year of Linktree Traffic, by Source",
+              "Your bio link is the internet's busiest intersection",
+              "What happens after the listen: Linktree’s trending Podcast(er)s Pulse, April 2026",
+              "How many followers do you need to make money on Instagram in 2026?",
+              "Linktree Enhances Insights Chat With Personalized, Data-Driven Recommendations",
+              "Link in bioCustomize your Linktree",
+              "Link shortenerCreate trackable, shareable short links",
+              "QR code generatorTurn links into scannable QR codes",
+              "Canva Background EditorImport your custom designs from Canva into your profile",
+              "Schedule and auto-postHands-free, hassle-free social media planning",
+              "Instagram auto replyAutomated replies and DMs triggered by comments"
+            ],
+            "prices": [],
+            "destination_type": "link_hub",
+            "candidate_types": [
+              "link_hub"
+            ],
+            "classification_state": "resolved",
+            "form_signals": [],
+            "service_delivery_signals": [],
+            "education_delivery_signals": [],
+            "proof_claims": [],
+            "visitor_receives": [
+              "unknown"
+            ],
+            "commercial_relevance": "primary",
+            "selection_reason": "instagram bio external link | link hub host",
+            "rank": 0,
+            "hop": 0,
+            "text_excerpt": "@owenfithyanPlease read links and donate if possible to any of the organizations down below.Jewish Voice for Peaceblacklivesmatter.comMonthly Review | Why Socialism?Split a donation between 70+ community bail funds, mutual aid funds, and racial justice organizersTrans Funds / ResourcesStop AAPI HateJustice in JuneYour support helps save the Earth@owenfithyan InstagramJoin owenfithyan on LinktreeCookie Preferences•Report•Privacy•Explore•About this account•More from LinktreeExplore other Linktreesharperzilmer@harperzilmerKen Eurich@keneurichKeiko Lynn@keikolynnFibs and Friends@fibsandfriendsmyfavoritemurder@myfavoritemurderHalley Kate@halleykmcgSubstack@substackincBe Fat Be Happy@befatbehappyBillie Eilish@billieeilishstraycats@straycatspreviousnextDiscover moreSee all@ventasmart102nataliasmart@divine_shakes@Wesleyy_rodriguez@DjSpeedySN@haider313kreem@ifansekisa@syyoooonee@meanraneem@Be_peacefull@holaaccounting@trielibatista@pablofrancoalfonso@petbrandinfluencers@jaaed@953jamzz@dossantosassessoria@aliciaruiz75@PrimeInvestor@iamsds@rottenapfelcore@FelipeRibeiroCantor@KhwestarBangSA@caniy0@fashionwithemily@sonhosdeamoroficial@Ivanrosali@lalala_rich_reads@kepemudaan.kevmks@healinghandsoflightstl@rainbowscentss@sarelife@createinrochester@texasjeff@dimasmovic16@norlizasaupi205@scrantime@KYRSCC@skynet_trading@natureislesoundminds@cryptorisegroup@mikathekitty@abigailhess@fimshospitals@771332756Abdullah@AasthachawladmAbout this accountowenfithyanTo help keep our community authentic, we're showing information about accounts on Linktree.JoinedAugust 2023@owenfithyan has been a member of Linktree for 2 years and joined in August 2023. The social media accounts linked to from @owenfithyan are: • Instagram Besides social media accounts, owenfithyan has populated their site with: • Jewish Voice for Peace • blacklivesmatter.com • Monthly Review | Why Socialism? • Split a donation between 70+ community bail funds, mutual aid funds, and racial justice organizers • Trans Funds / Resources • Stop AAPI Hate • Justice in June • Your support helps save the EarthMore from LinktreeProductsLink in bio + toolsManage your social mediaGrow and engage your audienceMonetize your followingMeasure your successTemplatesMarketplaceLearnResourcesHow to use LinktreePricingBlogLinktree for Non-Profits & CharitiesHow to add a Linktree to your TikTok bio (2026 guide)How to add multiple links to your Instagram bioAutomate Instagram Replies with Linktree4 Great Examples Of Linktree in ActionWe're partnering with Amazon & here's how you'll benefitIntroducing Music Links: Linktree’s enhanced music sharing experienceRead moreAriana Grande Brings 'petal' to Life on LinktreeJoy and Vigilance: A Pride ReflectionNot All Clicks Are Equal: A Year of Linktree Traffic, by SourceYour bio link is the internet's busiest intersectionWhat happens after the listen: Linktree’s trending Podcast(er)s Pulse, April 2026How many followers do you need to make money on Instagram in 2026?Linktree Enhances Insights Chat With Personalized, Data-Driven RecommendationsLink in bio + toolsLink in bioCustomize your LinktreeLink shortenerCreate trackable, shareable short linksQR code generatorTurn links into scannable QR codesCanva Background EditorImport your custom designs from Canva into your profileLinktree for every social platformGrow and engage your audience everywhereManage your social mediaSchedule and auto-postHands-free, hassle-free social media planningInstagram auto replyAutomated replies and DMs triggered by commentsAI content & caption generatorInstant AI-powered post ideas and captionsHashtag generatorTrending hashtag suggestions for better reachSocial integration for every social platformPlan, auto post, and share across all platformsGrow and engage your audienceCollect leads with contact formsTurn visitors into subscribersManage and activate your audienceOrganize, tag, and track contactsSend contacts to email toolsSync with Mailchimp, Klaviyo, Kit & moreMonetize your followingEarn with",
+            "capture_status": "captured",
+            "capture_method": "free_fetch",
+            "captured_at": "2026-08-01T11:54:30.196Z",
+            "error": null
+          },
+          {
+            "destination_id": "destination_1",
+            "source_url": "https://linktr.ee/",
+            "final_url": "https://linktr.ee/",
+            "redirect_chain": [
+              "https://linktr.ee/"
+            ],
+            "visible_label": "Join owenfithyan on Linktree",
+            "page_title": "Link in bio tool: Everything you are, in one simple link | Linktree",
+            "meta_description": "Join 70M+ creators and sell, share & curate everything you do online. One bio link—your Linktree—brings it all together for your audience.",
+            "headings": [
+              "A link in bio built for you.",
+              "Create and customize your Linktree in minutes",
+              "Share your Linktree anywhere you like!",
+              "Analyze your audience and keep them engaged",
+              "The only link in bio trusted by 70M+",
+              "Share every type of content in limitless ways",
+              "Sell products, collect payments and make monetization simple",
+              "Grow, own and engage your audience across all of your channels",
+              "The fast, friendly and powerful link in bio tool.",
+              "As featured in…",
+              "Questions? Answered",
+              "Is Linktree the original link in bio tool?",
+              "Can you get paid and sell things from a Linktree?",
+              "Is Linktree safe to use on all of my social media profiles?",
+              "What makes Linktree better than the other link in bio options?",
+              "How can I drive more traffic to and through my Linktree?",
+              "How many links should I have on my Linktree?",
+              "Do I need a website to use Linktree?",
+              "Where can I download the app?",
+              "Jumpstart your corner of the internet today"
+            ],
+            "cta_labels": [
+              {
+                "label": "Get started for free",
+                "url": "https://linktr.ee/register"
+              },
+              {
+                "label": "Contact",
+                "url": "https://linktr.ee/s/about/contact"
+              },
+              {
+                "label": "Download on the App Store",
+                "url": "https://apps.apple.com/us/app/linktree-link-in-bio-creator/id1593515263"
+              },
+              {
+                "label": "Sign up free",
+                "url": "https://linktr.ee/register"
+              },
+              {
+                "label": "Get started for free",
+                "url": null
+              },
+              {
+                "label": "Where can I download the app?",
+                "url": null
+              },
+              {
+                "label": "Claim your Linktree",
+                "url": null
+              }
+            ],
+            "offer_copy": [
+              "Join 70M+ people using Linktree for their link in bio. One link to help you share everything you create, curate and sell from your Instagram, TikTok, Twitter, YouTube and other social media profiles.",
+              "Connect all your content across social media, websites, stores and more in one link in bio. Customize every detail or let Linktree automatically enhance it to match your brand and drive more clicks.",
+              "Add your unique Linktree URL to all the platforms and places you find your audience. Then use your QR code to drive your offline traffic back to your link in bio.",
+              "Track your engagement over time, monitor revenue and learn what’s converting your audience. Make informed updates on the fly to keep them coming back.",
+              "“Linktree simplifies the process for creators to share multiple parts of themselves in one inclusive link.”",
+              "“Linktree simplifies the process for creators to share multiple parts of themselves in one inclusive link.”",
+              "Youtuber, Content Creator",
+              "“Linktree helps my customers get where they need to go. It’s fast and easy.”",
+              "“Linktree helps my customers get where they need to go. It’s fast and easy.”",
+              "Founder and Pastry Chef, Mali Bakes",
+              "“I use Linktree’s analytics to better understand my audience and what converts them.”",
+              "“I use Linktree’s analytics to better understand my audience and what converts them.”",
+              "“My Linktree resume stood out from the rest, securing me my first full-time job as a TV reporter!”",
+              "“My Linktree resume stood out from the rest, securing me my first full-time job as a TV reporter!”",
+              "“With Linktree, I can definitely see the monetization of my following becoming a full-time thing.”",
+              "“With Linktree, I can definitely see the monetization of my following becoming a full-time thing.”",
+              "Founder, Mechanicallyincleyend"
+            ],
+            "prices": [],
+            "destination_type": "link_hub",
+            "candidate_types": [
+              "link_hub"
+            ],
+            "classification_state": "resolved",
+            "form_signals": [],
+            "service_delivery_signals": [],
+            "education_delivery_signals": [],
+            "proof_claims": [],
+            "visitor_receives": [
+              "unknown"
+            ],
+            "commercial_relevance": "primary",
+            "selection_reason": "label:community,same_origin | link hub host",
+            "rank": 0,
+            "hop": 1,
+            "text_excerpt": "Skip to main contentA link in bio built for you.Join 70M+ people using Linktree for their link in bio. One link to help you share everything you create, curate and sell from your Instagram, TikTok, Twitter, YouTube and other social media profiles.Get started for freeCreate and customize your Linktree in minutesConnect all your content across social media, websites, stores and more in one link in bio. Customize every detail or let Linktree automatically enhance it to match your brand and drive more clicks.Get started for freeGet started for freeShare your Linktree anywhere you like!Add your unique Linktree URL to all the platforms and places you find your audience. Then use your QR code to drive your offline traffic back to your link in bio.Get started for freeGet started for freeAnalyze your audience and keep them engagedTrack your engagement over time, monitor revenue and learn what’s converting your audience. Make informed updates on the fly to keep them coming back.Get started for freeGet started for freeThe only link in bio trusted by 70M+musicians/selenagomez/selenagomez/funkynutmeg/funkynutmeg/hbo/hbo/comedycentral/comedycentral/pharrell/pharrell/tonyhawk/tonyhawk/laclippers/laclippers/selenagomez/selenagomez/funkynutmeg/funkynutmeg/hbo/hbo/comedycentral/comedycentral/pharrell/pharrell/tonyhawk/tonyhawk/laclippers/laclippersShare every type of content in limitless waysSell products, collect payments and make monetization simpleGrow, own and engage your audience across all of your channelsThe fast, friendly and powerful link in bio tool.Explore all plansAs featured in…“Linktree simplifies the process for creators to share multiple parts of themselves in one inclusive link.”Riley Lemon,Youtuber, Content Creator“Linktree helps my customers get where they need to go. It’s fast and easy.”Patti Chimkire,Founder and Pastry Chef, Mali Bakes“I use Linktree’s analytics to better understand my audience and what converts them.”Luke Kidgell,Comedian“My Linktree resume stood out from the rest, securing me my first full-time job as a TV reporter!”Rise Utama,TV Reporter and Producer“With Linktree, I can definitely see the monetization of my following becoming a full-time thing.”David Coleman,Founder, MechanicallyincleyendQuestions? AnsweredIs Linktree the original link in bio tool?Can you get paid and sell things from a Linktree?Is Linktree safe to use on all of my social media profiles?What makes Linktree better than the other link in bio options?How can I drive more traffic to and through my Linktree?How many links should I have on my Linktree?Do I need a website to use Linktree?Where can I download the app?Jumpstart your corner of the internet todayClaim your LinktreeCompanyThe Linktree BlogEngineering BlogMarketplaceWhat's NewAboutPressCareersLink in BioSocial GoodContactCommunityLinktree for Enterprise2023 Creator Report2022 Creator ReportCharitiesCreator Profile DirectoryExplore TemplatesSupportHelp TopicsGetting StartedLinktree ProFeatures & How-TosFAQsReport a ViolationTrust & LegalTerms & ConditionsPrivacy NoticeCookie NoticeTrust CenterCookies PreferencesTransparency ReportLaw Enforcement Access PolicyHuman RightsLog inGet started for freeWe acknowledge the Traditional Custodians of the land on which our office stands, The Wurundjeri people of the Kulin Nation, and pay our respects to Elders past, present and emerging. Linktree Pty Ltd (ABN 68 608 721 562), 1-9 Sackville St, Collingwood VIC 3066Stickers are here!Keep your Linktree fresh.ProductsTemplatesMarketplaceLearnPricingLog inSign up free",
+            "capture_status": "captured",
+            "capture_method": "free_fetch",
+            "captured_at": "2026-08-01T11:54:30.266Z",
+            "error": null
+          },
+          {
+            "destination_id": "destination_2",
+            "source_url": "https://secure.actblue.com/donate/bail_funds_george_floyd",
+            "final_url": "https://secure.actblue.com/donate/bail_funds_george_floyd",
+            "redirect_chain": [
+              "https://secure.actblue.com/donate/bail_funds_george_floyd"
+            ],
+            "visible_label": "Split a donation between 70+ community bail funds, mutual aid funds, and racial justice organizers",
+            "page_title": "Split a donation between 70+ community bail funds, mutual aid funds, and racial justice organizers",
+            "meta_description": "Split a donation to all the bail funds, mutual aid funds, and activist organizations listed on this page. If you have questions or would like to get a local bail fund in your area added to this page, please send a Twitter DM to @AidanKingVT.",
+            "headings": [
+              "Split a donation between 70+ community bail funds, mutual aid funds, and racial justice organizers"
+            ],
+            "cta_labels": [
+              {
+                "label": "actblue.com/contact",
+                "url": "https://actblue.com/contact"
+              }
+            ],
+            "offer_copy": [
+              "Split a donation to all the bail funds, mutual aid funds, and activist organizations listed on this page, or allocate specific amounts to individual groups. Then be sure to share this page once you're done.",
+              "Louisville Community Bail Fund",
+              "Chicago Community Bond Fund",
+              "Forsyth County Community Bail Fund",
+              "Northwest Community Bail Fund",
+              "Hamilton County Community Bail Fund",
+              "Bukit Bail Fund of Pittsburgh",
+              "Community Justice Exchange National Bail Fund Network",
+              "Hawai'i Community Bail Fund",
+              "Tucson Second Chance Community Bail Fund",
+              "Memphis Community Bail Fund",
+              "Mississippi Bail Fund Collective",
+              "Philadelphia Community Bail Fund",
+              "National Bail Out #FreeBlackMamas",
+              "Richmond Community Bail Fund",
+              "Nashville Community Bail Fund",
+              "NC Community Bail Fund of Durham",
+              "Kansas City Community Bail Fund",
+              "New Orleans Safety and Freedom Fund",
+              "Baltimore Action Legal Team (BALT)",
+              "NorCal Resist Activist Bail & ICE Bond Fund",
+              "DeDe McClure Community Bail Fund",
+              "Eastern Iowa Community Bond Project",
+              "Movement for Black Lives Mutual Aid Fund",
+              "Community Advocates for Just and Moral Governance"
+            ],
+            "prices": [],
+            "destination_type": "unknown",
+            "candidate_types": [],
+            "classification_state": "unknown",
+            "form_signals": [],
+            "service_delivery_signals": [],
+            "education_delivery_signals": [],
+            "proof_claims": [],
+            "visitor_receives": [
+              "unknown"
+            ],
+            "commercial_relevance": "supporting",
+            "selection_reason": "label:community | no decisive host, path, form, or content signal",
+            "rank": 1,
+            "hop": 1,
+            "text_excerpt": "Split a donation between 70+ community bail funds, mutual aid funds, and racial justice organizers Split a donation to all the bail funds, mutual aid funds, and activist organizations listed on this page, or allocate specific amounts to individual groups. Then be sure to share this page once you're done. Milwaukee Freedom FundLouisville Community Bail FundPhiladelphia Bail FundLGBTQ Freedom FundChicago Community Bond FundForsyth County Community Bail FundLuke 4:18 Bail FundConnecticut Bail FundRestoring JusticeDauphin County Bail FundNorthwest Community Bail FundHamilton County Community Bail FundBukit Bail Fund of PittsburghCommunity Justice Exchange National Bail Fund NetworkMassachusetts Bail FundHawai'i Community Bail FundTucson Second Chance Community Bail FundMemphis Community Bail FundMississippi Bail Fund CollectivePhiladelphia Community Bail FundNational Bail Out #FreeBlackMamasRichmond Community Bail FundNashville Community Bail FundFronterizo Fianza FundFree the 350 Bail Fund NC Community Bail Fund of DurhamColorado Freedom FundKansas City Community Bail FundNew Orleans Safety and Freedom FundPortland Freedom FundMontgomery Bail Out FundColumbus Freedom FundBaltimore Action Legal Team (BALT)NorCal Resist Activist Bail & ICE Bond FundDeDe McClure Community Bail FundEastern Iowa Community Bond ProjectMovement for Black Lives Mutual Aid FundAtlanta Mutual Aid FundPrison Book ProgramAustin Justice CoalitionPure JusticeCommunity Advocates for Just and Moral GovernanceYou Good, SisCincinatti Bail FundBelievers Bail OutUnicorn RiotColor of Change Education FundBYP 100Know Your Rights CampBlack Voters Matter FundNAACP Legal Defense and Education FundColor of Change Education FundBlack & PinkNew Georgia ProjectBlackOUT CollectiveRe:PowerEmancipate NC (Freedom Fighter Bond Fund)YWCA of Baton RougeThe Detroit Bail ProjectChampaign County Bailout CoalitionLos Angeles Mutual Aid FundBlack Trans Emergency Protesters FundNational Fair Housing AllianceMichigan Solidarity Bail Fund Report this formContribution rulesCharitable donations made through this form are received and processed by ActBlue Charities, Inc., a 501(c)(3) tax-exempt organization formed to democratize charitable giving, and are subject to ActBlue’s Terms of Service and Privacy Policy. The merchant of record for this transaction is ActBlue Charities, Inc. We subsequently give your contribution to the organization or cause that you have selected on the contribution form within 30 days. A copy of our latest financial report may be obtained by contacting us at actblue.com/contact or calling (617) 517-7600. Alternatively, our report detailing our programs, a financial summary, and the percentage of contributions dedicated to our charitable purpose, along with a copy of our license, may be obtained from the following state agencies: FLORIDA (registration #CH46938) – A COPY OF THE OFFICIAL REGISTRATION AND FINANCIAL INFORMATION MAY BE OBTAINED FROM THE DIVISION OF CONSUMER SERVICES BY CALLING TOLL-FREE, 1-800-435-7352 (800-HELP-FLA) WITHIN THE STATE OR VISITING www.FloridaConsumerHelp.com; GEORGIA (registration #CH012361) – contact ActBlue Charities; MARYLAND (registration #29971) – For the cost of copies and postage, documents and information filed under the Maryland charitable organizations laws can be obtained from the Office of the Secretary of State, State House, Annapolis, MD 21401; MISSISSIPPI (registration #100024326) – Secretary of State’s Office 1-888-236-6167; NEW JERSEY (registration #CH3867000) – INFORMATION FILED WITH THE ATTORNEY GENERAL CONCERNING THIS CHARITABLE SOLICITATION AND THE PERCENTAGE OF CONTRIBUTIONS RECEIVED BY THE CHARITY DURING THE LAST REPORTING PERIOD THAT WERE DEDICATED TO THE CHARITABLE PURPOSE MAY BE OBTAINED FROM THE ATTORNEY GENERAL OF THE STATE OF NEW JERSEY BY CALLING (973) 504-6215 AND IS AVAILABLE ON THE INTERNET AT http://www.state.nj.us/lps/ca/charfrm.htm; NEW YORK (registration #45-25-27) – New York Attorney General’s Charities ",
+            "capture_status": "captured",
+            "capture_method": "free_fetch",
+            "captured_at": "2026-08-01T11:54:30.397Z",
+            "error": null
+          },
+          {
+            "destination_id": "destination_3",
+            "source_url": "https://linktr.ee/harperzilmer",
+            "final_url": "https://linktr.ee/harperzilmer",
+            "redirect_chain": [
+              "https://linktr.ee/harperzilmer"
+            ],
+            "visible_label": "harperzilmer@harperzilmer",
+            "page_title": "Harper Zilmer Official: TikTok, Instagram | Linktree",
+            "meta_description": "View harperzilmer’s Linktree to discover and stream music from top platforms like YouTube, Spotify here. Your next favorite track is just a click away!",
+            "headings": [
+              "Harper Zilmer",
+              "Stream My New Single!",
+              "My YouTube Channel",
+              "The LOL Podcast",
+              "Watch Recent Podcast Episodes",
+              "Appearances",
+              "Socials",
+              "Explore other Linktrees",
+              "About this account",
+              "More from Linktree"
+            ],
+            "cta_labels": [
+              {
+                "label": "Learn more.",
+                "url": "https://linktr.ee/help/en/articles/13606589?utm_source=linktree&utm_medium=profile&utm_campaign=verified_gold_badge_info&utm_content=harperzilmer"
+              },
+              {
+                "label": "Subscribe to The LOL Podcast",
+                "url": "https://creators.spotify.com/pod/profile/thelolpodcast/subscribe"
+              },
+              {
+                "label": "Schedule and auto-postHands-free, hassle-free social media planning",
+                "url": "https://linktr.ee/features/social-planner"
+              },
+              {
+                "label": "Collect leads with contact formsTurn visitors into subscribers",
+                "url": "https://linktr.ee/features/contact-forms"
+              },
+              {
+                "label": "Book Me On Cameo!",
+                "url": null
+              }
+            ],
+            "offer_copy": [
+              "To help keep our community authentic, we're showing information about accounts on Linktree.",
+              "ProductsLink in bio + toolsManage your social mediaGrow and engage your audienceMonetize your followingMeasure your success",
+              "Grow and engage your audience",
+              "LearnResourcesHow to use Linktree",
+              "BlogLinktree for Non-Profits & CharitiesHow to add a Linktree to your TikTok bio (2026 guide)How to add multiple links to your Instagram bioAutomate Instagram Replies with Linktree4 Great Examples Of Linktree in ActionWe're partnering with Amazon & here's how you'll benefitIntroducing Music Links: Linktree’s enhanced music sharing experience",
+              "Linktree for Non-Profits & Charities",
+              "How to add a Linktree to your TikTok bio (2026 guide)",
+              "How to add multiple links to your Instagram bio",
+              "Automate Instagram Replies with Linktree",
+              "4 Great Examples Of Linktree in Action",
+              "We're partnering with Amazon & here's how you'll benefit",
+              "Introducing Music Links: Linktree’s enhanced music sharing experience",
+              "Ariana Grande Brings 'petal' to Life on Linktree",
+              "Joy and Vigilance: A Pride Reflection",
+              "Not All Clicks Are Equal: A Year of Linktree Traffic, by Source",
+              "Your bio link is the internet's busiest intersection",
+              "What happens after the listen: Linktree’s trending Podcast(er)s Pulse, April 2026",
+              "How many followers do you need to make money on Instagram in 2026?",
+              "Linktree Enhances Insights Chat With Personalized, Data-Driven Recommendations",
+              "Link in bioCustomize your Linktree",
+              "Link shortenerCreate trackable, shareable short links",
+              "QR code generatorTurn links into scannable QR codes",
+              "Canva Background EditorImport your custom designs from Canva into your profile",
+              "Schedule and auto-postHands-free, hassle-free social media planning",
+              "Instagram auto replyAutomated replies and DMs triggered by comments"
+            ],
+            "prices": [
+              "$10,000"
+            ],
+            "destination_type": "link_hub",
+            "candidate_types": [
+              "link_hub"
+            ],
+            "classification_state": "resolved",
+            "form_signals": [],
+            "service_delivery_signals": [],
+            "education_delivery_signals": [],
+            "proof_claims": [],
+            "visitor_receives": [
+              "unknown"
+            ],
+            "commercial_relevance": "supporting",
+            "selection_reason": "same_origin | link hub host",
+            "rank": 2,
+            "hop": 1,
+            "text_excerpt": "Harper ZilmerHarper Zilmer InstagramHarper Zilmer TikTokHarper Zilmer YouTubeHarper Zilmer EmailHarper Zilmer Apple PodcastsHarper Zilmer SpotifyVerifiedVerified Linker. You're looking at Harper Zilmer's official Linktree. Learn more.Stream My New Single!2000 and Something2000 and SomethingMy YouTube Channel previousnextThe LOL PodcastThe LOL PodcastThe LOL PodcastPodcast·PodcastFollowSubscribe to The LOL PodcastCome see us on our World Tour!Come see us on our World Tour!LOL Podcast on YouTube LOL Club on YouTubeLOL Clips on YouTubeWatch Recent Podcast EpisodespreviousnextAppearancesMy Weird School (TV Movie) - IMDbDhar Mann (TV Series 2018– ) - IMDbMaddox Batson: X's (Music Video 2024) - IMDbpreviousnextSocials Book Me On Cameo!InstagramTikTokYouTube Business InquiriesEmail·teamharperzilmer@wmeagency.comCookie Preferences•Report•Privacy•Explore•About this account•More from LinktreeExplore other LinktreesBillie Eilish@billieeilisheatpistakio@eatpistakioericclapton@ericclaptonMykel@dont.chase.your.dKara Harms@thewhimsysoulTika the Iggy@tikatheiggyNewt@newtonAdidas Women@adidaswomenstraycats@straycatsHannah Kosh@hannahkoshpreviousnextDiscover moreSee all@veenahrealty@thebraincancergroup@Symmetry2505@babycoinio@BrookePape09@casaburititapuio@dakotapeyton3@kyliesams@YinLightBr@wstonhigh@extradingen@mattom8@trenttully24@GeraldiDwidiwipati@Audiobahn@davidblantonmusic@pannine@itsgothia@Reinagames@arthur.dutraa@misamisa999@pizzariafarina@dontbeplastic_@callisto_eye@marvellousbtc906@thecheshirelash@entheowheel@emirajdin@jucampos.adv@marcellajorge@manzanaz@AyIaa@thepoetscauldron@acstarfitness@CurvyChicX2Cents@checkmatparts@pieceofteaching@wesperht@nkuamalongo@quintaheights@StealthGamer@zara_ailees@r.a.n.a.j@chewydentalclinic@Vanessa_presumeAbout this accountharperzilmerTo help keep our community authentic, we're showing information about accounts on Linktree.JoinedAugust 2023Harper Zilmer has been a member of Linktree for 2 years and joined in August 2023. The social media accounts linked to from Harper Zilmer are: • Instagram • TikTok • Spotify • YouTube • Email • Apple Podcasts Besides social media accounts, harperzilmer has populated their site with: • GoWish • My Weird School (TV Movie) - IMDb • Dhar Mann (TV Series 2018– ) - IMDb • Maddox Batson: X's (Music Video 2024) - IMDb • Harper’s Quitting School! • Exposing Kates Secret Diary! • Reacting To Each Others Liked TikTok’s! • The Taylor Swift Episode! • My Worst Period Ever! • Boys vs Girls ASMR! • Harper Cut Mavericks Hair! • The LOL Podcast • Who Knows Me Best Mom vs BFF!￼ • Viral Products vs Cheap Dupes! • Last To Leave Limo Wins $10,000! • Pre-save 2000 and Something • 2000 and Something • Official Music Video • Kylie Jenner Lip Challenge! • Harper's Mom Exposes Her! - The LOL Podcast | Podcast on Spotify • The LOL Podcast LIVE SHOW TICKETS • Join the LOL Club!!! • LOL Clips on YouTube • LOL Club on YouTube • LOL Podcast on YouTube • Subscribe to The LOL Podcast • Come see us on our World Tour! • Halara Dress • Queen B (Piper Rockelle Distrack) • Business Inquiries • Book Me On Cameo!More from LinktreeProductsLink in bio + toolsManage your social mediaGrow and engage your audienceMonetize your followingMeasure your successTemplatesMarketplaceLearnResourcesHow to use LinktreePricingBlogLinktree for Non-Profits & CharitiesHow to add a Linktree to your TikTok bio (2026 guide)How to add multiple links to your Instagram bioAutomate Instagram Replies with Linktree4 Great Examples Of Linktree in ActionWe're partnering with Amazon & here's how you'll benefitIntroducing Music Links: Linktree’s enhanced music sharing experienceRead moreAriana Grande Brings 'petal' to Life on LinktreeJoy and Vigilance: A Pride ReflectionNot All Clicks Are Equal: A Year of Linktree Traffic, by SourceYour bio link is the internet's busiest intersectionWhat happens after the listen: Linktree’s trending Podcast(er)s Pulse, April 2026How many followers do you need to make money on Instagram in 2026?Linktree En",
+            "capture_status": "captured",
+            "capture_method": "free_fetch",
+            "captured_at": "2026-08-01T11:54:30.465Z",
+            "error": null
+          },
+          {
+            "destination_id": "destination_4",
+            "source_url": "https://linktr.ee/register",
+            "final_url": "https://linktr.ee/universal-login?oidc_error_redirect_uri=https%3A%2F%2Flinktr.ee%2Fconnect%2Fservice%2Fdescope&sso_app_id=descope-default-oidc&state_id=s-0490f2feabedf5f39440ab09bff550cae8349b02ac531994abea876b3a91d499",
+            "redirect_chain": [
+              "https://linktr.ee/register",
+              "https://linktr.ee/universal-login?oidc_error_redirect_uri=https%3A%2F%2Flinktr.ee%2Fconnect%2Fservice%2Fdescope&sso_app_id=descope-default-oidc&state_id=s-0490f2feabedf5f39440ab09bff550cae8349b02ac531994abea876b3a91d499"
+            ],
+            "visible_label": "Get started for free",
+            "page_title": "Log in or Sign Up | Linktree",
+            "meta_description": null,
+            "headings": [
+              "Just a minute"
+            ],
+            "cta_labels": [],
+            "offer_copy": [
+              "We're getting your Linktree ready."
+            ],
+            "prices": [],
+            "destination_type": "link_hub",
+            "candidate_types": [
+              "link_hub"
+            ],
+            "classification_state": "resolved",
+            "form_signals": [],
+            "service_delivery_signals": [],
+            "education_delivery_signals": [],
+            "proof_claims": [],
+            "visitor_receives": [
+              "unknown"
+            ],
+            "commercial_relevance": "supporting",
+            "selection_reason": "same_origin | link hub host",
+            "rank": 0,
+            "hop": 2,
+            "text_excerpt": "Just a minute We're getting your Linktree ready.",
+            "capture_status": "captured",
+            "capture_method": "free_fetch",
+            "captured_at": "2026-08-01T11:54:34.277Z",
+            "error": null
+          },
+          {
+            "destination_id": "destination_5",
+            "source_url": "https://linktr.ee/selenagomez",
+            "final_url": "https://linktr.ee/selenagomez",
+            "redirect_chain": [
+              "https://linktr.ee/selenagomez"
+            ],
+            "visible_label": "/selenagomez/selenagomez",
+            "page_title": "Selena Gomez Songs, Instagram & Twitter Links | Linktree",
+            "meta_description": "“In The Dark” & “I Said I Love You First...And You Said It Back” Out Now",
+            "headings": [
+              "@selenagomez",
+              "“In The Dark” & “I Said I Love You First...And You Said It Back” Out Now",
+              "In The Dark",
+              "Revival 10 Year Anniversary",
+              "Selena Gomez Throwback Collection",
+              "Rare Impact Fund",
+              "Wondermind",
+              "Rare Beauty",
+              "I SAID I LOVE YOU FIRST",
+              "WATCH",
+              "COLLABORATIONS",
+              "Explore other Linktrees",
+              "About this account",
+              "More from Linktree"
+            ],
+            "cta_labels": [
+              {
+                "label": "Learn more.",
+                "url": "https://linktr.ee/help/en/articles/13606589?utm_source=linktree&utm_medium=profile&utm_campaign=verified_gold_badge_info&utm_content=selenagomez"
+              },
+              {
+                "label": "Watch the In The Dark Official Music Video",
+                "url": "https://www.youtube.com/watch?v=Qhs3rY80HNE"
+              },
+              {
+                "label": "Learn More About the Rare Impact Fund",
+                "url": "https://rareimpactfund.org/"
+              },
+              {
+                "label": "Watch Talk Music Video",
+                "url": "https://sgxbb.lnk.to/talkvideo"
+              },
+              {
+                "label": "Watch Younger And Hotter Than Me Music Video",
+                "url": "https://sgxbb.lnk.to/YAHTMVideo"
+              },
+              {
+                "label": "Watch Sunset Blvd Music Video",
+                "url": "https://sgxbb.lnk.to/SunsetBlvdVideo"
+              },
+              {
+                "label": "Subscribe",
+                "url": "https://selenagomez.lnk.to/SignUp"
+              },
+              {
+                "label": "Watch My Mind & Me on Apple TV+",
+                "url": "https://apple.co/selenagomezdoc"
+              },
+              {
+                "label": "Watch Selena + Chef",
+                "url": "http://hbomax.com/selena-and-chef"
+              },
+              {
+                "label": "Join selenagomez on Linktree",
+                "url": "https://linktr.ee/?utm_source=linktree&utm_medium=profile&utm_campaign=footer_logo_cta&utm_content=selenagomez"
+              },
+              {
+                "label": "Schedule and auto-postHands-free, hassle-free social media planning",
+                "url": "https://linktr.ee/features/social-planner"
+              },
+              {
+                "label": "Collect leads with contact formsTurn visitors into subscribers",
+                "url": "https://linktr.ee/features/contact-forms"
+              },
+              {
+                "label": "Learn More About the Rare Impact Fund",
+                "url": null
+              },
+              {
+                "label": "Watch Younger And Hotter Than Me Music Video",
+                "url": null
+              },
+              {
+                "label": "Watch Sunset Blvd Music Video",
+                "url": null
+              },
+              {
+                "label": "Subscribe",
+                "url": null
+              },
+              {
+                "label": "Watch Selena + Chef",
+                "url": null
+              }
+            ],
+            "offer_copy": [
+              "To help keep our community authentic, we're showing information about accounts on Linktree.",
+              "@selenagomez has been a member of Linktree for 6 years and joined in January 2020. The social media accounts linked to from @selenagomez are: • Facebook • Instagram • TikTok • Spotify • YouTube • Apple Music • X Besides social media accounts, selenagomez has populated their site with a Shop. Explore the products within their Shop page for merchandise.",
+              "ProductsLink in bio + toolsManage your social mediaGrow and engage your audienceMonetize your followingMeasure your success",
+              "Grow and engage your audience",
+              "LearnResourcesHow to use Linktree",
+              "BlogLinktree for Non-Profits & CharitiesHow to add a Linktree to your TikTok bio (2026 guide)How to add multiple links to your Instagram bioAutomate Instagram Replies with Linktree4 Great Examples Of Linktree in ActionWe're partnering with Amazon & here's how you'll benefitIntroducing Music Links: Linktree’s enhanced music sharing experience",
+              "Linktree for Non-Profits & Charities",
+              "How to add a Linktree to your TikTok bio (2026 guide)",
+              "How to add multiple links to your Instagram bio",
+              "Automate Instagram Replies with Linktree",
+              "4 Great Examples Of Linktree in Action",
+              "We're partnering with Amazon & here's how you'll benefit",
+              "Introducing Music Links: Linktree’s enhanced music sharing experience",
+              "Ariana Grande Brings 'petal' to Life on Linktree",
+              "Joy and Vigilance: A Pride Reflection",
+              "Not All Clicks Are Equal: A Year of Linktree Traffic, by Source",
+              "Your bio link is the internet's busiest intersection",
+              "What happens after the listen: Linktree’s trending Podcast(er)s Pulse, April 2026",
+              "How many followers do you need to make money on Instagram in 2026?",
+              "Linktree Enhances Insights Chat With Personalized, Data-Driven Recommendations",
+              "Link in bioCustomize your Linktree",
+              "Link shortenerCreate trackable, shareable short links",
+              "QR code generatorTurn links into scannable QR codes",
+              "Canva Background EditorImport your custom designs from Canva into your profile",
+              "Schedule and auto-postHands-free, hassle-free social media planning"
+            ],
+            "prices": [],
+            "destination_type": "link_hub",
+            "candidate_types": [
+              "link_hub"
+            ],
+            "classification_state": "resolved",
+            "form_signals": [],
+            "service_delivery_signals": [],
+            "education_delivery_signals": [],
+            "proof_claims": [],
+            "visitor_receives": [
+              "unknown"
+            ],
+            "commercial_relevance": "supporting",
+            "selection_reason": "same_origin | link hub host",
+            "rank": 1,
+            "hop": 2,
+            "text_excerpt": "Verified Linker. You're looking at @selenagomez's official Linktree. Learn more.@selenagomez“In The Dark” & “I Said I Love You First...And You Said It Back” Out NowListen To Te Olvido (La La)Rare Beauty Social Impact ReportSelena Gomez - Revival LP - Selena Gomez Official ShopIn The DarkListen to In The DarkWatch the In The Dark Official Music VideoRevival 10 Year Anniversary Revival 10-Year Anniversary - Store Exclusive Deluxe VinylRevival Deluxe CD + Journal - Selena Gomez Official ShopRevival Washed Photo Hoodie - Selena Gomez Official ShopRevival Polaroid T-Shirt - Selena Gomez Official ShopMarquise Diamond Black Satin Robe - Selena Gomez Official ShopRevival Anniversary Deluxe Box Set - Selena Gomez Official ShopI Mean I Could Choker - Selena Gomez Official ShoppreviousnextSelena Gomez Throwback CollectionSpring Breakers X Selena Gomez Mask's On Hoodie Spring Breakers X Selena Gomez Good Girls Gone Bad Tee Barney X Selena Starbright Hoodie Barney X Selena I Love You White Tee Barney x Selena Rainbow Tank Top Barney X Selena Starbright Sweatpants Barney X Selena I Love You Black Tee Wizards of Waverly Place X Selena Gomez Wizards Hoodie Wizards of Waverly Place X Selena Gomez \"Always Trouble\" Ringer Tee Wizards of Waverly Place X Selena Gomez Wizard Tee Wizards of Waverly Place X Selena Gomez Wizards Jogger previousnextRare Impact FundRare Impact Fund Giving CircleLearn More About the Rare Impact FundWondermindWondermindRare BeautyRare BeautyI SAID I LOVE YOU FIRSTSelenator Script Pink Glitter Tank Selenator Script Pink Glitter Lounge Pants Selenator White Heart Crewneck Selenator Black Heart Tank Selena Gomez Homage T-Shirt Selenator Heart Pennant Flag Younger And Hotter Than Me 7\" Vinyl Sunset Blvd. 7\" Vinyl I Said I Love You First Alt Cover - Exclusive Peach Vinyl I Said I Love You First - Exclusive CD Zine I Said I Love You First - Standard Candy Cane Red Vinyl I Said I Love You First - Standard CD ...And You Said It Back Zip-Hoodie You're My Cherry Pie Zip Hoodie You're My Cherry Pie Ringer T-Shirt ...And You Said It Back Baby T-shirt Hot Girls Date Funny Guys Denim Hat Ojos Tristes Eye Mask previousnext Listen to I Said I Love You First... And You Said It BackWatch Talk Music VideoWatch Younger And Hotter Than Me Music VideoWatch Sunset Blvd Music VideoSubscribeWATCHWatch My Mind & Me on Apple TV+Watch Selena + ChefOnly Murders in the BuildingCOLLABORATIONSOREO Selena Gomez | OREOSerendipity Ice CreamSerendipity 3@selenagomez Facebook@selenagomez Instagram@selenagomez TikTok@selenagomez Spotify@selenagomez YouTube@selenagomez Apple Music@selenagomez XJoin selenagomez on LinktreeCookie Preferences•Report•Privacy•Explore•About this account•More from LinktreeExplore other LinktreesBillie Eilish@billieeilisheatpistakio@eatpistakioericclapton@ericclaptonMykel@dont.chase.your.dKara Harms@thewhimsysoulTika the Iggy@tikatheiggyNewt@newtonAdidas Women@adidaswomenstraycats@straycatsHannah Kosh@hannahkoshpreviousnextDiscover moreSee all@Calvincox@luciapoleon@Delm1@Wardjopedurungan@nossaescola1@Sueleferreira@suzannecousin@_mw._horsestory@BrayanMora@dianafhi2023@MariaAmaliaCrovato@agrosui@cspatisseriechocolaterie@TheScreenStopEC@temiunscripted@beritobs@MEDIMAX_Sangerhausen@re.form.akademi@lunaaawakend@habiliteca11santamadelpueblito@menztore.id@zebaafinds@wwuclimbing@cosmic_blossom_collective@distribucionesjasen@Dorrata@csulbwgss@sunny_project@yayforeverything@Amok5866@selettoclub@EmagreDicas@shala_yogaeterapias@maisonkanga@freebirdmindandbody@MalachiMOG@kasbulmakbul@CedricPoirier@shurash566@trinkets_and_tropes@steindesign_weber@jaus.coffee@mrimafidon@pn7editz@MiguelBedoyaAbout this accountselenagomezTo help keep our community authentic, we're showing information about accounts on Linktree.JoinedJanuary 2020@selenagomez has been a member of Linktree for 6 years and joined in January 2020. The social media accounts linked to from @selenagomez are: • Facebook • Instagram • TikTok • Spotify • YouTube • Apple Music • X Besides social ",
+            "capture_status": "captured",
+            "capture_method": "free_fetch",
+            "captured_at": "2026-08-01T11:54:34.366Z",
+            "error": null
+          },
+          {
+            "destination_id": "youtube_destination_0",
+            "source_url": "https://selenagomez.lnk.to/inthedark",
+            "final_url": "https://selenagomez.lnk.to/inthedark",
+            "redirect_chain": [
+              "https://selenagomez.lnk.to/inthedark"
+            ],
+            "visible_label": null,
+            "page_title": "Selena Gomez - In the Dark (From the Netflix Series \"Nobody Wants This\" Season 2)",
+            "meta_description": "Go to Selena Gomez - In the Dark (From the Netflix Series \"Nobody Wants This\" Season 2).",
+            "headings": [
+              "Selena GomezIn the Dark (From the Netflix Series \"Nobody Wants This\" Season 2)"
+            ],
+            "cta_labels": [
+              {
+                "label": "Download",
+                "url": "https://music.apple.com/us/album/1843996122?ls=1&app=itunes&at=1l3vpUI&ct=LFV_e1dda361c98b3a5bcb0ea6360ed758d6&itscg=30440&itsct=catchall_p3&lId=214319512&cId=none&sr=3&src=Linkfire"
+              },
+              {
+                "label": "Download",
+                "url": null
+              }
+            ],
+            "offer_copy": [],
+            "prices": [],
+            "destination_type": "unknown",
+            "candidate_types": [],
+            "classification_state": "unknown",
+            "form_signals": [],
+            "service_delivery_signals": [],
+            "education_delivery_signals": [],
+            "proof_claims": [],
+            "visitor_receives": [
+              "unknown"
+            ],
+            "commercial_relevance": "primary",
+            "selection_reason": "youtube description link | instagram bio external link | no decisive host, path, form, or content signal",
+            "rank": 0,
+            "hop": 3,
+            "text_excerpt": "Selena GomezIn the Dark (From the Netflix Series \"Nobody Wants This\" Season 2) Choose music service Listen Listen Download",
+            "capture_status": "captured",
+            "capture_method": "free_fetch",
+            "captured_at": "2026-08-01T11:54:36.508Z",
+            "error": null
+          },
+          {
+            "destination_id": "youtube_destination_1",
+            "source_url": "https://nobodywantsthis.lnk.to/officialsoundtrack",
+            "final_url": "https://nobodywantsthis.lnk.to/officialsoundtrack",
+            "redirect_chain": [
+              "https://nobodywantsthis.lnk.to/officialsoundtrack"
+            ],
+            "visible_label": null,
+            "page_title": "Various Artists - Nobody Wants This Season 2: The Soundtrack",
+            "meta_description": "Listen to Nobody Wants This Season 2: The Soundtrack by Various Artists.",
+            "headings": [
+              "Various ArtistsNobody Wants This Season 2: The Soundtrack"
+            ],
+            "cta_labels": [
+              {
+                "label": "Download",
+                "url": "https://music.apple.com/nl/album/1843996122?app=itunes&at=1l3vpUI&ct=LFV_1d19b55cea672003257eb4e8cb73aca9&itscg=30440&itsct=catchall_p5&lId=214062237&cId=none&sr=5&src=Linkfire&ls=1"
+              },
+              {
+                "label": "Download",
+                "url": null
+              }
+            ],
+            "offer_copy": [],
+            "prices": [],
+            "destination_type": "unknown",
+            "candidate_types": [],
+            "classification_state": "unknown",
+            "form_signals": [],
+            "service_delivery_signals": [],
+            "education_delivery_signals": [],
+            "proof_claims": [],
+            "visitor_receives": [
+              "unknown"
+            ],
+            "commercial_relevance": "primary",
+            "selection_reason": "youtube description link | instagram bio external link | no decisive host, path, form, or content signal",
+            "rank": 0,
+            "hop": 4,
+            "text_excerpt": "Various ArtistsNobody Wants This Season 2: The Soundtrack Choose music service Play Play Play Official Playlist Download Play Play",
+            "capture_status": "captured",
+            "capture_method": "free_fetch",
+            "captured_at": "2026-08-01T11:54:37.825Z",
+            "error": null
+          }
+        ],
+        "external_capture_status": "captured",
+        "youtube_channels": [
+          {
+            "channel_id": "@LOLPodcast-Show",
+            "url": "https://www.youtube.com/@LOLPodcast-Show",
+            "name": "LOL Podcast",
+            "handle": "LOLPodcast-Show",
+            "description": "NEW EPISODE EVERY WEDNESDAY & SATURDAY!",
+            "subscribers": null,
+            "video_count": null,
+            "outbound_urls": [],
+            "recent_video_titles": [],
+            "capture_status": "captured",
+            "captured_at": "2026-08-01T11:54:34.863Z",
+            "error": null
+          },
+          {
+            "channel_id": "@harperzilmer",
+            "url": "https://www.youtube.com/@harperzilmer",
+            "name": "Harper Zilmer",
+            "handle": "harperzilmer",
+            "description": "Stream my debut single here!! For business inquiries: teamharperzilmer@wmeagency.com",
+            "subscribers": null,
+            "video_count": null,
+            "outbound_urls": [],
+            "recent_video_titles": [],
+            "capture_status": "captured",
+            "captured_at": "2026-08-01T11:54:35.122Z",
+            "error": null
+          }
+        ],
+        "youtube_videos": [
+          {
+            "video_id": "Qhs3rY80HNE",
+            "url": "https://www.youtube.com/watch?v=Qhs3rY80HNE",
+            "title": "Selena Gomez - In The Dark (Official Music Video)",
+            "description": "Selena Gomez - In The Dark (Official Music Video) from the Nobody Wants This Season 2 Soundtrack \n\nListen to “In The Dark”: https://selenagomez.lnk.to/inthedark \nListen to the “Nobody Wants This” Season 2 Soundtrack, out now: https://nobodywantsthis.lnk.to/officialsoundtrack\n\nShop new merch: https://selenagomez.lnk.to/store \nJoin Selena’s mailing list: https://selenagomez.lnk.to/SignUp \n\nFollow Selena Gomez: \nInstagram: https://selenagomez.lnk.to/Instagram   \nTwitter: https://selenagomez.lnk.to/Twitter \nFacebook: https://selenagomez.lnk.to/Facebook  \nTikTok: https://selenagomez.lnk.to/TikTok  \nYouTube: https://selenagomez.lnk.to/YouTube  \n\nDirected by: Luke Orlando \n\nLyrics: \nI don’t need anyone\nThat’s what you say when you’re drunk\nCover it up in a sea of emotion of waves\nbut I, I can still see you \nIf there was no consequence\nWould you still be on defense\nDon’t you forget it\nI know you better than you know you\nYour lows are mine too\n \nAnd I’ll be there when you lose yourself\nTo remind you of who you are\nAnd I’ll be there like nobody else\nYou’re so beautiful in the dark\n \nGiving you love\nKeep giving you love\nNever giving you up (Oh)\nKeep giving you love\nKeep giving you love\nBut don’t look away from me\nI’ll be there when you lose yourself\nTo remind you of who you are\n \nBreathe with your finger tips\nFill up my lungs with your kiss\nI’d be a liar\nIf I said that you weight didn’t weigh on me\nBut I’m treading lightly\n \nWake up your world\ncome melt away with me\nOut of your waves\nYou know I’ll set you free\n \nAnd I’ll wait up love\nWhen you can’t sleep love\nCause all my life’s lying where you are\n \nAnd I’ll be there when you lose yourself\nto remind you of who you are\nand I’ll be there like nobody else\nyou’re so beautiful in the dark\n \nGiving you love\nKeep giving you love\nNever giving you up (Oh)\nKeep giving you love\nKeep giving you love\nBut don’t look away from me\nAnd I’ll be there when you lose yourself\nto remind you of who you are \n \nShow me the side that you’re hiding from\nLet me inside baby I won’t run\nNothing about you I can’t take\nShow me the way that your heart breaks\n \nShow me the side that you’re hiding from\nLet me inside baby I won’t run\nShow me the way your heart breaks\n \n(oh yes love)\n \nAnd I’ll be there when you lose yourself\nto remind you of who you are\nand I’ll be there like nobody else\nyou’re so beautiful in the dark\n \nGiving you love\nKeep giving you love\nNever giving you up (Oh)\nKeep giving you love\nKeep giving you love\nBut don’t look away from me\n \nI’ll be there when you lose yourself\nto remind you of who you are \n\n#SelenaGomez #InTheDark",
+            "published_at": "2025-10-22T21:00:35-07:00",
+            "views": 10200276,
+            "outbound_urls": [
+              "https://selenagomez.lnk.to/inthedark",
+              "https://nobodywantsthis.lnk.to/officialsoundtrack",
+              "https://selenagomez.lnk.to/store",
+              "https://selenagomez.lnk.to/SignUp",
+              "https://selenagomez.lnk.to/Instagram",
+              "https://selenagomez.lnk.to/Twitter",
+              "https://selenagomez.lnk.to/Facebook",
+              "https://selenagomez.lnk.to/TikTok",
+              "https://selenagomez.lnk.to/YouTube"
+            ],
+            "selection_reason": "linked_from_profile",
+            "capture_status": "captured"
+          }
+        ],
+        "cta_chain": [
+          {
+            "hop": 0,
+            "source_type": "instagram_profile",
+            "source_id": "profile",
+            "action": "open_link_hub",
+            "destination_url": "https://linktr.ee/owenfithyan",
+            "visitor_receives": "unknown",
+            "evidence": "owenfithyan Official: Instagram | Linktree"
+          },
+          {
+            "hop": 1,
+            "source_type": "link_hub",
+            "source_id": "destination_0",
+            "action": "join_owenfithyan_on_linktree",
+            "destination_url": "https://linktr.ee/",
+            "visitor_receives": "unknown",
+            "evidence": "Join owenfithyan on Linktree"
+          },
+          {
+            "hop": 2,
+            "source_type": "link_hub",
+            "source_id": "destination_0",
+            "action": "visit_page",
+            "destination_url": "https://secure.actblue.com/donate/bail_funds_george_floyd",
+            "visitor_receives": "unknown",
+            "evidence": "Split a donation between 70+ community bail funds, mutual aid funds, and racial justice organizers"
+          },
+          {
+            "hop": 3,
+            "source_type": "link_hub",
+            "source_id": "destination_0",
+            "action": "harperzilmer@harperzilmer",
+            "destination_url": "https://linktr.ee/harperzilmer",
+            "visitor_receives": "unknown",
+            "evidence": "harperzilmer@harperzilmer"
+          },
+          {
+            "hop": 4,
+            "source_type": "link_hub",
+            "source_id": "destination_3",
+            "action": "watch_on_youtube",
+            "destination_url": "https://youtube.com/@LOLPodcast-Show",
+            "visitor_receives": null,
+            "evidence": "LOL Podcast on YouTube"
+          },
+          {
+            "hop": 5,
+            "source_type": "link_hub",
+            "source_id": "destination_3",
+            "action": "watch_on_youtube",
+            "destination_url": "https://youtube.com/@harperzilmer/shorts?sub_confirmation=1",
+            "visitor_receives": null,
+            "evidence": "YouTube"
+          },
+          {
+            "hop": 6,
+            "source_type": "link_hub",
+            "source_id": "destination_1",
+            "action": "get_started_for_free",
+            "destination_url": "https://linktr.ee/universal-login?oidc_error_redirect_uri=https%3A%2F%2Flinktr.ee%2Fconnect%2Fservice%2Fdescope&sso_app_id=descope-default-oidc&state_id=s-0490f2feabedf5f39440ab09bff550cae8349b02ac531994abea876b3a91d499",
+            "visitor_receives": "unknown",
+            "evidence": "Get started for free"
+          },
+          {
+            "hop": 7,
+            "source_type": "link_hub",
+            "source_id": "destination_1",
+            "action": "/selenagomez/selenagomez",
+            "destination_url": "https://linktr.ee/selenagomez",
+            "visitor_receives": "unknown",
+            "evidence": "/selenagomez/selenagomez"
+          },
+          {
+            "hop": 8,
+            "source_type": "link_hub",
+            "source_id": "destination_5",
+            "action": "watch_on_youtube",
+            "destination_url": "https://youtube.com/watch?v=Qhs3rY80HNE",
+            "visitor_receives": null,
+            "evidence": "Watch the In The Dark Official Music Video"
+          },
+          {
+            "hop": 9,
+            "source_type": "youtube_video",
+            "source_id": "Qhs3rY80HNE",
+            "action": "visit_offer_page",
+            "destination_url": "https://selenagomez.lnk.to/inthedark",
+            "visitor_receives": "unknown",
+            "evidence": "link in YouTube description"
+          },
+          {
+            "hop": 10,
+            "source_type": "youtube_video",
+            "source_id": "Qhs3rY80HNE",
+            "action": "visit_offer_page",
+            "destination_url": "https://nobodywantsthis.lnk.to/officialsoundtrack",
+            "visitor_receives": "unknown",
+            "evidence": "link in YouTube description"
+          }
+        ],
+        "primary_cta": "open_link_hub",
+        "ultimate_cta": "visit_offer_page",
+        "offer_inventory_seed": [],
+        "proof_inventory_seed": [],
+        "direct_response_ctas": [],
+        "acquisition_stop_reason": "ultimate_outcome_resolved",
+        "acquisition_sufficiency": "partial",
+        "unknown_surfaces": [
+          {
+            "surface": "story_highlights",
+            "capture_status": "not_attempted",
+            "reason": "highlight titles require an authenticated surface not attempted in v1"
+          }
+        ],
+        "hops_used": 4,
+        "activity": {
+          "data_quality": "complete",
+          "median_unpinned_reel_views": null,
+          "reel_view_rate": null,
+          "posts_last_30_days": 0,
+          "reels_last_30_days": 0,
+          "days_since_latest_post": 32,
+          "median_likes_per_follower": 0.13685636856368563
+        },
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "fixture_revision": "fixtures-2026-07-31"
+        }
+      },
+      "extraction": {
+        "ok": true,
+        "extraction": {
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "evidence_snapshot_id": "22882777-5f39-422f-a2df-97f5f4a07cdd",
+          "human_personal_brand": {
+            "state": "present",
+            "strength": "credible",
+            "evidence": [
+              {
+                "source_type": "bio",
+                "source_id": "profile",
+                "url": null,
+                "field": "bio",
+                "phrase": "Activist | Marxist-Leninist | Anti-Fascist |"
+              }
+            ]
+          },
+          "audience": {
+            "label": "none",
+            "value": null,
+            "evidence": []
+          },
+          "transformation": {
+            "state": "absent",
+            "strength": "absent",
+            "label": "none",
+            "outcome": null,
+            "evidence": []
+          },
+          "information_funnel": {
+            "state": "absent",
+            "strength": "absent",
+            "label": "none",
+            "visitor_receives": [
+              "affiliate_offer"
+            ],
+            "asset_or_offer": null,
+            "evidence": []
+          },
+          "cta": {
+            "state": "present",
+            "strength": "credible",
+            "label": "direct_sales_action",
+            "action": "donate to organizations",
+            "token_or_asset": "link in bio",
+            "evidence": [
+              {
+                "source_type": "link_hub",
+                "source_id": "destination_0",
+                "url": "https://linktr.ee/owenfithyan",
+                "field": "description",
+                "phrase": "Please read links and donate if possible to any of the organizations down below."
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_2",
+                "url": "https://secure.actblue.com/donate/bail_funds_george_floyd",
+                "field": "page_title",
+                "phrase": "Split a donation between 70+ community bail funds, mutual aid funds, and racial justice organizers"
+              },
+              {
+                "source_type": "recent_post",
+                "source_id": "Cwd1slWvw99",
+                "url": null,
+                "field": "caption",
+                "phrase": "Capitalism is destroying our planet. Go donate to Maui in my bio."
+              }
+            ]
+          },
+          "proof": {
+            "state": "absent",
+            "strength": "absent",
+            "label": "absent",
+            "claims": [],
+            "evidence": []
+          },
+          "authority": {
+            "state": "absent",
+            "strength": "absent",
+            "label": "absent",
+            "types": [],
+            "evidence": []
+          },
+          "business_models": [],
+          "offers": [],
+          "proof_attribution": [],
+          "primary_visitor_outcome": "affiliate_offer",
+          "primary_cta": "donate to organizations",
+          "ultimate_cta": null,
+          "cta_chain_resolved": true,
+          "acquisition_sufficiency": "partial",
+          "agency_evidence_bundle": {
+            "service_delivery": [],
+            "team_performance": [],
+            "service_cta": [],
+            "reliability": "absent"
+          },
+          "agency_service_evidence": [],
+          "exclusion_evidence": [],
+          "conflicts": [
+            "The Linktree hub contains links to unrelated creator profiles (Harper Zilmer, Selena Gomez) and charitable donation pages, suggesting the account may be curating or reposting content rather than operating an independent business model."
+          ],
+          "data_quality": "complete",
+          "unknown_surfaces": [
+            "story_highlights",
+            "Whether the account owner has any commercial relationship with the linked creators or organizations.",
+            "The purpose of linking to Harper Zilmer and Selena Gomez content within the Linktree.",
+            "Whether any of the 10 recent posts contain calls-to-action or commercial intent beyond the visible captions."
+          ],
+          "independent_information_offer": {
+            "own_audience": "absent",
+            "own_transformation": "absent",
+            "own_cta_path": "absent",
+            "information_delivery": "absent",
+            "sufficient_prominence": "absent",
+            "evidence": []
+          },
+          "named_mechanisms": []
+        },
+        "provider": "anthropic",
+        "model": "claude-haiku-4-5",
+        "usage": {
+          "inputTokens": 27408,
+          "outputTokens": 1030
+        },
+        "repaired": false,
+        "citation_warnings": []
+      },
+      "challenger": {
+        "ran": true,
+        "result": null,
+        "agrees": null,
+        "disagreements": [],
+        "error": "[\n  {\n    \"expected\": \"'information_personal_brand' | 'agency_service' | 'uncertain'\",\n    \"received\": \"undefined\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"business_model_conclusion\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"boolean\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"core_gate_passes\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"expected\": \"'sufficient' | 'partial' | 'insufficient'\",\n    \"received\": \"undefined\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"acquisition_sufficiency\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"object\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"signal_states\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"human_personal_brand\",\n      \"information_funnel\",\n      \"cta\",\n      \"transformation\",\n      \"proof\",\n      \"authority\",\n      \"business_models\",\n      \"offers\",\n      \"primary_visitor_outcome\",\n      \"conflicts\"\n    ],\n    \"path\": [],\n    \"message\": \"Unrecognized key(s) in object: 'human_personal_brand', 'information_funnel', 'cta', 'transformation', 'proof', 'authority', 'business_models', 'offers', 'primary_visitor_outcome', 'conflicts'\"\n  }\n]"
+      },
+      "challenger_trigger": "conflicting_evidence",
+      "decision": {
+        "scorecard_version": "personal-brand-score-v1",
+        "evidence_snapshot_id": "22882777-5f39-422f-a2df-97f5f4a07cdd",
+        "extraction_id": null,
+        "track": "affiliate",
+        "icp_eligible": true,
+        "hard_exclusion": false,
+        "rejection_reason": null,
+        "signal_states": {
+          "human_personal_brand": "present",
+          "information_funnel": "absent",
+          "cta": "present",
+          "transformation": "absent",
+          "proof": "absent",
+          "authority": "absent"
+        },
+        "primary_visitor_outcome": "affiliate_offer",
+        "scores": {
+          "buyer_clarity": 0,
+          "transformation_clarity": 0,
+          "information_funnel_evidence": 0,
+          "conversion_intent": 2,
+          "proof_strength": 0,
+          "authority_strength": 0,
+          "proof_maturity": 0,
+          "commercial_fit": 2
+        },
+        "score_components": {
+          "buyer_clarity": {
+            "value": 0,
+            "label": "none",
+            "reason": "buyer_clarity=none -> 0 (no audience value returned)",
+            "citations": []
+          },
+          "transformation_clarity": {
+            "value": 0,
+            "label": "none",
+            "reason": "transformation_clarity=none -> 0 (no transformation outcome returned)",
+            "citations": []
+          },
+          "information_funnel_evidence": {
+            "value": 0,
+            "label": "none",
+            "reason": "information_funnel_evidence=none -> 0 (no offer named)",
+            "citations": []
+          },
+          "conversion_intent": {
+            "value": 2,
+            "label": "direct_sales_action",
+            "reason": "conversion_intent=direct_sales_action -> 2 (donate to organizations)",
+            "citations": [
+              {
+                "source_type": "link_hub",
+                "source_id": "destination_0",
+                "url": "https://linktr.ee/owenfithyan",
+                "field": "description",
+                "phrase": "Please read links and donate if possible to any of the organizations down below."
+              },
+              {
+                "source_type": "external_page",
+                "source_id": "destination_2",
+                "url": "https://secure.actblue.com/donate/bail_funds_george_floyd",
+                "field": "page_title",
+                "phrase": "Split a donation between 70+ community bail funds, mutual aid funds, and racial justice organizers"
+              },
+              {
+                "source_type": "recent_post",
+                "source_id": "Cwd1slWvw99",
+                "url": null,
+                "field": "caption",
+                "phrase": "Capitalism is destroying our planet. Go donate to Maui in my bio."
+              }
+            ]
+          },
+          "proof_strength": {
+            "value": 0,
+            "label": "absent",
+            "reason": "proof_strength=absent -> 0 (no proof claims)",
+            "citations": []
+          },
+          "authority_strength": {
+            "value": 0,
+            "label": "absent",
+            "reason": "authority_strength=absent -> 0 (no authority type returned)",
+            "citations": []
+          }
+        },
+        "certainty": "low",
+        "challenger_agreement": null,
+        "challenger_result": null,
+        "decision": "review",
+        "mode": "manual_review",
+        "automatic_approval_eligible": false,
+        "decision_reasons": [
+          "missing_core_evidence"
+        ],
+        "review_flags": [
+          "contradictory_evidence",
+          "missing_core_evidence",
+          "proof_unverified",
+          "authority_unverified"
+        ],
+        "priority": {
+          "value": 1.73,
+          "data_completeness": "partial",
+          "components": {
+            "commercial_fit": 0.2,
+            "proof_maturity": 0,
+            "reel_view_rate": null,
+            "posting_recency": 0.47,
+            "posting_consistency": 0
+          }
+        },
+        "versions": {
+          "acquisition_version": "acquisition-1.0.0",
+          "extraction_prompt_version": "personal-brand-evidence-v1",
+          "challenger_prompt_version": "personal-brand-challenger-v1",
+          "scorecard_version": "personal-brand-score-v1",
+          "config_version": "config-v1",
+          "pipeline_version": "commercial-qualification-1.0.0"
+        },
+        "decided_at": "2026-08-01T11:55:20.540Z"
+      },
+      "timings_ms": {
+        "acquisition": 9521,
+        "extraction": 13318,
+        "challenger": 29391,
+        "total": 52231
+      },
+      "usage": {
+        "inputTokens": 27408,
+        "outputTokens": 1030
+      }
+    },
+    "error": null
+  }
+]

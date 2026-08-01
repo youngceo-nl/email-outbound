@@ -17,6 +17,7 @@ import type {
   InstagramProfileExtractionMethod,
 } from "@/lib/qualification/types";
 import { scrapingBeeGet } from "./http";
+import { fetchInstagramEvidenceViaApify } from "./apify";
 
 // ---------------------------------------------------------------------------
 // Provider payloads
@@ -377,7 +378,13 @@ export async function acquireInstagramEvidence(opts: {
   apiKey: string;
   username: string;
   sessionCookie?: string | null;
+  /** Apify is the primary Instagram acquisition path when configured — see docs/scrape/scrape.md. */
+  apifyToken?: string | string[] | null;
 }): Promise<InstagramAcquisitionInput> {
+  if (opts.apifyToken) {
+    const viaApify = await fetchInstagramEvidenceViaApify({ token: opts.apifyToken, username: opts.username });
+    if (viaApify.user) return viaApify;
+  }
   const primary = await fetchInstagramEvidence(opts);
   if (primary.user) return primary;
   return fetchInstagramEvidenceViaMetadata({ apiKey: opts.apiKey, username: opts.username });
