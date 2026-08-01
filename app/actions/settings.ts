@@ -170,6 +170,7 @@ async function loginManaged(_platform: Platform, account: ManagedAccount): Promi
     password: account.password,
     totp_secret: account.totp_secret,
     capsolver_api_key: settings.capsolver_api_key ?? null,
+    proxy_url: account.proxy_url,
   });
   if (result.ok) return { cookie: result.cookie };
   if (result.checkpoint) return { checkpoint: true, state: result.state, message: result.message };
@@ -570,6 +571,7 @@ export async function refreshManagedAccountMobile(
       username: account.label,
       password: account.password,
       totp_secret: account.totp_secret,
+      proxy_url: account.proxy_url,
     });
     if (!result.ok) return { error: "error" in result ? result.error : result.message };
     const updated = accounts.map((a) =>

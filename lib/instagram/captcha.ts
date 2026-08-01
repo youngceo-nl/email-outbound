@@ -1,4 +1,5 @@
 import type { BrowserContext, Page } from "playwright";
+import { toPlaywrightProxy } from "@/lib/instagram/proxy";
 
 const IG_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
@@ -125,9 +126,13 @@ export async function bypassInstagramCaptcha(
   challengeUrl: string,
   cookieStr: string,
   capsolverApiKey: string,
+  proxyUrl: string | null = null,
 ): Promise<string | null> {
   const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: true });
+  // Solving the challenge from a different IP than the one it was raised on
+  // fails it, so this browser must egress through the account's own proxy.
+  const proxy = toPlaywrightProxy(proxyUrl);
+  const browser = await chromium.launch({ headless: true, ...(proxy ? { proxy } : {}) });
   try {
     const context: BrowserContext = await browser.newContext({ userAgent: IG_UA });
     await context.addCookies(cookiesToPlaywright(cookieStr));
@@ -197,9 +202,11 @@ export async function submitAuthPlatformCode(
   cookies: string,
   csrf: string,
   code: string,
+  proxyUrl: string | null = null,
 ): Promise<{ ok: true; cookie: string } | { ok: false; error: string }> {
   const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: true });
+  const proxy = toPlaywrightProxy(proxyUrl);
+  const browser = await chromium.launch({ headless: true, ...(proxy ? { proxy } : {}) });
   try {
     const context = await browser.newContext({ userAgent: IG_UA });
     await context.addCookies(cookiesToPlaywright(cookies));

@@ -46,6 +46,13 @@ export type CheckpointState = {
   csrf: string;
   challenge_url: string; // full URL to POST the security code to
   email_hint: string | null; // masked email shown by Instagram, e.g. "n****@gmail.com"
+  /*
+   * The proxy the challenge was raised on. Carried through so the code
+   * submission that resolves the challenge leaves from the same IP that
+   * triggered it — answering a security check from a different address is
+   * itself grounds for Instagram to fail it.
+   */
+  proxy_url?: string | null;
 };
 
 export type ManagedAccount = {

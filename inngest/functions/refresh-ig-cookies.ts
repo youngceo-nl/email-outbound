@@ -14,6 +14,7 @@ export const refreshIgCookies = inngest.createFunction(
       return (data as { instagram_accounts?: unknown })?.instagram_accounts as Array<{
         id: string; label: string; password: string; totp_secret: string | null;
         cookie: string | null; cookie_set_at: string | null; last_error: string | null; checkpoint_state?: unknown; paused?: boolean;
+        proxy_url: string | null;
       }> ?? [];
     });
 
@@ -35,6 +36,9 @@ export const refreshIgCookies = inngest.createFunction(
             username: account.label,
             password: account.password,
             totp_secret: account.totp_secret,
+            // The account's own IP, not the server's. Re-minting a cookie from
+            // anywhere else invalidates the whole point of the proxy pairing.
+            proxy_url: account.proxy_url,
           });
           if (result.ok) {
             updated[i] = { ...account, cookie: result.cookie, cookie_set_at: new Date().toISOString(), last_error: null, checkpoint_state: null };
