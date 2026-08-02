@@ -29,3 +29,6 @@ __pycache__/
 
 # Local isolated implementation worktrees.
 .worktrees/
+
+# local scratch: generated migration paste file
+apply-run-tables.sql
