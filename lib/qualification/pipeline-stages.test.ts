@@ -7,6 +7,8 @@ import {
   findJam,
   runHealth,
   type RunLeadRecord,
+  deriveRunTotals,
+  type RunTotalsLead,
 } from "./pipeline-stages";
 import type { CommercialDecision, EvidenceSnapshot } from "./types";
 
@@ -312,4 +314,40 @@ test("runHealth flags a mostly-failed batch as broken", () => {
     persist_failed_count: 0,
   });
   assert.equal(healthy.health, "healthy");
+});
+
+test("run totals come from the lead rows, not the stale run counters", () => {
+  const lead = (over: Partial<RunTotalsLead>): RunTotalsLead => ({
+    stage: "done", status: "ok", decision: "review", extraction_ok: true, challenger_ran: false,
+    extraction_model: "claude-haiku-4-5", challenger_model: null,
+    extraction_input_tokens: 1000, extraction_output_tokens: 100,
+    challenger_input_tokens: 0, challenger_output_tokens: 0, total_ms: 30000, ...over,
+  });
+  const totals = deriveRunTotals([
+    lead({ decision: "qualified" }),
+    lead({ decision: "review", challenger_ran: true, challenger_model: "claude-opus-5",
+           challenger_input_tokens: 8000, challenger_output_tokens: 2000 }),
+    lead({ decision: null, status: "acquisition_failed", stage: "acquiring" }),
+    lead({ decision: null, status: "queued", stage: "queued", extraction_input_tokens: 0,
+           extraction_output_tokens: 0, extraction_ok: null, total_ms: null }),
+  ], 4);
+
+  assert.equal(totals.processed, 3, "two decided + one failed; the queued lead is not processed");
+  assert.equal(totals.qualified, 1);
+  assert.equal(totals.failed, 1);
+  assert.equal(totals.challengerRan, 1);
+  assert.equal(totals.extractionInputTokens, 3000);
+  assert.equal(totals.challengerInputTokens, 8000);
+  assert.equal(totals.challengerModel, "claude-opus-5");
+  assert.equal(totals.complete, false, "a queued lead means the run is still going");
+});
+
+test("a run is complete once no lead is queued or running", () => {
+  const done = {
+    stage: "done", status: "ok", decision: "review", extraction_ok: true, challenger_ran: false,
+    extraction_model: "claude-haiku-4-5", challenger_model: null,
+    extraction_input_tokens: 1, extraction_output_tokens: 1,
+    challenger_input_tokens: 0, challenger_output_tokens: 0, total_ms: 10,
+  } satisfies RunTotalsLead;
+  assert.equal(deriveRunTotals([done, done]).complete, true);
 });

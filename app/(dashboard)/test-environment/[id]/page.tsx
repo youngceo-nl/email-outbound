@@ -93,12 +93,12 @@ export default async function RunDetailPage({
           <Stat label="Failed" value={String(failures)} tone={failures > 0 ? "bad" : undefined} />
           <Stat
             label="Extraction tokens"
-            value={`${run.extraction_input_tokens.toLocaleString()} in`}
+            value={`${run.extraction_input_tokens.toLocaleString()} in / ${run.extraction_output_tokens.toLocaleString()} out`}
             sub={run.extractor_model ?? undefined}
           />
           <Stat
             label="Challenger tokens"
-            value={`${run.challenger_input_tokens.toLocaleString()} in`}
+            value={`${run.challenger_input_tokens.toLocaleString()} in / ${run.challenger_output_tokens.toLocaleString()} out`}
             sub={run.challenger_model ?? "not run"}
           />
           <Stat
@@ -107,6 +107,30 @@ export default async function RunDetailPage({
               usd: run.estimated_cost_usd,
               unpriced: run.estimated_cost_usd === null ? ["unknown model"] : [],
             })}
+            sub={
+              run.estimated_cost_usd !== null && run.totals.processed > 0
+                ? `${formatCostUsd({ usd: run.estimated_cost_usd / run.totals.processed, unpriced: [] })} per lead`
+                : undefined
+            }
+          />
+          <Stat
+            label="Challenger fired"
+            value={
+              run.totals.processed > 0
+                ? `${Math.round((run.totals.challengerRan / run.totals.processed) * 100)}%`
+                : "–"
+            }
+            sub={`${run.totals.challengerRan} of ${run.totals.processed} · Opus is 5x Haiku`}
+          />
+          <Stat
+            label="Median time / lead"
+            value={run.totals.medianTotalMs ? `${(run.totals.medianTotalMs / 1000).toFixed(1)}s` : "–"}
+            sub="acquisition runs one at a time"
+          />
+          <Stat
+            label="Data retry"
+            value={String(run.totals.dataRetry)}
+            sub="too little evidence to score"
           />
         </CardContent>
       </Card>

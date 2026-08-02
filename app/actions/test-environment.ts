@@ -10,9 +10,13 @@ import { usernameFromInstagramUrl } from "@/lib/evidence/instagram";
 import { createQualificationRun, createRunLead } from "@/lib/qualification/repository";
 import {
   computeSlots,
+  deriveRunTotals,
+  type RunTotals,
+  type RunTotalsLead,
   type Slot,
   type SlotLeadRecord,
 } from "@/lib/qualification/pipeline-stages";
+import { estimateCostUsd } from "@/lib/qualification/pricing";
 import {
   ACQUISITION_VERSION,
   CHALLENGER_PROMPT_VERSION,
@@ -64,6 +68,48 @@ export type QualificationRunRow = {
   error_message: string | null;
 };
 
+/** A run row with its counters recomputed from the lead rows. */
+export type QualificationRunRowWithTotals = QualificationRunRow & { totals: RunTotals };
+
+const TOTALS_COLUMNS =
+  "stage, status, decision, extraction_ok, challenger_ran, extraction_model, challenger_model, " +
+  "extraction_input_tokens, extraction_output_tokens, challenger_input_tokens, challenger_output_tokens, total_ms";
+
+/** Recomputes a run's counters and cost from its leads. */
+function applyTotals(run: QualificationRunRow, leads: RunTotalsLead[]): QualificationRunRowWithTotals {
+  const totals = deriveRunTotals(leads, run.requested_count);
+  const cost = estimateCostUsd([
+    {
+      model: totals.extractorModel ?? run.extractor_model,
+      inputTokens: totals.extractionInputTokens,
+      outputTokens: totals.extractionOutputTokens,
+    },
+    {
+      model: totals.challengerModel ?? run.challenger_model,
+      inputTokens: totals.challengerInputTokens,
+      outputTokens: totals.challengerOutputTokens,
+    },
+  ]);
+  return {
+    ...run,
+    totals,
+    status: run.status === "running" && totals.complete ? "completed" : run.status,
+    processed_count: totals.processed,
+    qualified_count: totals.qualified,
+    review_count: totals.review,
+    rejected_count: totals.rejected,
+    data_retry_count: totals.dataRetry,
+    challenger_ran_count: totals.challengerRan,
+    extraction_input_tokens: totals.extractionInputTokens,
+    extraction_output_tokens: totals.extractionOutputTokens,
+    challenger_input_tokens: totals.challengerInputTokens,
+    challenger_output_tokens: totals.challengerOutputTokens,
+    estimated_cost_usd: cost.usd,
+    extractor_model: totals.extractorModel ?? run.extractor_model,
+    challenger_model: totals.challengerModel ?? run.challenger_model,
+  };
+}
+
 export type RunLeadRow = RunLeadRecord & {
   id: string;
   run_id: string;
@@ -81,7 +127,7 @@ export type RunLeadRow = RunLeadRecord & {
   created_at: string;
 };
 
-export async function listQualificationRuns(limit = 30): Promise<QualificationRunRow[]> {
+export async function listQualificationRuns(limit = 30): Promise<QualificationRunRowWithTotals[]> {
   await requireUser();
   const sb = createAdminClient();
   const { data, error } = await sb
@@ -90,15 +136,37 @@ export async function listQualificationRuns(limit = 30): Promise<QualificationRu
     .order("started_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(`listQualificationRuns failed: ${error.message}`);
-  return (data ?? []) as QualificationRunRow[];
+  const runs = (data ?? []) as QualificationRunRow[];
+  if (runs.length === 0) return [];
+
+  // One query for every run's leads, grouped in memory — the run counters
+  // themselves are never written, so they cannot be trusted for the list either.
+  const { data: leadRows } = await sb
+    .from("qualification_run_leads")
+    .select(`run_id, ${TOTALS_COLUMNS}`)
+    .in("run_id", runs.map((r) => r.id));
+
+  const byRun = new Map<string, RunTotalsLead[]>();
+  for (const row of (leadRows ?? []) as unknown as (RunTotalsLead & { run_id: string })[]) {
+    const list = byRun.get(row.run_id);
+    if (list) list.push(row);
+    else byRun.set(row.run_id, [row]);
+  }
+  return runs.map((run) => applyTotals(run, byRun.get(run.id) ?? []));
 }
 
-export async function getQualificationRun(id: string): Promise<QualificationRunRow | null> {
+export async function getQualificationRun(id: string): Promise<QualificationRunRowWithTotals | null> {
   await requireUser();
   const sb = createAdminClient();
   const { data, error } = await sb.from("qualification_runs").select("*").eq("id", id).maybeSingle();
   if (error) throw new Error(`getQualificationRun failed: ${error.message}`);
-  return (data as QualificationRunRow) ?? null;
+  if (!data) return null;
+  const { data: leads } = await sb
+    .from("qualification_run_leads")
+    .select(TOTALS_COLUMNS)
+    .eq("run_id", id)
+    .limit(2000);
+  return applyTotals(data as QualificationRunRow, (leads ?? []) as unknown as RunTotalsLead[]);
 }
 
 export type RunLeadFilter =

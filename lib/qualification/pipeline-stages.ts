@@ -916,3 +916,81 @@ export function findJam(slots: readonly Slot[]): { slot: Slot; reason: string } 
   }
   return null;
 }
+
+/*
+ * Run-level totals derived from the per-lead rows.
+ *
+ * qualification_runs carries denormalised counters, but nothing in the Inngest
+ * path ever writes them: the 2026-08-02 reruns showed 0/20 processed and "cost
+ * unknown" on a run that had really spent 327k extraction and 74k challenger
+ * tokens. Incrementing counters from concurrent workers is racy anyway, so the
+ * summary is computed from the lead rows, which are the source of truth.
+ */
+export type RunTotals = {
+  processed: number;
+  requested: number;
+  qualified: number;
+  review: number;
+  rejected: number;
+  dataRetry: number;
+  failed: number;
+  challengerRan: number;
+  extractionInputTokens: number;
+  extractionOutputTokens: number;
+  challengerInputTokens: number;
+  challengerOutputTokens: number;
+  extractorModel: string | null;
+  challengerModel: string | null;
+  /** True once every lead has reached a terminal stage. */
+  complete: boolean;
+  medianTotalMs: number | null;
+};
+
+export type RunTotalsLead = {
+  stage: string | null;
+  status: string | null;
+  decision: string | null;
+  extraction_ok: boolean | null;
+  challenger_ran: boolean | null;
+  extraction_model: string | null;
+  challenger_model: string | null;
+  extraction_input_tokens: number | null;
+  extraction_output_tokens: number | null;
+  challenger_input_tokens: number | null;
+  challenger_output_tokens: number | null;
+  total_ms: number | null;
+};
+
+export function deriveRunTotals(leads: readonly RunTotalsLead[], requested?: number): RunTotals {
+  const sum = (pick: (l: RunTotalsLead) => number | null | undefined) =>
+    leads.reduce((n, l) => n + (pick(l) ?? 0), 0);
+  const count = (pred: (l: RunTotalsLead) => boolean) => leads.filter(pred).length;
+
+  // A lead that threw and one whose extraction silently returned nothing are
+  // both defects; a deliberate reject is not.
+  const isFailed = (l: RunTotalsLead) =>
+    (l.status !== "ok" && l.status !== "queued" && l.status !== "running") || l.extraction_ok === false;
+  const failed = count(isFailed);
+
+  const durations = leads.map((l) => l.total_ms).filter((n): n is number => typeof n === "number" && n > 0).sort((a, b) => a - b);
+
+  return {
+    // Terminal either way: it produced a decision, or it died trying.
+    processed: count((l) => !!l.decision || isFailed(l)),
+    requested: requested ?? leads.length,
+    qualified: count((l) => l.decision === "qualified"),
+    review: count((l) => l.decision === "review"),
+    rejected: count((l) => l.decision === "rejected"),
+    dataRetry: count((l) => l.decision === "data_retry"),
+    failed,
+    challengerRan: count((l) => !!l.challenger_ran),
+    extractionInputTokens: sum((l) => l.extraction_input_tokens),
+    extractionOutputTokens: sum((l) => l.extraction_output_tokens),
+    challengerInputTokens: sum((l) => l.challenger_input_tokens),
+    challengerOutputTokens: sum((l) => l.challenger_output_tokens),
+    extractorModel: leads.find((l) => l.extraction_model)?.extraction_model ?? null,
+    challengerModel: leads.find((l) => l.challenger_model)?.challenger_model ?? null,
+    complete: leads.length > 0 && leads.every((l) => l.stage === "done" || (l.status !== "queued" && l.status !== "running")),
+    medianTotalMs: durations.length ? durations[Math.floor(durations.length / 2)] : null,
+  };
+}
