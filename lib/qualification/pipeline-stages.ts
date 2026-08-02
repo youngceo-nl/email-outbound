@@ -76,10 +76,10 @@ export type RunLeadRecord = {
 };
 
 const ACQUISITION_SOURCE_LABELS: Record<string, string> = {
-  // Apify is the production path (inngest/functions/acquire-profile.ts). Steel
-  // is retained only so historical runs still render with a real label.
+  // Steel is the production path (inngest/functions/acquire-profile.ts); the
+  // others survive only in the CLI harness.
+  steel: "Steel browser",
   apify: "Apify",
-  steel: "Steel browser (historical)",
   scrapingbee_web_profile_info: "ScrapingBee (web_profile_info)",
   scrapingbee_metadata: "ScrapingBee (metadata fallback)",
 };
@@ -790,7 +790,7 @@ export function runHealth(run: {
 /** Ordered; a lead's `stage` column holds one of these keys. */
 export const SLOTS = [
   { key: "queued", label: "Queued", note: "Enqueued, waiting for a worker" },
-  { key: "acquiring", label: "Acquisition", note: "Apify actor · concurrency 3" },
+  { key: "acquiring", label: "Acquisition", note: "Steel browser · concurrency 1, global" },
   { key: "profile_persisted", label: "Profile saved", note: "Bio, followers, recent posts" },
   { key: "external_evidence", label: "External evidence", note: "Bio link · 6 pages, 3 hops max" },
   { key: "youtube", label: "YouTube", note: "Up to 3 video descriptions" },

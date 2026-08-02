@@ -19,13 +19,17 @@
 alter table public.qualification_run_leads
   add column if not exists stage             text,
   add column if not exists stage_entered_at  timestamptz,
-  -- The acquisition verdict: captured | blocked | challenge | failed. A
-  -- non-captured status silently ends the chain (canonical-events.ts only emits
-  -- the qualification event for 'captured'), the biggest invisible bucket.
+  -- Steel's own verdict: captured | blocked | challenge | failed. A non-captured
+  -- status silently ends the chain (canonical-events.ts only emits the
+  -- qualification event for 'captured'), which is the biggest invisible bucket.
   add column if not exists acquisition_status text,
-  -- Which provider served this lead (apify today, steel historically). Kept so a
-  -- run of failures can be traced back to the provider that caused them.
-  add column if not exists acquisition_provider text;
+  -- Which provider served this lead. Steel is the production path.
+  add column if not exists acquisition_provider text,
+  -- Which managed Instagram identity served this lead. A quarantined account
+  -- shrinks the pool silently; without this you cannot trace a run of failures
+  -- back to the account that caused them.
+  add column if not exists identity_label      text,
+  add column if not exists steel_session_id    text;
 
 -- The original CHECK only allowed terminal states, so a lead in flight had no
 -- legal value to sit in.

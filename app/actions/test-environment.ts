@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { inngest } from "@/inngest/client";
 import { getSettings, resolveScrapingBeeKeys } from "@/lib/config/settings";
-import { resolveApifyTokens } from "@/lib/instagram/apify-acquisition";
+import { buildAcquisitionPool } from "@/lib/instagram/cookie-pool";
 import { buildProfileAcquisitionEvents } from "@/lib/pipeline/canonical-events";
 import { usernameFromInstagramUrl } from "@/lib/evidence/instagram";
 import { createQualificationRun, createRunLead } from "@/lib/qualification/repository";
@@ -151,11 +151,10 @@ export type RunLeadTrace = {
 // ---------------------------------------------------------------------------
 // Preflight
 //
-// A run costs Apify actor runs and Anthropic tokens, and the failure modes are
-// all silent: with no Apify token every acquisition fails instantly, and with no
-// Anthropic key extraction returns all-zero scores that read as "weak profile".
-// Surfacing this before the Start button is pressed is cheaper than reading it
-// off a wall of red.
+// A run costs Steel session minutes and Anthropic tokens, and the failure modes
+// are all silent: a missing STEEL_API_KEY fails every acquisition instantly, an
+// empty identity pool throws before the first step even runs. Surfacing this
+// before the Start button is pressed is cheaper than reading it off a wall of red.
 // ---------------------------------------------------------------------------
 
 export type PreflightCheck = {
@@ -170,20 +169,36 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
   await requireUser();
   const settings = await getSettings(true).catch(() => null);
 
-  const apifyTokens = resolveApifyTokens();
+  const steelKey = !!process.env.STEEL_API_KEY;
+  // buildAcquisitionPool throws before the first step when an identity is
+  // incomplete, so count defensively rather than letting the run explode.
+  let identities = 0;
+  let poolError: string | null = null;
+  try {
+    identities = settings ? buildAcquisitionPool(settings).length : 0;
+  } catch (err) {
+    poolError = err instanceof Error ? err.message : String(err);
+  }
   const anthropicKey = !!(settings?.claude_api_key || process.env.ANTHROPIC_API_KEY);
   const scrapingBee = settings ? resolveScrapingBeeKeys(settings).length > 0 : false;
   const youtube = !!(settings?.youtube_api_key || process.env.YOUTUBE_API_KEY);
 
   return [
     {
-      label: "Apify token",
-      ok: apifyTokens.length > 0,
+      label: "Steel API key",
+      ok: steelKey,
       blocking: true,
-      detail:
-        apifyTokens.length > 0
-          ? `${apifyTokens.length} token(s) — rotates on usage limits`
-          : "no APIFY_TOKEN / APIFY_TOKENS — every acquisition will fail",
+      detail: steelKey ? "set" : "no STEEL_API_KEY — every acquisition fails instantly",
+    },
+    {
+      label: "Instagram identities",
+      ok: identities > 0 && !poolError,
+      blocking: true,
+      detail: poolError
+        ? `pool is malformed: ${poolError}`
+        : identities > 0
+          ? `${identities} usable cookie identity(ies)`
+          : "empty pool — acquisition throws before the first step runs",
     },
     {
       label: "Anthropic API key",
@@ -204,13 +219,6 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
       ok: youtube,
       blocking: false,
       detail: youtube ? "set" : "not set — falls back to rate-limited HTML scraping",
-    },
-    {
-      label: "Story Highlights",
-      ok: true,
-      blocking: false,
-      detail:
-        "not collected on the Apify path — Highlights read as unknown, never as absent",
     },
   ];
 }
