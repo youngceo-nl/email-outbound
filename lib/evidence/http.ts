@@ -167,10 +167,33 @@ export function looksLikeJavascriptShell(html: string): boolean {
   return visible.length < 400;
 }
 
+/*
+ * Structural markers that never appear on a page innocently — safe to match
+ * against raw HTML.
+ */
+const CHALLENGE_MARKERS = /(cf-browser-verification|__cf_chl)/i;
+
+/*
+ * Phrases a blocked human would actually SEE. These must be matched against
+ * visible text only, never raw HTML: a page that merely loads reCAPTCHA ships
+ * `<script src=".../recaptcha/enterprise.js">`, and "recaptcha" contains
+ * "captcha". Matching raw HTML discarded every stan.store / checkout / lead-form
+ * page as a bot challenge — the single largest source of missing funnel
+ * evidence in the 2026-08-02 test run, where readable 1,716-character pages were
+ * thrown away and their leads scored "information_funnel unknown".
+ */
+const CHALLENGE_PHRASES =
+  /(just a moment|checking your browser|enable javascript and cookies|are you a robot|access denied|verify you are human|please complete the captcha)/i;
+
 export function containsBotChallenge(html: string): boolean {
-  return /(just a moment|checking your browser|cf-browser-verification|__cf_chl|enable javascript and cookies|captcha|are you a robot|access denied)/i.test(
-    html.slice(0, 4000),
-  );
+  if (CHALLENGE_MARKERS.test(html.slice(0, 4000))) return true;
+  const visible = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return CHALLENGE_PHRASES.test(visible.slice(0, 4000));
 }
 
 export function pageIsUsable(page: FetchedPage): boolean {
