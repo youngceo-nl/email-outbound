@@ -1,5 +1,5 @@
 import { inngest } from "@/inngest/client";
-import { getSettings, resolveApifyToken } from "@/lib/config/settings";
+import { getSettings, resolveApifyTokens } from "@/lib/config/settings";
 import { scrapeFollowingDetailedWithFallback } from "@/lib/pipeline/scrape-following";
 import { bulkUpsertDiscoveredLeads, bumpFunnelCounters, logCrawl, logError } from "@/lib/pipeline/persist";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -36,7 +36,7 @@ export const crawlSeed = inngest.createFunction(
       ? { ...settings, following_scraper_provider: provider_override as AppSettings["following_scraper_provider"] }
       : settings;
 
-    const apifyToken = resolveApifyToken(settings);
+    const apifyToken = resolveApifyTokens(settings);
 
     let cursor: string | null = null;
     let totalNew = 0;

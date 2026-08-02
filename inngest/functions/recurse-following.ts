@@ -1,5 +1,5 @@
 import { inngest } from "@/inngest/client";
-import { getSettings, resolveApifyToken } from "@/lib/config/settings";
+import { getSettings, resolveApifyTokens } from "@/lib/config/settings";
 import { scrapeFollowingDetailedWithFallback } from "@/lib/pipeline/scrape-following";
 import { bulkUpsertDiscoveredLeads, getJobStatus, logCrawl, logError } from "@/lib/pipeline/persist";
 
@@ -29,7 +29,7 @@ export const recurseFollowing = inngest.createFunction(
     const settings = await step.run("load-settings", () => getSettings());
     if (nextDepth > 1) return { skipped: "max_depth" };
 
-    const token = resolveApifyToken(settings);
+    const token = resolveApifyTokens(settings);
 
     let r;
     try {

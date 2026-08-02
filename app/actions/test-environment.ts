@@ -2,7 +2,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { inngest } from "@/inngest/client";
-import { getSettings, resolveScrapingBeeKeys } from "@/lib/config/settings";
+import { getSettings, resolveApifyTokens, resolveScrapingBeeKeys } from "@/lib/config/settings";
 import { buildAcquisitionPool } from "@/lib/instagram/cookie-pool";
 import { buildProfileAcquisitionEvents } from "@/lib/pipeline/canonical-events";
 import { usernameFromInstagramUrl } from "@/lib/evidence/instagram";
@@ -22,6 +22,7 @@ import {
 } from "@/lib/evidence/versions";
 import type { ExtractionResult } from "@/lib/qualification/extract";
 import type { RunLeadRecord } from "@/lib/qualification/pipeline-stages";
+import type { AppSettings } from "@/lib/types";
 import type { CommercialDecision, EvidenceSnapshot } from "@/lib/qualification/types";
 
 async function requireUser() {
@@ -218,6 +219,7 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
         ? "set — JavaScript landing pages can be read"
         : "not set — JS-shell landing pages will read as empty",
     },
+    await apifyCheck(settings),
     {
       label: "YouTube API key",
       ok: youtube,
@@ -225,6 +227,58 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
       detail: youtube ? "set" : "not set — falls back to rate-limited HTML scraping",
     },
   ];
+}
+
+/*
+ * Apify is not used by qualification at all — it sources fresh leads on the
+ * seeds page. It earns a slot here because a run that starts with "get me fresh
+ * leads" dies there first, and a token that is configured but over its monthly
+ * limit looks identical to a working one until it 403s.
+ *
+ * Balance is fetched live and every failure degrades to "unknown" rather than
+ * blocking the page: this is advisory, and a preflight that hangs on a third
+ * party is worse than one that admits it does not know.
+ */
+async function apifyCheck(settings: AppSettings | null): Promise<PreflightCheck> {
+  const tokens = settings ? resolveApifyTokens(settings) : [];
+  const base = { label: "Apify (fresh leads only)", blocking: false };
+  if (tokens.length === 0) {
+    return { ...base, ok: false, detail: "no token — sourcing fresh leads will fail" };
+  }
+
+  const usable: string[] = [];
+  const summaries: string[] = [];
+  await Promise.all(
+    tokens.map(async (token, i) => {
+      try {
+        const res = await fetch(`https://api.apify.com/v2/users/me/limits?token=${token}`, {
+          signal: AbortSignal.timeout(4000),
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        const { data } = (await res.json()) as {
+          data?: { current?: { monthlyUsageUsd?: number }; limits?: { maxMonthlyUsageUsd?: number } };
+        };
+        const used = data?.current?.monthlyUsageUsd ?? 0;
+        const max = data?.limits?.maxMonthlyUsageUsd ?? 0;
+        const left = max - used;
+        if (left > 0.01) usable.push(token);
+        summaries[i] = `#${i + 1} $${left.toFixed(2)} left`;
+      } catch {
+        // Unknown, not empty — never report a token as exhausted on a network blip.
+        usable.push(token);
+        summaries[i] = `#${i + 1} balance unknown`;
+      }
+    }),
+  );
+
+  return {
+    ...base,
+    ok: usable.length > 0,
+    detail:
+      usable.length > 0
+        ? `${usable.length}/${tokens.length} token(s) with credit — ${summaries.filter(Boolean).join(", ")}`
+        : `all ${tokens.length} token(s) over their monthly limit — ${summaries.filter(Boolean).join(", ")}`,
+  };
 }
 
 // ---------------------------------------------------------------------------

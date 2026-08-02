@@ -8,7 +8,7 @@ import type { AppSettings, ScrapedProfile } from "@/lib/types";
 export async function scrapeProfileWithFallback(opts: {
   username: string;
   settings: AppSettings;
-  apifyToken: string | null;
+  apifyToken: string | string[] | null;
   crawl_job_id?: string | null;
 }): Promise<{ profile: ScrapedProfile; provider: "direct" }> {
   const { username, settings } = opts;

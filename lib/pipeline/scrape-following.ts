@@ -53,7 +53,7 @@ export type FollowingResult = {
 export async function scrapeFollowingDetailedWithFallback(opts: {
   username: string;
   settings: AppSettings;
-  apifyToken: string | null;
+  apifyToken: string | string[] | null;
   crawl_job_id?: string | null;
   limitOverride?: number | null;
   startCursor?: string | null;
@@ -71,7 +71,7 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
   const bulkLimit = opts.fullAccount ? FULL_ACCOUNT_TARGET : pageLimit;
 
   const tryApify = async (): Promise<FollowingResult> => {
-    if (!opts.apifyToken) {
+    if (!opts.apifyToken || (Array.isArray(opts.apifyToken) && opts.apifyToken.length === 0)) {
       throw new Error(
         "Apify is the configured following scraper but no Apify token is set — add APIFY_TOKEN to the environment or an Apify key in Settings.",
       );

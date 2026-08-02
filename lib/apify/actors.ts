@@ -31,7 +31,7 @@ export type DiscoveredFollowing = {
 };
 
 export async function scrapeFollowingDetailed(opts: {
-  token: string;
+  token: string | string[];
   username: string;
   limit: number;
 }): Promise<DiscoveredFollowing[]> {
@@ -74,7 +74,7 @@ export async function scrapeFollowingDetailed(opts: {
 
 // Backwards-compat: just the usernames.
 export async function scrapeFollowing(opts: {
-  token: string;
+  token: string | string[];
   username: string;
   limit: number;
 }): Promise<string[]> {

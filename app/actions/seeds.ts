@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { toUsername, profileUrl } from "@/lib/pipeline/normalize";
 import { inngest } from "@/inngest/client";
-import { getSettings, resolveApifyToken } from "@/lib/config/settings";
+import { getSettings, resolveApifyTokens } from "@/lib/config/settings";
 import { getScrapedSeedIds, hasBeenScraped, checkRescrapeOverride } from "@/lib/seeds/scraped";
 import { scrapeFollowingDetailedWithFallback } from "@/lib/pipeline/scrape-following";
 
@@ -104,8 +104,12 @@ export async function checkFollowingCount(id: string): Promise<{ ok: true; follo
   if (!seed) return { ok: false, error: "seed_not_found" };
 
   const settings = await getSettings(true);
-  const apifyToken = resolveApifyToken(settings);
-  if (!apifyToken) return { ok: false, error: "No Apify token configured — add one in Settings." };
+  // All tokens, not one: runActorAsync rotates past a token that has hit its
+  // monthly limit. With a single token an exhausted account fails the scrape
+  // outright while a funded token sits unused.
+  const apifyToken = resolveApifyTokens(settings);
+  if (apifyToken.length === 0)
+    return { ok: false, error: "No Apify token configured — add one in Settings." };
 
   const result = await scrapeFollowingDetailedWithFallback({
     username: seed.username,
