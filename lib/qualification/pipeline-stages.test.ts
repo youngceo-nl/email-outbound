@@ -9,6 +9,7 @@ import {
   type RunLeadRecord,
   deriveRunTotals,
   type RunTotalsLead,
+  type SlotLeadRecord,
 } from "./pipeline-stages";
 import type { CommercialDecision, EvidenceSnapshot } from "./types";
 
@@ -350,4 +351,31 @@ test("a run is complete once no lead is queued or running", () => {
     challenger_input_tokens: 0, challenger_output_tokens: 0, total_ms: 10,
   } satisfies RunTotalsLead;
   assert.equal(deriveRunTotals([done, done]).complete, true);
+});
+
+test("a finished lead is never reported as stuck in the terminal slot", () => {
+  // Regression: every completed run eventually claimed "Jammed at Stored",
+  // because a stored decision sits in `done` forever and the elapsed-time check
+  // did not exempt the terminal slot.
+  const longAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const finished: SlotLeadRecord = {
+    stage: "done", status: "ok", stage_entered_at: longAgo, extraction_ok: true,
+    decision: "review", mode: null,
+  };
+  const slots = computeSlots([finished, finished, finished]);
+  const stored = slots.find((s) => s.key === "done")!;
+  assert.equal(stored.active, 3);
+  assert.equal(stored.stuck, 0, "finished is not stuck");
+  assert.equal(findJam(slots), null, "a fully completed run has no jam");
+});
+
+test("a lead genuinely parked mid-pipeline is still reported as stuck", () => {
+  const longAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const parked: SlotLeadRecord = {
+    stage: "acquiring", status: "running", stage_entered_at: longAgo,
+    extraction_ok: null, decision: null, mode: null,
+  };
+  const slots = computeSlots([parked]);
+  assert.equal(slots.find((s) => s.key === "acquiring")!.stuck, 1);
+  assert.equal(findJam(slots)?.slot.key, "acquiring");
 });

@@ -811,6 +811,14 @@ export const SLOTS = [
 
 export type SlotKey = (typeof SLOTS)[number]["key"];
 
+/*
+ * The last slot is terminal: a lead that has stored its decision stays there
+ * forever, so elapsed time in it means "finished a while ago", never "stuck".
+ * Without this guard every completed run eventually reported itself jammed at
+ * Stored, which is the fastest way to teach people to ignore the jam banner.
+ */
+export const TERMINAL_SLOT: SlotKey = "done";
+
 export type Slot = {
   key: string;
   label: string;
@@ -881,7 +889,11 @@ export function computeSlots(leads: readonly SlotLeadRecord[], now = Date.now())
       }
 
       active += 1;
-      if (lead.stage_entered_at && now - new Date(lead.stage_entered_at).getTime() > STALL_MS) {
+      if (
+        slot.key !== TERMINAL_SLOT &&
+        lead.stage_entered_at &&
+        now - new Date(lead.stage_entered_at).getTime() > STALL_MS
+      ) {
         stuck += 1;
       }
     }
