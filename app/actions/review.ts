@@ -273,6 +273,17 @@ export type EvidenceReviewLead = {
   score_components: Record<string, EvidenceScoreComponent>;
 };
 
+// Supabase/PostgREST sends `.in()` filters as a query string; a few hundred
+// UUIDs blows past the URL length limit and the fetch fails outright rather
+// than erroring cleanly (confirmed: TypeError: fetch failed on ~575 ids).
+// Chunk any lookup keyed on a large id list.
+const IN_CLAUSE_BATCH_SIZE = 150;
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 type DecisionRow = {
   id: string;
   lead_id: string | null;
@@ -314,14 +325,20 @@ export async function getEvidenceReviewQueue(
   const leadIds = [...latestByLead.keys()];
   if (leadIds.length === 0) return [];
 
-  const { data: leads } = await sb
-    .from("leads")
-    .select("id, username, full_name, profile_url, bio, external_link, followers")
-    .in("id", leadIds)
-    .is("review_decision", null);
+  const leadBatches = await Promise.all(
+    chunk(leadIds, IN_CLAUSE_BATCH_SIZE).map((batch) =>
+      sb
+        .from("leads")
+        .select("id, username, full_name, profile_url, bio, external_link, followers")
+        .in("id", batch)
+        .is("review_decision", null)
+        .then((res) => res.data ?? []),
+    ),
+  );
+  const leads = leadBatches.flat();
 
   const rows: EvidenceReviewLead[] = [];
-  for (const lead of leads ?? []) {
+  for (const lead of leads) {
     const d = latestByLead.get(lead.id);
     if (!d) continue;
     rows.push({
@@ -362,10 +379,15 @@ export async function getEvidenceReviewPendingCount(): Promise<number> {
   const leadIds = [...new Set((decisions ?? []).map((d) => d.lead_id).filter((id): id is string => !!id))];
   if (leadIds.length === 0) return 0;
 
-  const { count } = await sb
-    .from("leads")
-    .select("id", { count: "exact", head: true })
-    .in("id", leadIds)
-    .is("review_decision", null);
-  return count ?? 0;
+  const counts = await Promise.all(
+    chunk(leadIds, IN_CLAUSE_BATCH_SIZE).map((batch) =>
+      sb
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .in("id", batch)
+        .is("review_decision", null)
+        .then((res) => res.count ?? 0),
+    ),
+  );
+  return counts.reduce((a, b) => a + b, 0);
 }

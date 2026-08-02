@@ -27,7 +27,14 @@ const CERTAINTY_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
  * pre-review status (usually 'rejected', not always), which nothing captures
  * yet, so skip rather than risk restoring the wrong state.
  */
-export function EvidenceReviewClient({ queue }: { queue: EvidenceReviewLead[] }) {
+export function EvidenceReviewClient({
+  queue,
+  totalPending,
+}: {
+  queue: EvidenceReviewLead[];
+  /** Total leads still awaiting a verdict — queue itself is capped at one page (100). */
+  totalPending: number;
+}) {
   const router = useRouter();
   const [items, setItems] = useState<EvidenceReviewLead[]>(queue);
   const [idx, setIdx] = useState(0);
@@ -132,7 +139,12 @@ export function EvidenceReviewClient({ queue }: { queue: EvidenceReviewLead[] })
       <div className="flex items-end justify-between">
         <div>
           <p className="text-xs text-muted-foreground">
-            {remaining} left · flagged by the evidence-first pipeline as uncertain, not auto-decided either way
+            {remaining} of {totalPending} left · flagged by the evidence-first pipeline as uncertain, not auto-decided either way
+            {totalPending > items.length && (
+              <span className="block mt-0.5">
+                Loaded {items.length} at a time — reload the page once this batch is done to pull the next {Math.min(100, totalPending - items.length)}.
+              </span>
+            )}
           </p>
           <div className="mt-2 inline-flex rounded-md border text-xs overflow-hidden">
             {(["asc", "desc"] as const).map((dir) => (

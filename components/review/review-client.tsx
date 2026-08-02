@@ -35,14 +35,17 @@ export function ReviewClient({
   queue,
   stats,
   trackCounts,
+  defaultTrack = "infopreneur",
 }: {
   queue: ReviewLead[];
   stats: { allTime: ReviewStats; last7: ReviewStats };
   trackCounts: Record<ReviewTrack, number>;
+  /** Which track's queue `queue` was already loaded for — see ReviewView in leads/page.tsx. */
+  defaultTrack?: ReviewTrack;
 }) {
   const router = useRouter();
   // Which qualification track's queue we're reviewing. Tabs re-fetch on switch.
-  const [track, setTrack] = useState<ReviewTrack>("infopreneur");
+  const [track, setTrack] = useState<ReviewTrack>(defaultTrack);
   // Local snapshot advanced by idx, so a background router.refresh() can't
   // reshuffle the list out from under the card mid-review. Stats (props) still
   // update live on refresh; new leads appear on the next full load. Mutated only

@@ -26,7 +26,7 @@ import { MarkBadLeadButton } from "@/components/leads/mark-bad-lead-button";
 import { VoiceDmButton } from "@/components/leads/voice-dm-button";
 import { BadLeadsTable, type RejectedLeadRow } from "@/components/leads/bad-leads-table";
 import { createClient } from "@/lib/supabase/server";
-import { getReviewQueue, getReviewStats, getReviewTrackCounts, getReviewPendingCount, getEvidenceReviewQueue, getEvidenceReviewPendingCount } from "@/app/actions/review";
+import { getReviewQueue, getReviewStats, getReviewTrackCounts, getReviewPendingCount, getEvidenceReviewQueue, getEvidenceReviewPendingCount, type ReviewTrack } from "@/app/actions/review";
 import { ReviewClient } from "@/components/review/review-client";
 import { EvidenceReviewClient } from "@/components/review/evidence-review-client";
 import { CheckCircle2 } from "lucide-react";
@@ -405,12 +405,7 @@ async function AllLeadsView({ sp }: { sp: Search }) {
 }
 
 async function ReviewView() {
-  // Default to the infopreneur track; the client's tabs re-fetch on switch.
-  const [queue, stats, trackCounts] = await Promise.all([
-    getReviewQueue(100, "asc", "infopreneur"),
-    getReviewStats(),
-    getReviewTrackCounts(),
-  ]);
+  const [stats, trackCounts] = await Promise.all([getReviewStats(), getReviewTrackCounts()]);
 
   if (trackCounts.infopreneur === 0 && trackCounts.partnership === 0) {
     return (
@@ -426,11 +421,21 @@ async function ReviewView() {
     );
   }
 
-  return <ReviewClient queue={queue} stats={stats} trackCounts={trackCounts} />;
+  // Default to whichever track actually has leads waiting. Hardcoding
+  // "infopreneur" here meant landing on an empty queue — and an empty queue
+  // reads as "nothing to review," easy to mistake for the page being broken
+  // — whenever all the pending review sat in "partnership" instead.
+  const defaultTrack: ReviewTrack = trackCounts.infopreneur > 0 ? "infopreneur" : "partnership";
+  const queue = await getReviewQueue(100, "asc", defaultTrack);
+
+  return <ReviewClient queue={queue} stats={stats} trackCounts={trackCounts} defaultTrack={defaultTrack} />;
 }
 
 async function EvidenceReviewView() {
-  const queue = await getEvidenceReviewQueue(100, "asc");
+  const [queue, totalPending] = await Promise.all([
+    getEvidenceReviewQueue(100, "asc"),
+    getEvidenceReviewPendingCount(),
+  ]);
 
   if (queue.length === 0) {
     return (
@@ -446,7 +451,7 @@ async function EvidenceReviewView() {
     );
   }
 
-  return <EvidenceReviewClient queue={queue} />;
+  return <EvidenceReviewClient queue={queue} totalPending={totalPending} />;
 }
 
 async function BadLeadsView() {
