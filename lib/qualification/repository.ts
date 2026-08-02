@@ -49,6 +49,7 @@ function client(supabase?: SupabaseClient): SupabaseClient {
 export async function createEvidenceSnapshot(opts: {
   snapshot: EvidenceSnapshot;
   leadId?: string | null;
+  runId?: string | null;
   supabase?: SupabaseClient;
 }): Promise<{ id: string }> {
   const sb = client(opts.supabase);
@@ -56,6 +57,7 @@ export async function createEvidenceSnapshot(opts: {
   const { data, error } = await sb
     .from("lead_evidence_snapshots")
     .insert({
+      run_id: opts.runId ?? null,
       lead_id: leadId ?? snapshot.lead_id ?? null,
       username: snapshot.username,
       captured_at: snapshot.captured_at,
@@ -74,6 +76,7 @@ export async function createEvidenceSnapshot(opts: {
 export async function createExtraction(opts: {
   evidenceSnapshotId: string;
   leadId?: string | null;
+  runId?: string | null;
   extraction: ExtractionResult;
   supabase?: SupabaseClient;
 }): Promise<{ id: string }> {
@@ -82,6 +85,7 @@ export async function createExtraction(opts: {
   const { data, error } = await sb
     .from("lead_commercial_extractions")
     .insert({
+      run_id: opts.runId ?? null,
       evidence_snapshot_id: opts.evidenceSnapshotId,
       lead_id: opts.leadId ?? null,
       extraction_prompt_version: extraction.ok ? extraction.extraction.extraction_prompt_version : null,
@@ -103,6 +107,7 @@ export async function createDecision(opts: {
   evidenceSnapshotId: string;
   extractionId?: string | null;
   leadId?: string | null;
+  runId?: string | null;
   decision: CommercialDecision;
   supabase?: SupabaseClient;
 }): Promise<{ id: string }> {
@@ -111,6 +116,7 @@ export async function createDecision(opts: {
   const { data, error } = await sb
     .from("lead_qualification_decisions")
     .insert({
+      run_id: opts.runId ?? null,
       lead_id: opts.leadId ?? null,
       evidence_snapshot_id: opts.evidenceSnapshotId,
       extraction_id: opts.extractionId ?? null,
@@ -227,16 +233,19 @@ export function operationalStatusForDecision(
 type SaveSnapshotOperation = (opts: {
   snapshot: EvidenceSnapshot;
   leadId: string;
+  runId?: string | null;
 }) => Promise<{ id: string }>;
 type SaveExtractionOperation = (opts: {
   evidenceSnapshotId: string;
   leadId: string;
+  runId?: string | null;
   extraction: ExtractionResult;
 }) => Promise<{ id: string }>;
 type SaveDecisionOperation = (opts: {
   evidenceSnapshotId: string;
   extractionId: string | null;
   leadId: string;
+  runId?: string | null;
   decision: CommercialDecision;
 }) => Promise<{ id: string }>;
 type ProjectLeadOperation = (opts: {
@@ -297,17 +306,23 @@ export async function saveQualificationRun(opts: {
   snapshot: EvidenceSnapshot;
   extraction: ExtractionResult | null;
   decision: CommercialDecision;
+  runId?: string | null;
   supabase?: SupabaseClient;
   operations?: QualificationPersistenceOperations;
 }): Promise<{ snapshotId: string; extractionId: string | null; decisionId: string }> {
   const operations = opts.operations ?? defaultOperations(opts.supabase);
   const snapshot = opts.existingSnapshotId
     ? { id: opts.existingSnapshotId }
-    : await operations.saveSnapshot({ snapshot: opts.snapshot, leadId: opts.leadId });
+    : await operations.saveSnapshot({
+        snapshot: opts.snapshot,
+        leadId: opts.leadId,
+        runId: opts.runId,
+      });
   const extraction = opts.extraction
     ? await operations.saveExtraction({
         evidenceSnapshotId: snapshot.id,
         leadId: opts.leadId,
+        runId: opts.runId,
         extraction: opts.extraction,
       })
     : null;
@@ -315,6 +330,7 @@ export async function saveQualificationRun(opts: {
     evidenceSnapshotId: snapshot.id,
     extractionId: extraction?.id ?? null,
     leadId: opts.leadId,
+    runId: opts.runId,
     decision: opts.decision,
   });
   await operations.projectLead({
@@ -327,4 +343,125 @@ export async function saveQualificationRun(opts: {
     extractionId: extraction?.id ?? null,
     decisionId: decision.id,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Run forensics (docs/superpowers — test environment)
+//
+// A run row groups one CLI invocation; a run-lead row records what happened to
+// each lead attempt. Unlike the three history tables above, a run-lead row is
+// written even when nothing else is — a lead that terminates before the AI call
+// (universal exclusion, unscrapeable profile) produces no snapshot, and used to
+// leave no trace at all.
+//
+// `updateQualificationRun` is the second permitted in-place update in this
+// module, alongside the lead projection. Run counters are a live tally, not
+// immutable history.
+// ---------------------------------------------------------------------------
+
+export type QualificationRunInsert = {
+  label?: string | null;
+  source?: "cli" | "replay" | "inngest";
+  requested_count?: number;
+  concurrency?: number | null;
+  extractor_provider?: string | null;
+  extractor_model?: string | null;
+  challenger_provider?: string | null;
+  challenger_model?: string | null;
+  acquisition_version?: string | null;
+  extraction_prompt_version?: string | null;
+  challenger_prompt_version?: string | null;
+  scorecard_version?: string | null;
+  config_version?: string | null;
+  pipeline_version?: string | null;
+  notes?: string | null;
+};
+
+export async function createQualificationRun(opts: {
+  run: QualificationRunInsert;
+  supabase?: SupabaseClient;
+}): Promise<{ id: string }> {
+  const sb = client(opts.supabase);
+  const { data, error } = await sb
+    .from("qualification_runs")
+    .insert({ source: "cli", ...opts.run })
+    .select("id")
+    .single();
+  if (error) throw new Error(`createQualificationRun failed: ${error.message}`);
+  return { id: data.id as string };
+}
+
+export async function updateQualificationRun(opts: {
+  runId: string;
+  patch: Record<string, unknown>;
+  supabase?: SupabaseClient;
+}): Promise<void> {
+  const sb = client(opts.supabase);
+  const { error } = await sb.from("qualification_runs").update(opts.patch).eq("id", opts.runId);
+  if (error) throw new Error(`updateQualificationRun failed: ${error.message}`);
+}
+
+export type RunLeadStatus =
+  | "queued"
+  | "running"
+  | "ok"
+  | "acquisition_failed"
+  | "persist_failed"
+  | "skipped";
+
+/**
+ * Records one lead attempt. Always called, including on the paths that write no
+ * snapshot — that is the whole point of the table.
+ */
+export async function createRunLead(opts: {
+  runId: string;
+  username: string;
+  status: RunLeadStatus;
+  fields?: Record<string, unknown>;
+  supabase?: SupabaseClient;
+}): Promise<{ id: string }> {
+  const sb = client(opts.supabase);
+  const { data, error } = await sb
+    .from("qualification_run_leads")
+    .insert({
+      run_id: opts.runId,
+      username: opts.username,
+      status: opts.status,
+      ...opts.fields,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`createRunLead failed: ${error.message}`);
+  return { id: data.id as string };
+}
+
+/**
+ * Advances a lead to a new slot. Unlike the history tables, a run-lead row is
+ * live state — this is the third and last permitted in-place update in this
+ * module, alongside the lead projection and the run counters.
+ *
+ * Keyed on the unique (run_id, username) index. Never throws: losing a progress
+ * marker must not fail the pipeline step that was actually doing the work.
+ */
+export async function advanceRunLead(opts: {
+  runId: string | null | undefined;
+  username: string;
+  stage: string;
+  patch?: Record<string, unknown>;
+  supabase?: SupabaseClient;
+}): Promise<void> {
+  if (!opts.runId) return;
+  const sb = client(opts.supabase);
+  const { error } = await sb
+    .from("qualification_run_leads")
+    .update({
+      stage: opts.stage,
+      stage_entered_at: new Date().toISOString(),
+      ...opts.patch,
+    })
+    .eq("run_id", opts.runId)
+    .eq("username", opts.username.toLowerCase());
+  if (error) {
+    console.warn(`advanceRunLead(${opts.username} → ${opts.stage}) failed: ${error.message}`);
+  }
 }

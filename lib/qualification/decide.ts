@@ -157,6 +157,17 @@ export function decideCommercialQualification(opts: DecideOptions): CommercialDe
         : null,
     versions,
     decided_at: now(),
+
+    track_reason: track.reason,
+    hard_gate_reason: hardGate.reason,
+    core_gate: {
+      passes: coreGate.passes,
+      unknown_signals: coreGate.unknown_signals,
+      absent_signals: coreGate.absent_signals,
+      supporting_present: coreGate.supporting_present,
+    },
+    certainty_reasons: certainty.reasons,
+    certainty_blockers: certainty.blockers,
   };
 }
 

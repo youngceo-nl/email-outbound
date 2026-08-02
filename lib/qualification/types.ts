@@ -73,6 +73,17 @@ export type InstagramProfileExtractionMethod =
   | "provider"
   | "combined";
 
+/*
+ * Which concrete acquisition path served a profile. Distinct from
+ * InstagramProfileExtractionMethod, which describes the SHAPE of the parse:
+ * Apify and the ScrapingBee web_profile_info endpoint are both "provider", so
+ * the extraction method alone cannot tell them apart when a run misbehaves.
+ */
+export type AcquisitionSource =
+  | "apify"
+  | "scrapingbee_web_profile_info"
+  | "scrapingbee_metadata";
+
 export type InstagramEvidence = {
   username: string;
   display_name: string | null;
@@ -86,6 +97,8 @@ export type InstagramEvidence = {
   total_posts: number | null;
   instagram_meta_description: string | null;
   profile_extraction_method: InstagramProfileExtractionMethod;
+  /* Optional so snapshots captured before this field existed still validate. */
+  acquisition_source?: AcquisitionSource;
 
   profile_capture_status: CaptureStatus;
   profile_captured_at: string | null;
@@ -717,4 +730,21 @@ export type CommercialDecision = {
   priority: PriorityScore | null;
   versions: QualificationVersions;
   decided_at: string;
+
+  /*
+   * Why the deterministic scorer landed where it did. The gates already compute
+   * these strings and used to drop them, which left a reviewer able to see THAT
+   * a lead was excluded but not WHY. All optional so decisions stored before
+   * these existed still validate — the UI shows "not recorded" for those.
+   */
+  track_reason?: string;
+  hard_gate_reason?: string;
+  core_gate?: {
+    passes: boolean;
+    unknown_signals: string[];
+    absent_signals: string[];
+    supporting_present: string[];
+  };
+  certainty_reasons?: string[];
+  certainty_blockers?: string[];
 };

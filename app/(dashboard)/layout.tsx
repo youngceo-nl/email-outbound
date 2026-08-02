@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { LayoutDashboard, Users, Settings, Sprout, LogOut, Handshake, Megaphone, GraduationCap } from "lucide-react";
+import { LayoutDashboard, Users, Settings, Sprout, LogOut, Handshake, Megaphone, GraduationCap, FlaskConical } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
 import { ActivityDrawerButton } from "@/components/logs/activity-drawer";
 import { getReviewPendingCount } from "@/app/actions/review";
@@ -11,6 +11,7 @@ const NAV = [
   { href: "/seeds", label: "Scrape Profiles", icon: Sprout },
   { href: "/handover", label: "Enrich Emails", icon: Handshake },
   { href: "/campaigns", label: "Outreach", icon: Megaphone },
+  { href: "/test-environment", label: "Test Environment", icon: FlaskConical },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

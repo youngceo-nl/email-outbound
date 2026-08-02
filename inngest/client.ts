@@ -39,6 +39,8 @@ type Events = {
       username: string;
       crawl_job_id?: string | null;
       event_index?: number;
+      /* Set when the lead is part of a named test run — see /test-environment. */
+      run_id?: string | null;
     };
   };
   "lead/qualification.requested": {
@@ -46,6 +48,8 @@ type Events = {
       lead_id: string;
       evidence_snapshot_id: string;
       crawl_job_id?: string | null;
+      /* Carried from the acquisition event so a run stays attributable. */
+      run_id?: string | null;
     };
   };
   "lead/score.requested": {

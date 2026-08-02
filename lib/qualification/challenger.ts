@@ -110,7 +110,17 @@ export type ChallengerDecision = {
   agrees: boolean | null;
   disagreements: string[];
   error: string | null;
+  /*
+   * The challenger runs on a stronger, pricier model than the extractor, so its
+   * spend has to be attributable separately. Folding it into one blended token
+   * total is what hid the challenger being the majority of a run's cost.
+   */
+  provider: string | null;
+  model: string | null;
+  usage: { inputTokens: number; outputTokens: number };
 };
+
+const NO_USAGE = { inputTokens: 0, outputTokens: 0 };
 
 export type ChallengerTrigger =
   | "proposed_auto_approval"
@@ -183,12 +193,16 @@ export async function runChallenger(opts: {
       jsonSchema: CHALLENGER_JSON_SCHEMA as unknown as Record<string, unknown>,
     });
   } catch (err) {
+    // The provider threw, so nothing was billed and no model is attributable.
     return {
       ran: false,
       result: null,
       agrees: null,
       disagreements: [],
       error: err instanceof Error ? err.message : String(err),
+      provider: null,
+      model: null,
+      usage: NO_USAGE,
     };
   }
 
@@ -200,13 +214,17 @@ export async function runChallenger(opts: {
     }
     parsed = challengerResultSchema.parse(raw);
   } catch (err) {
-    // An unparseable challenger is an unknown, not an endorsement.
+    // An unparseable challenger is an unknown, not an endorsement. It still
+    // burned tokens, so the usage is reported rather than zeroed.
     return {
       ran: true,
       result: null,
       agrees: null,
       disagreements: [],
       error: err instanceof Error ? err.message : String(err),
+      provider: response.provider ?? null,
+      model: response.model ?? null,
+      usage: response.usage ?? NO_USAGE,
     };
   }
 
@@ -219,6 +237,9 @@ export async function runChallenger(opts: {
     agrees: disagreements.length === 0,
     disagreements,
     error: null,
+    provider: response.provider ?? null,
+    model: response.model ?? null,
+    usage: response.usage ?? NO_USAGE,
   };
 }
 

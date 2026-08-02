@@ -29,6 +29,12 @@
  *                                  deliberate, explicit opt-in for recovery
  *                                  runs against the rejected-leads backlog,
  *                                  not a silent side effect of --persist.
+ *   --run-label <text>            with --persist: name the run so it is
+ *                                  identifiable in /test-environment. The run
+ *                                  row also records per-stage timings, token
+ *                                  usage split by model, and a row for EVERY
+ *                                  lead — including ones that terminate before
+ *                                  the AI call and therefore write no evidence.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -51,9 +57,20 @@ import {
   createDecision,
   createEvidenceSnapshot,
   createExtraction,
+  createQualificationRun,
+  createRunLead,
   setLeadQualificationProjection,
+  updateQualificationRun,
 } from "@/lib/qualification/repository";
-import { PIPELINE_VERSION } from "@/lib/evidence/versions";
+import { estimateCostUsd, formatCostUsd } from "@/lib/qualification/pricing";
+import {
+  ACQUISITION_VERSION,
+  CHALLENGER_PROMPT_VERSION,
+  CONFIG_VERSION,
+  EXTRACTION_PROMPT_VERSION,
+  PIPELINE_VERSION,
+  SCORECARD_VERSION,
+} from "@/lib/evidence/versions";
 
 type Args = {
   inputs: string[];
@@ -66,6 +83,7 @@ type Args = {
   concurrency: number;
   persist: boolean;
   syncLegacy: boolean;
+  runLabel: string | null;
 };
 
 function parseArgs(argv: string[]): Args {
@@ -78,6 +96,7 @@ function parseArgs(argv: string[]): Args {
   let concurrency = 2;
   let persist = false;
   let syncLegacy = false;
+  let runLabel: string | null = null;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -89,6 +108,7 @@ function parseArgs(argv: string[]): Args {
     else if (arg === "--concurrency") concurrency = Number(argv[++i]) || 3;
     else if (arg === "--persist") persist = true;
     else if (arg === "--sync-legacy") syncLegacy = true;
+    else if (arg === "--run-label") runLabel = argv[++i] ?? null;
     else if (arg === "--file") {
       const contents = readFileSync(argv[++i], "utf8");
       inputs.push(...contents.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
@@ -117,6 +137,7 @@ function parseArgs(argv: string[]): Args {
     concurrency,
     persist,
     syncLegacy,
+    runLabel,
   };
 }
 
@@ -132,6 +153,94 @@ function resolveApifyTokensFromEnv(): string[] | null {
 }
 
 /**
+ * Records the per-lead forensic row: the stage outcomes the pipeline computes
+ * and used to discard (sufficiency, challenger trigger, timings, token usage
+ * split by model). This is what the Test Environment page reads to say WHERE a
+ * run broke rather than just that it did.
+ */
+async function recordRunLead(args: {
+  runId: string;
+  username: string;
+  input?: string;
+  leadId: string | null;
+  result: QualificationRunResult;
+  snapshotId: string | null;
+  extractionId: string | null;
+  decisionId: string | null;
+  supabase: ReturnType<typeof createAdminClient>;
+}): Promise<void> {
+  const { result } = args;
+  const extraction = result.extraction;
+  const challenger = result.challenger;
+  const instagram = result.snapshot?.instagram;
+
+  const extractionUsage = {
+    model: extraction?.model ?? null,
+    inputTokens: extraction?.usage.inputTokens ?? 0,
+    outputTokens: extraction?.usage.outputTokens ?? 0,
+  };
+  const challengerUsage = {
+    model: challenger?.model ?? null,
+    inputTokens: challenger?.usage.inputTokens ?? 0,
+    outputTokens: challenger?.usage.outputTokens ?? 0,
+  };
+  const cost = estimateCostUsd([extractionUsage, challengerUsage]);
+
+  await createRunLead({
+    runId: args.runId,
+    username: args.username,
+    status: "ok",
+    supabase: args.supabase,
+    fields: {
+      lead_id: args.leadId,
+      input: args.input ?? null,
+
+      acquisition_source: instagram?.acquisition_source ?? null,
+      profile_extraction_method: instagram?.profile_extraction_method ?? null,
+
+      sufficiency_verdict: result.sufficiency.verdict,
+      sufficiency_data_quality: result.sufficiency.data_quality ?? null,
+      sufficiency_reasons: result.sufficiency.reasons ?? [],
+      sufficiency_exclusion_evidence: result.sufficiency.exclusion_evidence ?? null,
+
+      extraction_ok: extraction ? extraction.ok : null,
+      extraction_provider: extraction?.provider ?? null,
+      extraction_model: extraction?.model ?? null,
+      extraction_input_tokens: extraction?.usage.inputTokens ?? null,
+      extraction_output_tokens: extraction?.usage.outputTokens ?? null,
+      extraction_failure_reason: extraction && !extraction.ok ? extraction.reason : null,
+      extraction_problems: extraction && !extraction.ok ? extraction.problems : null,
+
+      challenger_trigger: result.challenger_trigger,
+      challenger_ran: challenger?.ran ?? null,
+      challenger_agrees: challenger?.agrees ?? null,
+      challenger_error: challenger?.error ?? null,
+      challenger_disagreements: challenger?.disagreements ?? null,
+      challenger_provider: challenger?.provider ?? null,
+      challenger_model: challenger?.model ?? null,
+      challenger_input_tokens: challenger?.usage.inputTokens ?? null,
+      challenger_output_tokens: challenger?.usage.outputTokens ?? null,
+
+      acquisition_ms: result.timings_ms.acquisition,
+      extraction_ms: result.timings_ms.extraction,
+      challenger_ms: result.timings_ms.challenger,
+      total_ms: result.timings_ms.total,
+      estimated_cost_usd: cost.usd,
+
+      decision: result.decision.decision,
+      mode: result.decision.mode,
+      track: result.decision.track,
+      certainty: result.decision.certainty,
+      commercial_fit: result.decision.scores?.commercial_fit ?? null,
+
+      evidence_snapshot_id: args.snapshotId,
+      extraction_id: args.extractionId,
+      decision_id: args.decisionId,
+    },
+  });
+}
+
+/**
  * Writes one run's snapshot/extraction/decision through lib/qualification/repository.ts.
  * Each call inserts new rows — never updates a prior run's rows — so replaying
  * the same profile twice produces two full, independently queryable snapshots.
@@ -141,9 +250,10 @@ function resolveApifyTokensFromEnv(): string[] | null {
 async function persistResult(
   username: string,
   result: QualificationRunResult,
-  opts: { syncLegacy: boolean },
+  opts: { syncLegacy: boolean; runId: string | null; input?: string },
 ): Promise<string> {
   const supabase = createAdminClient();
+  const { runId } = opts;
 
   const { data: lead, error: leadErr } = await supabase
     .from("leads")
@@ -153,34 +263,60 @@ async function persistResult(
   if (leadErr) throw new Error(`lead lookup failed: ${leadErr.message}`);
   const leadId = (lead?.id as string | undefined) ?? null;
 
-  if (!result.snapshot) return "no evidence snapshot to persist";
-
-  const { id: snapshotId } = await createEvidenceSnapshot({
-    snapshot: result.snapshot,
-    leadId,
-    supabase,
-  });
-
+  /*
+   * A lead that terminates before the AI call (universal exclusion, unscrapeable
+   * profile) has no snapshot, so there is no evidence history to write. It still
+   * gets a run-lead row below — skipping that is what made 26 leads of the
+   * 2026-08-01 batch leave no database trace at all.
+   */
+  let snapshotId: string | null = null;
   let extractionId: string | null = null;
-  if (result.extraction) {
-    const created = await createExtraction({
-      evidenceSnapshotId: snapshotId,
+  let decisionId: string | null = null;
+
+  if (result.snapshot) {
+    ({ id: snapshotId } = await createEvidenceSnapshot({
+      snapshot: result.snapshot,
       leadId,
-      extraction: result.extraction,
+      runId,
       supabase,
-    });
-    extractionId = created.id;
+    }));
+
+    if (result.extraction) {
+      const created = await createExtraction({
+        evidenceSnapshotId: snapshotId,
+        leadId,
+        runId,
+        extraction: result.extraction,
+        supabase,
+      });
+      extractionId = created.id;
+    }
+
+    ({ id: decisionId } = await createDecision({
+      evidenceSnapshotId: snapshotId,
+      extractionId,
+      leadId,
+      runId,
+      decision: result.decision,
+      supabase,
+    }));
   }
 
-  const { id: decisionId } = await createDecision({
-    evidenceSnapshotId: snapshotId,
-    extractionId,
-    leadId,
-    decision: result.decision,
-    supabase,
-  });
+  if (runId) {
+    await recordRunLead({
+      runId,
+      username,
+      input: opts.input,
+      leadId,
+      result,
+      snapshotId,
+      extractionId,
+      decisionId,
+      supabase,
+    });
+  }
 
-  if (leadId) {
+  if (leadId && decisionId) {
     await setLeadQualificationProjection({
       leadId,
       projection: {
@@ -248,6 +384,37 @@ async function main(): Promise<void> {
     username: usernameFromInstagramUrl(input),
   }));
 
+  /*
+   * The run row groups this invocation so the Test Environment page can show it
+   * as one unit. Created before any work starts, so a run that dies mid-flight
+   * still appears (status stays "running") rather than vanishing.
+   */
+  let runId: string | null = null;
+  if (args.persist) {
+    const run = await createQualificationRun({
+      run: {
+        label: args.runLabel,
+        source: "cli",
+        requested_count: usernames.length,
+        concurrency: args.concurrency,
+        extractor_provider: args.provider,
+        extractor_model: args.model,
+        challenger_provider: args.provider,
+        challenger_model: args.challengerModel,
+        acquisition_version: ACQUISITION_VERSION,
+        extraction_prompt_version: EXTRACTION_PROMPT_VERSION,
+        challenger_prompt_version: CHALLENGER_PROMPT_VERSION,
+        scorecard_version: SCORECARD_VERSION,
+        config_version: CONFIG_VERSION,
+        pipeline_version: PIPELINE_VERSION,
+      },
+    });
+    runId = run.id;
+    process.stderr.write(
+      `  run: ${runId}\n  view: ${process.env.APP_URL ?? "http://localhost:3417"}/test-environment/${runId}\n`,
+    );
+  }
+
   console.log(
     `\nQualifying ${usernames.length} profile(s)\n` +
       `  extractor:  ${args.provider}/${args.model}\n` +
@@ -287,10 +454,25 @@ async function main(): Promise<void> {
         process.stderr.write(`  done: @${item.username} -> ${result.decision.decision}/${result.decision.mode}\n`);
         if (args.persist) {
           try {
-            const persisted = await persistResult(item.username, result, { syncLegacy: args.syncLegacy });
+            const persisted = await persistResult(item.username, result, {
+              syncLegacy: args.syncLegacy,
+              runId,
+              input: item.input,
+            });
             process.stderr.write(`  persisted: @${item.username} -> ${persisted}\n`);
           } catch (err) {
             process.stderr.write(`  PERSIST FAILED: @${item.username}: ${err}\n`);
+            // Best-effort: a persistence failure must still be visible as a row,
+            // otherwise the lead disappears from the run exactly like the
+            // pre-AI terminal paths used to.
+            if (runId) {
+              await createRunLead({
+                runId,
+                username: item.username,
+                status: "persist_failed",
+                fields: { input: item.input, error_message: String(err) },
+              }).catch(() => {});
+            }
           }
         }
       } catch (err) {
@@ -300,6 +482,16 @@ async function main(): Promise<void> {
           error: err instanceof Error ? err.message : String(err),
         });
         process.stderr.write(`  FAILED: @${item.username}: ${err}\n`);
+        // A thrown acquisition leaves no snapshot, extraction, or decision. The
+        // run-lead row is the only trace it ever happened.
+        if (runId) {
+          await createRunLead({
+            runId,
+            username: item.username,
+            status: "acquisition_failed",
+            fields: { input: item.input, error_message: err instanceof Error ? err.message : String(err) },
+          }).catch(() => {});
+        }
       }
     }
   });
@@ -309,6 +501,8 @@ async function main(): Promise<void> {
     ({ input }) => results.find((entry) => entry.input === input) ?? { input, result: null, error: "no result" },
   );
 
+  if (runId) await finalizeRun(runId, ordered);
+
   for (const entry of ordered) printReport(entry);
   printSummary(ordered);
 
@@ -317,6 +511,84 @@ async function main(): Promise<void> {
     writeFileSync(args.out, JSON.stringify(ordered, null, 2));
     console.log(`\nFull evidence bundle written to ${args.out}`);
   }
+}
+
+/**
+ * Rolls per-lead outcomes into the run row. Token totals stay split by model —
+ * blending them is precisely what hid the challenger being the cost driver.
+ */
+async function finalizeRun(
+  runId: string,
+  ordered: Array<{ result: QualificationRunResult | null; error: string | null }>,
+): Promise<void> {
+  const counts = {
+    processed_count: 0,
+    qualified_count: 0,
+    review_count: 0,
+    rejected_count: 0,
+    data_retry_count: 0,
+    acquisition_failed_count: 0,
+    extraction_failed_count: 0,
+    challenger_failed_count: 0,
+    challenger_ran_count: 0,
+    extraction_input_tokens: 0,
+    extraction_output_tokens: 0,
+    challenger_input_tokens: 0,
+    challenger_output_tokens: 0,
+  };
+  const usageEntries: Array<{ model: string | null; inputTokens: number; outputTokens: number }> = [];
+
+  for (const entry of ordered) {
+    if (!entry.result) {
+      counts.acquisition_failed_count += 1;
+      continue;
+    }
+    counts.processed_count += 1;
+
+    const outcome = entry.result.decision.decision;
+    if (outcome === "qualified") counts.qualified_count += 1;
+    else if (outcome === "review") counts.review_count += 1;
+    else if (outcome === "rejected") counts.rejected_count += 1;
+    else if (outcome === "data_retry") counts.data_retry_count += 1;
+
+    const extraction = entry.result.extraction;
+    if (extraction) {
+      if (!extraction.ok) counts.extraction_failed_count += 1;
+      counts.extraction_input_tokens += extraction.usage.inputTokens;
+      counts.extraction_output_tokens += extraction.usage.outputTokens;
+      usageEntries.push({
+        model: extraction.model,
+        inputTokens: extraction.usage.inputTokens,
+        outputTokens: extraction.usage.outputTokens,
+      });
+    }
+
+    const challenger = entry.result.challenger;
+    if (challenger) {
+      if (challenger.ran) counts.challenger_ran_count += 1;
+      if (challenger.error) counts.challenger_failed_count += 1;
+      counts.challenger_input_tokens += challenger.usage.inputTokens;
+      counts.challenger_output_tokens += challenger.usage.outputTokens;
+      usageEntries.push({
+        model: challenger.model,
+        inputTokens: challenger.usage.inputTokens,
+        outputTokens: challenger.usage.outputTokens,
+      });
+    }
+  }
+
+  const cost = estimateCostUsd(usageEntries);
+  await updateQualificationRun({
+    runId,
+    patch: {
+      ...counts,
+      status: "completed",
+      finished_at: new Date().toISOString(),
+      estimated_cost_usd: cost.usd,
+    },
+  }).catch((err) => {
+    process.stderr.write(`  RUN FINALIZE FAILED: ${err}\n`);
+  });
 }
 
 /*
@@ -472,8 +744,26 @@ function printReport(entry: { input: string; result: QualificationRunResult | nu
   console.log(`FLAGS         ${d.review_flags.join(", ") || "-"}`);
   console.log(
     `TIMING        ${result.timings_ms.total}ms total ` +
-      `(acq ${result.timings_ms.acquisition} / extract ${result.timings_ms.extraction} / challenge ${result.timings_ms.challenger})  ` +
-      `tokens ${result.usage.inputTokens}in ${result.usage.outputTokens}out`,
+      `(acq ${result.timings_ms.acquisition} / extract ${result.timings_ms.extraction} / challenge ${result.timings_ms.challenger})`,
+  );
+  // Split by model. The challenger runs on a ~5x pricier model, so a single
+  // blended token count understates what an expensive run actually cost.
+  const ch = result.challenger;
+  const chCost = estimateCostUsd([
+    { model: ch?.model ?? null, inputTokens: ch?.usage.inputTokens ?? 0, outputTokens: ch?.usage.outputTokens ?? 0 },
+  ]);
+  const exCost = estimateCostUsd([
+    {
+      model: result.extraction?.model ?? null,
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens,
+    },
+  ]);
+  console.log(
+    `TOKENS        extract ${result.usage.inputTokens}in ${result.usage.outputTokens}out ${formatCostUsd(exCost)}` +
+      (ch?.usage.inputTokens
+        ? `  |  challenger ${ch.usage.inputTokens}in ${ch.usage.outputTokens}out ${formatCostUsd(chCost)}`
+        : `  |  challenger not run`),
   );
 }
 

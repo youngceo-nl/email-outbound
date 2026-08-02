@@ -9,6 +9,7 @@
  */
 
 import type {
+  AcquisitionSource,
   ActivityMetrics,
   CaptureStatus,
   DataQuality,
@@ -59,6 +60,13 @@ export type InstagramAcquisitionInput = {
   providerError?: string | null;
   metaDescription?: string | null;
   extractionMethod?: InstagramProfileExtractionMethod;
+  /*
+   * Which acquisition path actually served this profile. `extractionMethod`
+   * cannot answer that — Apify and the ScrapingBee endpoint both report
+   * "provider" — and "which provider served this lead" is the first question
+   * asked when a run looks wrong.
+   */
+  acquisitionSource?: AcquisitionSource;
   /** Highlight scraping is a separate authenticated surface; v1 does not attempt it. */
   highlightTitles?: string[] | null;
   highlightsCaptureStatus?: CaptureStatus;
@@ -88,6 +96,7 @@ export function normalizeInstagramEvidence(input: InstagramAcquisitionInput): In
       total_posts: null,
       instagram_meta_description: input.metaDescription ?? null,
       profile_extraction_method: input.extractionMethod ?? "provider",
+      acquisition_source: input.acquisitionSource,
       profile_capture_status: input.providerError ? "failed" : "unavailable",
       profile_captured_at: null,
       external_link_capture_status: "not_attempted",
@@ -150,6 +159,7 @@ export function normalizeInstagramEvidence(input: InstagramAcquisitionInput): In
     total_posts: totalPosts,
     instagram_meta_description: input.metaDescription ?? null,
     profile_extraction_method: input.extractionMethod ?? "provider",
+    acquisition_source: input.acquisitionSource,
     profile_capture_status: "captured",
     profile_captured_at: capturedAt,
     // The metadata fallback parses the public profile page, which does not
@@ -289,6 +299,7 @@ export async function fetchInstagramEvidence(opts: {
       user: user && user.username ? user : null,
       providerError: user ? null : "profile_not_returned",
       extractionMethod: "provider",
+      acquisitionSource: "scrapingbee_web_profile_info",
       capturedAt: new Date().toISOString(),
     };
   } catch (err) {
@@ -297,6 +308,7 @@ export async function fetchInstagramEvidence(opts: {
       user: null,
       providerError: err instanceof Error ? err.message : String(err),
       extractionMethod: "provider",
+      acquisitionSource: "scrapingbee_web_profile_info",
       capturedAt: new Date().toISOString(),
     };
   }
@@ -335,6 +347,7 @@ export async function fetchInstagramEvidenceViaMetadata(opts: {
         user: null,
         providerError: "metadata fallback found no bio or description",
         extractionMethod: "metadata_fallback",
+        acquisitionSource: "scrapingbee_metadata",
         capturedAt: new Date().toISOString(),
       };
     }
@@ -360,6 +373,7 @@ export async function fetchInstagramEvidenceViaMetadata(opts: {
       },
       metaDescription,
       extractionMethod: "metadata_fallback",
+      acquisitionSource: "scrapingbee_metadata",
       capturedAt: new Date().toISOString(),
     };
   } catch (err) {
@@ -368,6 +382,7 @@ export async function fetchInstagramEvidenceViaMetadata(opts: {
       user: null,
       providerError: err instanceof Error ? err.message : String(err),
       extractionMethod: "metadata_fallback",
+      acquisitionSource: "scrapingbee_metadata",
       capturedAt: new Date().toISOString(),
     };
   }

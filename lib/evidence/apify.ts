@@ -150,6 +150,7 @@ export async function fetchInstagramEvidenceViaApify(opts: {
         user,
         providerError: user ? null : "apify_profile_not_returned",
         extractionMethod: "provider",
+        acquisitionSource: "apify",
         capturedAt: new Date().toISOString(),
       };
     } catch (err) {
@@ -164,6 +165,7 @@ export async function fetchInstagramEvidenceViaApify(opts: {
     user: null,
     providerError: lastErr instanceof Error ? lastErr.message : String(lastErr ?? "apify call failed"),
     extractionMethod: "provider",
+    acquisitionSource: "apify",
     capturedAt: new Date().toISOString(),
   };
 }
