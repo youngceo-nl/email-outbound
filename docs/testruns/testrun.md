@@ -1,5 +1,7 @@
 # Test run report — 2026-08-02
 
+**Working checklist: [tasks.md](tasks.md)** — this file is the evidence behind it.
+
 Two runs of 20 real leads, sourced from seed `@kishanslings`.
 **Both completed. Nothing crashed.**
 
