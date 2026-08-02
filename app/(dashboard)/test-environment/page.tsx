@@ -3,7 +3,7 @@ import { formatDistanceToNow } from "date-fns";
 import { FlaskConical } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getPreflight, listQualificationRuns } from "@/app/actions/test-environment";
+import { getPreflight, listQualificationRuns, listSeeds } from "@/app/actions/test-environment";
 import { StartRun } from "@/components/test-environment/start-run";
 import { runHealth } from "@/lib/qualification/pipeline-stages";
 import { formatCostUsd } from "@/lib/qualification/pricing";
@@ -14,9 +14,10 @@ export const dynamic = "force-dynamic";
 const HEALTH_LABEL = { broken: "Broken", degraded: "Degraded", healthy: "Healthy" } as const;
 
 export default async function TestEnvironmentPage() {
-  const [runs, preflight] = await Promise.all([
+  const [runs, preflight, seeds] = await Promise.all([
     listQualificationRuns(30).catch(() => []),
     getPreflight().catch(() => []),
+    listSeeds().catch(() => []),
   ]);
 
   return (
@@ -30,7 +31,7 @@ export default async function TestEnvironmentPage() {
         </p>
       </div>
 
-      {preflight.length > 0 && <StartRun preflight={preflight} />}
+      {preflight.length > 0 && <StartRun preflight={preflight} seeds={seeds} />}
 
       {runs.length === 0 ? (
         <Card>

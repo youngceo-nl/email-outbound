@@ -5,6 +5,7 @@ import { inngest } from "@/inngest/client";
 import { getSettings, resolveApifyTokens, resolveScrapingBeeKeys } from "@/lib/config/settings";
 import { buildAcquisitionPool } from "@/lib/instagram/cookie-pool";
 import { buildProfileAcquisitionEvents } from "@/lib/pipeline/canonical-events";
+import { scrapeFollowingDetailedWithFallback } from "@/lib/pipeline/scrape-following";
 import { usernameFromInstagramUrl } from "@/lib/evidence/instagram";
 import { createQualificationRun, createRunLead } from "@/lib/qualification/repository";
 import {
@@ -333,23 +334,7 @@ export async function startTestRun(input: {
     for (const row of inserted ?? []) byUsername.set(row.username as string, row.id as string);
   }
 
-  const run = await createQualificationRun({
-    run: {
-      label: input.label.trim() || null,
-      source: "inngest",
-      requested_count: usernames.length,
-      extractor_provider: "anthropic",
-      extractor_model: "claude-haiku-4-5",
-      challenger_provider: "anthropic",
-      challenger_model: "claude-opus-5",
-      acquisition_version: ACQUISITION_VERSION,
-      extraction_prompt_version: EXTRACTION_PROMPT_VERSION,
-      challenger_prompt_version: CHALLENGER_PROMPT_VERSION,
-      scorecard_version: SCORECARD_VERSION,
-      config_version: CONFIG_VERSION,
-      pipeline_version: PIPELINE_VERSION,
-    },
-  });
+  const run = await createRunFor(usernames.length, input.label);
 
   const leads = usernames
     .filter((u) => byUsername.has(u))
@@ -367,6 +352,129 @@ export async function startTestRun(input: {
   await inngest.send(buildProfileAcquisitionEvents(leads, null, run.id));
 
   return { ok: true, runId: run.id, queued: leads.length };
+}
+
+async function createRunFor(requested: number, label: string) {
+  return createQualificationRun({
+    run: {
+      label: label.trim() || null,
+      source: "inngest",
+      requested_count: requested,
+      extractor_provider: "anthropic",
+      extractor_model: "claude-haiku-4-5",
+      challenger_provider: "anthropic",
+      challenger_model: "claude-opus-5",
+      acquisition_version: ACQUISITION_VERSION,
+      extraction_prompt_version: EXTRACTION_PROMPT_VERSION,
+      challenger_prompt_version: CHALLENGER_PROMPT_VERSION,
+      scorecard_version: SCORECARD_VERSION,
+      config_version: CONFIG_VERSION,
+      pipeline_version: PIPELINE_VERSION,
+    },
+  });
+}
+
+export type SeedOption = { id: string; username: string; following_count: number | null };
+
+export async function listSeeds(): Promise<SeedOption[]> {
+  await requireUser();
+  const sb = createAdminClient();
+  const { data } = await sb
+    .from("seeds")
+    .select("id, username, following_count")
+    .order("created_at", { ascending: false });
+  return (data ?? []) as SeedOption[];
+}
+
+/**
+ * Sources fresh leads off a seed's following list, then starts a run over the
+ * first `limit` of them.
+ *
+ * Sourcing is deliberately part of the run rather than a separate step: "we
+ * scraped 400 and only 3 were new" is exactly the kind of thing that is
+ * invisible today, and it is reported back as `sourced`/`inserted` rather than
+ * folded into the queued count.
+ */
+export async function startSourcedTestRun(input: {
+  label: string;
+  seedUsername: string;
+  limit: number;
+}): Promise<StartRunResult & { sourced?: number; inserted?: number }> {
+  await requireUser();
+  const settings = await getSettings(true);
+  const apifyToken = resolveApifyTokens(settings);
+  if (apifyToken.length === 0) return { ok: false, error: "No Apify token configured." };
+
+  const limit = Math.max(1, Math.min(500, input.limit));
+
+  let discovered;
+  try {
+    const result = await scrapeFollowingDetailedWithFallback({
+      username: input.seedUsername.replace(/^@/, ""),
+      settings,
+      apifyToken,
+      limitOverride: limit * 3, // over-fetch: most of a following list is already known
+    });
+    discovered = result.items;
+  } catch (err) {
+    return { ok: false, error: `sourcing failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  if (discovered.length === 0) return { ok: false, error: "Sourcing returned no accounts." };
+
+  const sb = createAdminClient();
+  const usernames = [...new Set(discovered.map((d) => d.username.toLowerCase()))];
+
+  // Insert every discovery so the leads table keeps the full harvest, but only
+  // run the requested slice — a 400-account seed must not silently become a
+  // 400-lead Steel run at 27s each.
+  const { data: existing } = await sb.from("leads").select("username").in("username", usernames.slice(0, 1000));
+  const known = new Set((existing ?? []).map((l) => (l.username as string).toLowerCase()));
+  const fresh = usernames.filter((u) => !known.has(u));
+
+  if (fresh.length > 0) {
+    await sb.from("leads").upsert(
+      fresh.map((username) => ({
+        username,
+        profile_url: `https://www.instagram.com/${username}/`,
+        lead_source: `test_environment:${input.seedUsername}`,
+        status: "pending" as const,
+      })),
+      { onConflict: "username", ignoreDuplicates: true },
+    );
+  }
+
+  // Prefer never-qualified leads: re-running an already-scored profile tells us
+  // nothing about the pipeline.
+  const { data: candidates } = await sb
+    .from("leads")
+    .select("id, username")
+    .in("username", usernames.slice(0, 1000))
+    .is("qualification_state", null)
+    .limit(limit);
+
+  const chosen = (candidates ?? []) as { id: string; username: string }[];
+  if (chosen.length === 0) {
+    return { ok: false, error: `Sourced ${usernames.length} accounts but none were unqualified.` };
+  }
+
+  const run = await createRunFor(chosen.length, input.label);
+  for (const lead of chosen) {
+    await createRunLead({
+      runId: run.id,
+      username: lead.username,
+      status: "queued",
+      fields: { lead_id: lead.id, stage: "queued", stage_entered_at: new Date().toISOString() },
+    }).catch(() => {});
+  }
+  await inngest.send(buildProfileAcquisitionEvents(chosen, null, run.id));
+
+  return {
+    ok: true,
+    runId: run.id,
+    queued: chosen.length,
+    sourced: usernames.length,
+    inserted: fresh.length,
+  };
 }
 
 export async function getRunSlots(runId: string): Promise<Slot[]> {

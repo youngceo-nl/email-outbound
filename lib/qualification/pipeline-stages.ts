@@ -789,6 +789,13 @@ export function runHealth(run: {
 
 /** Ordered; a lead's `stage` column holds one of these keys. */
 export const SLOTS = [
+  /*
+   * Sourcing happens before a lead row exists, so it can never hold a lead the
+   * way later slots do — it is here because a run that begins "get me fresh
+   * leads" dies here first, and that failure is otherwise invisible: the run
+   * simply never appears. computeSlots reports it from the run's own counters.
+   */
+  { key: "sourcing", label: "Sourcing", note: "Apify · seed following list" },
   { key: "queued", label: "Queued", note: "Enqueued, waiting for a worker" },
   { key: "acquiring", label: "Acquisition", note: "Steel browser · concurrency 1, global" },
   { key: "profile_persisted", label: "Profile saved", note: "Bio, followers, recent posts" },
