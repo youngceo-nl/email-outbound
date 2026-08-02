@@ -47,6 +47,8 @@ export function classifyAcquisitionStatus(input: {
 export async function acquireInstagramEvidence(input: {
   username: string;
   identity: AcquisitionPoolEntry;
+  /** Sourced from app_settings by the caller; falls back to STEEL_API_KEY. */
+  steelApiKey?: string | null;
 }): Promise<AcquisitionResult> {
   const identity = validateAcquisitionIdentity(input.identity);
   const report = await runPlaywrightInstagramComplete({
@@ -55,6 +57,7 @@ export async function acquireInstagramEvidence(input: {
     proxyUrl: identity.proxyUrl,
     steelProfileId: identity.steelProfileId,
     sessionCookie: identity.cookie,
+    steelApiKey: input.steelApiKey ?? null,
     writeArtifacts: false,
   });
 

@@ -343,6 +343,7 @@ export type CompleteAcquisitionOptions = {
   proxyUrl?: string | null;
   steelProfileId?: string | null;
   sessionCookie?: string | null;
+  steelApiKey?: string | null;
   writeArtifacts?: boolean;
 };
 
@@ -412,6 +413,7 @@ export async function runPlaywrightInstagramComplete(
     proxyUrl,
     profileId: steelProfileId,
     sessionCookie: options.sessionCookie,
+    steelApiKey: options.steelApiKey ?? null,
   });
   const context = session.context;
   report.steel_session_id = session.sessionId;

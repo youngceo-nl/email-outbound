@@ -122,6 +122,7 @@ export type AppSettings = {
   openai_api_key: string | null;
   /** YouTube Data API v3 — report collection. Migration 20260727020000_youtube_key.sql. */
   youtube_api_key: string | null;
+  steel_api_key: string | null;
   openai_model: string;
   /** Report generation only — see migration 20260727000000_report_model.sql. */
   report_model: string;

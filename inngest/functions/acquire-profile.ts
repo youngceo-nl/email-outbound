@@ -58,7 +58,11 @@ export const acquireProfile = inngest.createFunction(
     );
 
     const acquisition = await step.run("acquire-profile", () =>
-      acquireInstagramEvidence({ username, identity }),
+      acquireInstagramEvidence({
+        username,
+        identity,
+        steelApiKey: settings.steel_api_key ?? process.env.STEEL_API_KEY ?? null,
+      }),
     );
 
     if (acquisition.status !== "captured") {

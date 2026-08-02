@@ -42,6 +42,12 @@ export type BackendOptions = {
   proxyUrl?: string | null;
   /** Steel's own rotating pool. Appropriate for logged-out work only. */
   useRotatingProxy?: boolean;
+  /*
+   * Steel credential. Passed in so the production pipeline can source it from
+   * app_settings (shared across the team) rather than from a per-laptop env var.
+   * Falls back to STEEL_API_KEY for the CLI harness, which has no settings row.
+   */
+  steelApiKey?: string | null;
   /** Persistent Steel profile id — one per Instagram account in production. */
   profileId?: string | null;
   /** Exact cookie header paired with this profile. Never logged. */
@@ -79,8 +85,12 @@ async function openLocalSession(options: BackendOptions): Promise<BrowserSession
 }
 
 async function openSteelSession(options: BackendOptions): Promise<BrowserSession> {
-  const apiKey = process.env.STEEL_API_KEY;
-  if (!apiKey) throw new Error("STEEL_API_KEY is required for the steel backend");
+  const apiKey = options.steelApiKey?.trim() || process.env.STEEL_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "A Steel API key is required: set app_settings.steel_api_key or STEEL_API_KEY",
+    );
+  }
 
   const client = new Steel({ steelAPIKey: apiKey });
 
