@@ -105,12 +105,11 @@ function mapApifyItemToRawUser(it: Record<string, unknown>): RawInstagramUser | 
       taken_at_timestamp: str(p.timestamp)
         ? Math.floor(new Date(p.timestamp as string).getTime() / 1000)
         : undefined,
-      // ⚠️ isPinned mapping is UNVERIFIED against a real dataset item — confirm
-      // the profile actor actually reports this field before trusting
-      // pinned_posts_capture_status="captured" for Apify-sourced evidence.
-      // The key is always present (empty array when not pinned) so
-      // normalizeInstagramEvidence's pinnedMarkerSeen check treats this
-      // provider as reporting pinning at all, not silently omitting it.
+      // Verified against a live dataset item (@garyvee, 2026-08-02): the actor
+      // reports isPinned on every latestPosts entry, 3 of 12 true. The key is
+      // always present (empty array when not pinned) so normalizeInstagramEvidence's
+      // pinnedMarkerSeen check treats this provider as reporting pinning at all,
+      // rather than silently omitting it.
       pinned_for_users: Boolean(p.isPinned ?? p.is_pinned) ? ["apify"] : [],
     },
   }));
