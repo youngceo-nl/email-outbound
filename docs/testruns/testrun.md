@@ -85,37 +85,61 @@ errors at better than a coin flip. Fix the cheap one first.
 
 ---
 
-## What to do
+## What to do — Claude
 
-### [ ] 1. Build the pre-filter — Claude
+### [ ] 1. Build the pre-filter
 Check each profile cheaply (Apify, ~10s, batch) before Steel runs. No bio link →
 skip it. Don't spend 28 seconds on a lead that cannot qualify.
 
 **1000 leads: 8 hours → 5 hours, $69 → $45.** No downside, no added risk.
 
-### [ ] 2. Fix the Instagram accounts
-16 accounts exist. **Only 3 work.** The other 13 are missing `proxy_url` and
+### [ ] 2. Run 100 leads — after the pre-filter lands
+A 100-lead run costs about what today's 20-lead run did. **20 leads from a single
+seed is not enough to tune thresholds against.** Claude can start and watch this
+one the same way as today's runs.
+
+### [ ] 3. Fix the AI reliability — later, but it's the big one
+Behind all three problems: low confidence, the review pile, and the expensive
+model firing so often. Needs the 100-lead data first.
+
+### [ ] 4. Create the Steel profile IDs — only if proxies are supplied
+If the proxies from the human list below arrive, Claude can likely create the
+matching `steel_profile_id` values through the Steel API and write them into
+`app_settings`. Unverified — needs checking before it is promised.
+
+---
+
+## What to do — human
+
+These need an account, a card, or a dashboard login. Claude cannot do them.
+
+### [ ] 1. Buy/assign proxies for the 13 dead Instagram accounts
+16 accounts exist, **only 3 work.** The rest are missing `proxy_url` and
 `steel_profile_id`.
 
-This is the real ceiling. Everything runs one-at-a-time to avoid getting cookies
-banned; more working accounts is the only safe way to go faster.
+This is the real ceiling on speed. Everything runs one-at-a-time to avoid getting
+cookies banned; more working accounts is the only safe way to go faster.
 
 - Group A (5 accounts) — all missing proxy + steel profile
 - Group B (5 accounts) — all missing proxy + steel profile
 - Group C (6 accounts) — 3 working, 3 paused/incomplete ← currently active
 
-### [ ] 3. Check the Steel balance
+One pinned proxy per account, kept stable. Rotating proxies on a logged-in
+session is what gets accounts challenged.
+
+### [ ] 2. Check the Steel balance
 Steel's API has no usage endpoint (`/v1/account` and `/v1/usage` both return
 421), so this has to be read off the Steel dashboard. 1000 leads is roughly 8
 hours of browser time, which is not trivial on most plans.
 
-### [ ] 4. Run 100 leads — after step 1 lands
-A 100-lead run costs about what today's 20-lead run did. **20 leads from a single
-seed is not enough to tune thresholds against.** Get real numbers first.
+### [ ] 3. Top up Apify — only if sourcing at volume
+Token #1 is over its monthly limit (-$0.04); token #2 has $4.48. Fine for tests.
+Sourcing itself is nearly free, so this is not urgent.
 
-### [ ] 5. Fix the AI reliability — later, but it's the big one
-Behind all three problems: low confidence, the review pile, and the expensive
-model firing so often. Do it after the pre-filter, with 100-lead data in hand.
+### [ ] 4. Decide on the review pile
+13 of 20 leads land in manual review. That is a product decision, not a bug:
+either accept the volume, loosen the qualify threshold, or wait for the AI
+reliability work. Claude should not pick this.
 
 ---
 
