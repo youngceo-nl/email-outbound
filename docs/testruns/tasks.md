@@ -10,24 +10,20 @@ smarter. The human track raises the speed ceiling.
 
 ## Now — blocking the 100-lead run
 
-### [ ] H5 · Decide: top up Steel Cloud, or self-host — human
-**Blocks C3.** Steel was at $28/$30 as of H1 (2026-08-02) and cannot be
-re-checked from code — the API exposes no balance endpoint, only per-session
-credit usage, which is not the same thing. Confirm the real number before C3
-starts; a 100-lead run is ~45 minutes of browser time and a mid-run credit
-exhaustion produces a partial, hard-to-interpret result.
+### [x] H5 · New Steel account + new Oxylabs password — 2026-08-03
+**Both verified end to end.** A fresh Steel key and a rotated Oxylabs password
+were provided; both are now live in `app_settings` and confirmed working —
+`@garyvee` captured in 27.4s through the new key and new proxy password, no
+challenge, all 5 Story Highlight titles, 5/5 identities usable.
 
-1. **Top up Steel Cloud** — instant, keeps everything working as-is, ongoing cost
-2. **Self-host** (Apache 2.0, Docker image) — Steel becomes free, but you run the
-   browser infrastructure and pay for the server. Proxies still cost either way.
+**One thing still unconfirmed: the new Steel account's balance.** Same
+limitation as before — the API has no balance endpoint, only per-session
+credit usage, and auth succeeding says nothing about how much credit is behind
+it. Worth a quick look at the Steel dashboard before committing to a 100-lead
+run (~45 min of browser time); a mid-run exhaustion produces a partial,
+hard-to-interpret result.
 
-Claude can do the wiring for option 2 (it is a `baseURL` change plus deployment);
-the call on whether to run that infrastructure is yours.
-
-**Done when:** a decision is written here and the balance is confirmed to cover
-a 100-lead run.
-
-### [ ] C3 · Run 100 leads — Claude, needs H5
+### [ ] C3 · Run 100 leads — Claude, needs H5 balance confirmed
 Costs about what the 20-lead run did. **20 leads from one seed is not enough to
 tune anything against** — this run produces the numbers the remaining decisions
 depend on.
