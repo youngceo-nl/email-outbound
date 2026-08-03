@@ -26,7 +26,8 @@ export type AcquisitionPoolEntry = {
   cookie: string;
   proxyUrl: string;
   accountUsername: string;
-  steelProfileId: string;
+  /** Optional: Steel creates a fresh context when absent. */
+  steelProfileId: string | null;
 };
 
 export function buildAcquisitionPool(settings: AppSettings): AcquisitionPoolEntry[] {
@@ -42,10 +43,17 @@ export function buildAcquisitionPool(settings: AppSettings): AcquisitionPoolEntr
     const proxyUrl = account.proxy_url?.trim();
     const accountUsername = account.label?.trim();
     const steelProfileId = account.steel_profile_id?.trim();
-    if (!cookie || !proxyUrl || !accountUsername || !steelProfileId || seen.has(cookie)) continue;
+    /*
+     * steelProfileId is optional. A Steel profile is a stored browser archive
+     * scoped to one Steel organisation — swapping the Steel account 404s every
+     * existing id. Sessions do not need one: cookies are injected at
+     * session-create time (browser-backend.ts), verified working on 2026-08-03.
+     * Requiring it disqualified 13 of 16 accounts for no benefit.
+     */
+    if (!cookie || !proxyUrl || !accountUsername || seen.has(cookie)) continue;
 
     seen.add(cookie);
-    pool.push({ cookie, proxyUrl, accountUsername, steelProfileId });
+    pool.push({ cookie, proxyUrl, accountUsername, steelProfileId: steelProfileId || null });
   }
 
   return pool;

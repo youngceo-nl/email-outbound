@@ -443,6 +443,40 @@ export async function createRunLead(opts: {
  * Keyed on the unique (run_id, username) index. Never throws: losing a progress
  * marker must not fail the pipeline step that was actually doing the work.
  */
+/**
+ * Advances many leads of one run to the same slot in a single statement.
+ *
+ * The pre-filter drops a third of a run at once, and doing that one round-trip
+ * at a time would add minutes to a 500-lead run for nothing. Chunked so a few
+ * hundred usernames cannot push the PostgREST URL past its length limit.
+ */
+export async function advanceRunLeads(opts: {
+  runId: string | null | undefined;
+  usernames: readonly string[];
+  stage: string;
+  patch?: Record<string, unknown>;
+  supabase?: SupabaseClient;
+}): Promise<void> {
+  if (!opts.runId || opts.usernames.length === 0) return;
+  const sb = client(opts.supabase);
+  const names = opts.usernames.map((u) => u.toLowerCase());
+
+  for (let i = 0; i < names.length; i += 100) {
+    const { error } = await sb
+      .from("qualification_run_leads")
+      .update({
+        stage: opts.stage,
+        stage_entered_at: new Date().toISOString(),
+        ...opts.patch,
+      })
+      .eq("run_id", opts.runId)
+      .in("username", names.slice(i, i + 100));
+    if (error) {
+      console.warn(`advanceRunLeads(→ ${opts.stage}) failed: ${error.message}`);
+    }
+  }
+}
+
 export async function advanceRunLead(opts: {
   runId: string | null | undefined;
   username: string;

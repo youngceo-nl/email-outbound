@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { inngest } from "@/inngest/client";
 import { getSettings, resolveApifyTokens, resolveScrapingBeeKeys } from "@/lib/config/settings";
 import { buildAcquisitionPool } from "@/lib/instagram/cookie-pool";
-import { buildProfileAcquisitionEvents } from "@/lib/pipeline/canonical-events";
 import { scrapeFollowingDetailedWithFallback } from "@/lib/pipeline/scrape-following";
 import { usernameFromInstagramUrl } from "@/lib/evidence/instagram";
 import { createQualificationRun, createRunLead } from "@/lib/qualification/repository";
@@ -172,6 +171,7 @@ export async function getQualificationRun(id: string): Promise<QualificationRunR
 export type RunLeadFilter =
   | "all"
   | "failed"
+  | "skipped"
   | "qualified"
   | "review"
   | "rejected"
@@ -197,9 +197,15 @@ export async function listRunLeads(
     .limit(limit);
 
   if (filter === "failed") {
-    // Anything the system got wrong: a thrown acquisition, a failed extraction,
-    // or a persistence error. Deliberate rejects are not failures.
-    query = query.or("status.neq.ok,extraction_ok.is.false");
+    /*
+     * Anything the system got wrong: a thrown acquisition, a failed extraction,
+     * or a persistence error. Deliberate rejects are not failures — and neither
+     * are pre-filter skips or leads still in flight, all three of which the old
+     * `status.neq.ok` matched.
+     */
+    query = query.or("status.in.(acquisition_failed,persist_failed),extraction_ok.is.false");
+  } else if (filter === "skipped") {
+    query = query.eq("status", "skipped");
   } else if (filter !== "all") {
     query = query.eq("decision", filter);
   }
@@ -358,8 +364,9 @@ export type StartRunResult = { ok: true; runId: string; queued: number } | { ok:
 
 /**
  * Creates the run, writes a queued row per username BEFORE emitting anything,
- * then fans out acquisition events. Writing the rows first is what makes
- * "enqueued but never picked up" visible — the state that is invisible today.
+ * then hands the whole list to the pre-filter, which fans out to acquisition.
+ * Writing the rows first is what makes "enqueued but never picked up" visible —
+ * the state that is invisible today.
  */
 export async function startTestRun(input: {
   label: string;
@@ -417,7 +424,10 @@ export async function startTestRun(input: {
     }).catch(() => {});
   }
 
-  await inngest.send(buildProfileAcquisitionEvents(leads, null, run.id));
+  await inngest.send({
+    name: "run/prefilter.requested",
+    data: { run_id: run.id, leads },
+  });
 
   return { ok: true, runId: run.id, queued: leads.length };
 }
@@ -534,7 +544,10 @@ export async function startSourcedTestRun(input: {
       fields: { lead_id: lead.id, stage: "queued", stage_entered_at: new Date().toISOString() },
     }).catch(() => {});
   }
-  await inngest.send(buildProfileAcquisitionEvents(chosen, null, run.id));
+  await inngest.send({
+    name: "run/prefilter.requested",
+    data: { run_id: run.id, leads: chosen.map((l) => ({ id: l.id, username: l.username })) },
+  });
 
   return {
     ok: true,

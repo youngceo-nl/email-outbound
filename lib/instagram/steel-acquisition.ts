@@ -23,8 +23,7 @@ export function validateAcquisitionIdentity(
   if (
     !identity.cookie.trim() ||
     !identity.proxyUrl.trim() ||
-    !identity.accountUsername.trim() ||
-    !identity.steelProfileId.trim()
+    !identity.accountUsername.trim()
   ) {
     throw new Error("A complete acquisition identity is required");
   }

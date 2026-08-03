@@ -14,6 +14,7 @@ import { autoSendFollowups } from "@/inngest/functions/auto-send-followups";
 import { syncInboxScheduled } from "@/inngest/functions/sync-inbox-scheduled";
 import { shadowQualify } from "@/inngest/functions/shadow-qualify";
 import { acquireProfile } from "@/inngest/functions/acquire-profile";
+import { prefilterRun } from "@/inngest/functions/prefilter-run";
 import { qualifyLead } from "@/inngest/functions/qualify-lead";
 
 // dailyScrape is intentionally NOT registered here, permanently. Accounts are
@@ -45,6 +46,7 @@ export const { GET, POST, PUT } = serve({
     // decided; writes nothing to public.leads. Inert until
     // shadow_qualification_enabled is turned on.
     shadowQualify,
+    prefilterRun,
     acquireProfile,
     qualifyLead,
   ],

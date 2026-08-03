@@ -150,6 +150,31 @@ function acquisitionStage(runLead: RunLeadRecord, snapshot: EvidenceSnapshot | n
     };
   }
 
+  /*
+   * The pre-filter drops a lead before Steel is ever asked, so there is no
+   * snapshot to show. Without this branch it falls through to "no evidence
+   * snapshot was stored", which reads like data loss rather than a deliberate
+   * saving of a browser session.
+   */
+  if (runLead.status === "skipped") {
+    return {
+      key: "acquisition",
+      title: "1. Instagram acquisition",
+      state: "blocked",
+      headline: "Skipped before acquisition — Apify saw no bio link",
+      recorded: true,
+      rows: [
+        { label: "Served by", value: "Apify (pre-filter)" },
+        { label: "Bio link", value: "absent" },
+        {
+          label: "Why",
+          value: "No link means no landing page to crawl and no funnel to score.",
+          tone: "muted",
+        },
+      ],
+    };
+  }
+
   if (!ig) {
     return {
       key: "acquisition",
@@ -797,6 +822,11 @@ export const SLOTS = [
    */
   { key: "sourcing", label: "Sourcing", note: "Apify · seed following list" },
   { key: "queued", label: "Queued", note: "Enqueued, waiting for a worker" },
+  /*
+   * Only ever holds the leads it drops. A survivor moves straight on to
+   * acquisition, so a non-zero count here is always "skipped", never "waiting".
+   */
+  { key: "prefilter", label: "Pre-filter", note: "Apify · bio link required" },
   { key: "acquiring", label: "Acquisition", note: "Steel browser · concurrency 1, global" },
   { key: "profile_persisted", label: "Profile saved", note: "Bio, followers, recent posts" },
   { key: "external_evidence", label: "External evidence", note: "Bio link · 6 pages, 3 hops max" },
@@ -877,6 +907,12 @@ export function computeSlots(leads: readonly SlotLeadRecord[], now = Date.now())
         failed += 1;
         continue;
       }
+      // A pre-filter drop is the pipeline working, not breaking — same reason
+      // hard_excluded is counted here rather than under `failed`.
+      if (lead.status === "skipped") {
+        blocked += 1;
+        continue;
+      }
       if (lead.mode === "hard_excluded") {
         blocked += 1;
         continue;
@@ -904,7 +940,7 @@ export function computeSlots(leads: readonly SlotLeadRecord[], now = Date.now())
 
 /**
  * The slot the run is most likely jammed at: most stuck leads, falling back to
- * the biggest drop between consecutive slots.
+ * leads that dropped out of a slot without any explanation.
  */
 export function findJam(slots: readonly Slot[]): { slot: Slot; reason: string } | null {
   const mostStuck = [...slots].sort((a, b) => b.stuck - a.stuck)[0];
@@ -915,15 +951,31 @@ export function findJam(slots: readonly Slot[]): { slot: Slot; reason: string } 
     };
   }
 
+  /*
+   * The fallback used to compare raw `entered` counts, which meant every drop
+   * looked like a jam — including the ones that are the pipeline working. A
+   * lead sitting at a slot is one of exactly three things, and only the fourth
+   * is a problem:
+   *
+   *   failed  — it broke, and the slot already shows that in red
+   *   blocked — we dropped it on purpose (a pre-filter skip, a hard exclusion)
+   *   active  — it is being worked on; the stuck check above owns that case
+   *   none of the above — genuinely unaccounted for, and worth a banner
+   *
+   * Before the pre-filter landed this fired on any run that was simply still
+   * going ("14 lead(s) did not reach Acquisition" thirty seconds after the
+   * start button), and seven deliberate skips would have made it permanent.
+   */
   let worst: { slot: Slot; lost: number } | null = null;
   for (let i = 1; i < slots.length; i++) {
-    const lost = slots[i - 1].entered - slots[i].entered;
+    const prev = slots[i - 1];
+    const lost = prev.entered - slots[i].entered - prev.failed - prev.blocked - prev.active;
     if (lost > 0 && (!worst || lost > worst.lost)) worst = { slot: slots[i], lost };
   }
   if (worst && worst.lost > 0) {
     return {
       slot: worst.slot,
-      reason: `${worst.lost} lead(s) did not reach ${worst.slot.label}`,
+      reason: `${worst.lost} lead(s) vanished before ${worst.slot.label}`,
     };
   }
   return null;
@@ -946,6 +998,8 @@ export type RunTotals = {
   rejected: number;
   dataRetry: number;
   failed: number;
+  /** Dropped by the bio-link pre-filter before Steel ever opened a session. */
+  skipped: number;
   challengerRan: number;
   extractionInputTokens: number;
   extractionOutputTokens: number;
@@ -979,22 +1033,26 @@ export function deriveRunTotals(leads: readonly RunTotalsLead[], requested?: num
   const count = (pred: (l: RunTotalsLead) => boolean) => leads.filter(pred).length;
 
   // A lead that threw and one whose extraction silently returned nothing are
-  // both defects; a deliberate reject is not.
+  // both defects; a deliberate reject is not, and neither is a pre-filter skip.
+  const isSkipped = (l: RunTotalsLead) => l.status === "skipped";
   const isFailed = (l: RunTotalsLead) =>
-    (l.status !== "ok" && l.status !== "queued" && l.status !== "running") || l.extraction_ok === false;
+    (l.status !== "ok" && l.status !== "queued" && l.status !== "running" && !isSkipped(l)) ||
+    l.extraction_ok === false;
   const failed = count(isFailed);
 
   const durations = leads.map((l) => l.total_ms).filter((n): n is number => typeof n === "number" && n > 0).sort((a, b) => a - b);
 
   return {
-    // Terminal either way: it produced a decision, or it died trying.
-    processed: count((l) => !!l.decision || isFailed(l)),
+    // Terminal either way: it produced a decision, died trying, or was dropped
+    // before it could start.
+    processed: count((l) => !!l.decision || isFailed(l) || isSkipped(l)),
     requested: requested ?? leads.length,
     qualified: count((l) => l.decision === "qualified"),
     review: count((l) => l.decision === "review"),
     rejected: count((l) => l.decision === "rejected"),
     dataRetry: count((l) => l.decision === "data_retry"),
     failed,
+    skipped: count(isSkipped),
     challengerRan: count((l) => !!l.challenger_ran),
     extractionInputTokens: sum((l) => l.extraction_input_tokens),
     extractionOutputTokens: sum((l) => l.extraction_output_tokens),

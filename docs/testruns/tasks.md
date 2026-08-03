@@ -23,7 +23,7 @@ Steel itself free; the cost moves to whatever server it runs on.
 
 Two ways forward — see H5.
 
-### [ ] C1 · Build the pre-filter — Claude
+### [x] C1 · Build the pre-filter — Claude
 **Why first:** biggest win available, no risk, nothing depends on it.
 
 Before Steel opens a profile, fetch it cheaply through Apify (~10s, batched).
@@ -41,6 +41,7 @@ how many were dropped and why, and tests cover the skip decision.
 ## Next
 
 ### [ ] H2 · Get proxies for the dead Instagram accounts — human
+-
 **Why it matters:** this is the real speed ceiling. Everything runs one lead at
 a time to stop cookies getting banned. More working accounts is the only safe
 way to go faster.

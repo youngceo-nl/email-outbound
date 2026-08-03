@@ -17,10 +17,19 @@ import { cn, scoreColor } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const FILTERS: RunLeadFilter[] = ["all", "failed", "qualified", "review", "rejected", "data_retry"];
+const FILTERS: RunLeadFilter[] = [
+  "all",
+  "failed",
+  "skipped",
+  "qualified",
+  "review",
+  "rejected",
+  "data_retry",
+];
 const FILTER_LABEL: Record<RunLeadFilter, string> = {
   all: "All",
   failed: "Failed",
+  skipped: "Skipped",
   qualified: "Qualified",
   review: "Review",
   rejected: "Rejected",
@@ -92,6 +101,11 @@ export default async function RunDetailPage({
           <Stat label="Rejected" value={String(run.rejected_count)} />
           <Stat label="Failed" value={String(failures)} tone={failures > 0 ? "bad" : undefined} />
           <Stat
+            label="Skipped"
+            value={String(run.totals.skipped)}
+            sub="no bio link — never reached Steel"
+          />
+          <Stat
             label="Extraction tokens"
             value={`${run.extraction_input_tokens.toLocaleString()} in / ${run.extraction_output_tokens.toLocaleString()} out`}
             sub={run.extractor_model ?? undefined}
@@ -159,8 +173,11 @@ export default async function RunDetailPage({
           ) : (
             <ul className="divide-y">
               {leads.map((lead) => {
+                // A pre-filter skip is a correct drop, so it must not render red
+                // alongside the acquisitions that genuinely threw.
+                const dropped = lead.status === "skipped";
                 const broke =
-                  lead.status !== "ok" || lead.extraction_ok === false;
+                  !dropped && (lead.status !== "ok" || lead.extraction_ok === false);
                 return (
                   <li key={lead.id}>
                     <Link
@@ -176,7 +193,11 @@ export default async function RunDetailPage({
                         {lead.commercial_fit ?? "–"}
                       </span>
                       <span className="font-medium truncate min-w-0 flex-1">@{lead.username}</span>
-                      {broke ? (
+                      {dropped ? (
+                        <Badge variant="secondary" className="text-[10px] shrink-0">
+                          skipped · no bio link
+                        </Badge>
+                      ) : broke ? (
                         <Badge variant="destructive" className="text-[10px] shrink-0">
                           {lead.status !== "ok" ? lead.status : lead.extraction_failure_reason ?? "failed"}
                         </Badge>

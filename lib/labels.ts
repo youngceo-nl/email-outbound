@@ -8,6 +8,7 @@ const ACTION_LABELS: Record<string, string> = {
   scraped: "Profile loaded",
   filtered_hard: "Skipped — didn't fit",
   filtered_metrics: "Skipped — low activity",
+  prefilter_skipped: "Skipped — no bio link",
   scored: "Analyzed & scored",
   qualified: "Qualified",
   rejected: "Not a fit",

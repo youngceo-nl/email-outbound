@@ -155,6 +155,25 @@ export async function logCrawl(opts: {
   });
 }
 
+/** Same row shape as logCrawl, one insert. For steps that log a whole batch. */
+export async function logCrawlBatch(
+  entries: ReadonlyArray<Parameters<typeof logCrawl>[0]>,
+): Promise<void> {
+  if (entries.length === 0) return;
+  const sb = createAdminClient();
+  await sb.from("crawl_logs").insert(
+    entries.map((e) => ({
+      crawl_job_id: e.crawl_job_id,
+      profile_username: e.profile_username,
+      parent_username: e.parent_username,
+      action: e.action,
+      depth: e.depth,
+      status: e.status ?? "success",
+      detail: e.detail ?? null,
+    })),
+  );
+}
+
 export async function logError(opts: {
   context: string;
   error_message: string;

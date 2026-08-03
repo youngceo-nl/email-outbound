@@ -369,6 +369,110 @@ test("a finished lead is never reported as stuck in the terminal slot", () => {
   assert.equal(findJam(slots), null, "a fully completed run has no jam");
 });
 
+test("a pre-filtered lead's trace names the skip instead of implying lost evidence", () => {
+  const stages = deriveStages({
+    runLead: runLead({ status: "skipped", acquisition_source: null, extraction_ok: null }),
+    snapshot: null,
+    extraction: null,
+    decision: null,
+  });
+
+  const acquisition = stageBy(stages, "acquisition");
+  assert.equal(acquisition.state, "blocked", "a deliberate drop is not a defect");
+  assert.match(acquisition.headline, /no bio link/i);
+  assert.equal(acquisition.recorded, true, "we know exactly why this stopped");
+  assert.equal(
+    stageBy(stages, "extraction").headline,
+    "Not reached",
+    "nothing downstream of the skip ran",
+  );
+});
+
+test("a pre-filtered lead is blocked at the pre-filter slot, never failed", () => {
+  // Colouring a correct drop red is the fastest way to teach people to ignore
+  // red — the same reason hard_excluded is counted as blocked.
+  const now = new Date().toISOString();
+  const slots = computeSlots([
+    { stage: "prefilter", status: "skipped", stage_entered_at: now, extraction_ok: null, decision: null, mode: null },
+    { stage: "done", status: "ok", stage_entered_at: now, extraction_ok: true, decision: "qualified", mode: "auto_approved" },
+  ]);
+
+  const prefilter = slots.find((s) => s.key === "prefilter")!;
+  assert.equal(prefilter.blocked, 1);
+  assert.equal(prefilter.failed, 0, "a skip is the pipeline working, not breaking");
+  assert.equal(prefilter.active, 0, "a skipped lead is not still being worked on");
+  assert.equal(prefilter.entered, 2, "the survivor passed through here too");
+});
+
+test("a skipped lead sitting at the pre-filter never reads as stuck", () => {
+  // It parks there permanently, so elapsed time means "dropped a while ago".
+  const longAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const slots = computeSlots([
+    { stage: "prefilter", status: "skipped", stage_entered_at: longAgo, extraction_ok: null, decision: null, mode: null },
+  ]);
+  assert.equal(slots.find((s) => s.key === "prefilter")!.stuck, 0);
+});
+
+test("deliberate pre-filter drops do not raise a jam", () => {
+  /*
+   * Regression guard for the fix that shipped with the pre-filter: findJam's
+   * drop-detection fallback compared raw `entered` counts, so seven skipped
+   * leads read as "7 lead(s) did not reach Acquisition" on a perfectly healthy
+   * run — a false alarm on every run the filter did its job.
+   */
+  const now = new Date().toISOString();
+  const skipped: SlotLeadRecord = {
+    stage: "prefilter", status: "skipped", stage_entered_at: now,
+    extraction_ok: null, decision: null, mode: null,
+  };
+  const finished: SlotLeadRecord = {
+    stage: "done", status: "ok", stage_entered_at: now, extraction_ok: true,
+    decision: "qualified", mode: "auto_approved",
+  };
+
+  const slots = computeSlots([skipped, skipped, skipped, finished, finished]);
+  assert.equal(findJam(slots), null, "skipping is not jamming");
+});
+
+test("a run that is merely still going is not reported as jammed", () => {
+  /*
+   * The other half of the same fix. A lead in flight has not "failed to reach"
+   * the next slot, it just has not got there yet — but the fallback compared
+   * raw entered counts, so a run reported itself jammed seconds after starting.
+   * An acquisition failure is already red on its own slot and is not a mystery
+   * either.
+   */
+  const now = new Date().toISOString();
+  const slots = computeSlots([
+    { stage: "prefilter", status: "skipped", stage_entered_at: now, extraction_ok: null, decision: null, mode: null },
+    { stage: "acquiring", status: "acquisition_failed", stage_entered_at: now, extraction_ok: null, decision: null, mode: null },
+    { stage: "extracting", status: "running", stage_entered_at: now, extraction_ok: null, decision: null, mode: null },
+  ]);
+
+  assert.equal(slots.find((s) => s.key === "acquiring")!.failed, 1, "the failure is still visible");
+  assert.equal(findJam(slots), null, "visible and explained is not jammed");
+});
+
+test("run totals report pre-filter skips separately from failures", () => {
+  const lead = (over: Partial<RunTotalsLead>): RunTotalsLead => ({
+    stage: "done", status: "ok", decision: "review", extraction_ok: true, challenger_ran: false,
+    extraction_model: "claude-haiku-4-5", challenger_model: null,
+    extraction_input_tokens: 1000, extraction_output_tokens: 100,
+    challenger_input_tokens: 0, challenger_output_tokens: 0, total_ms: 30000, ...over,
+  });
+  const dropped = lead({
+    stage: "prefilter", status: "skipped", decision: null, extraction_ok: null,
+    extraction_model: null, extraction_input_tokens: 0, extraction_output_tokens: 0, total_ms: null,
+  });
+
+  const totals = deriveRunTotals([lead({ decision: "qualified" }), dropped, dropped], 3);
+
+  assert.equal(totals.skipped, 2);
+  assert.equal(totals.failed, 0, "a skip counted as a failure would read every run as broken");
+  assert.equal(totals.processed, 3, "a skipped lead is terminal — the run is done with it");
+  assert.equal(totals.complete, true, "nothing is queued or running");
+});
+
 test("a lead genuinely parked mid-pipeline is still reported as stuck", () => {
   const longAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const parked: SlotLeadRecord = {

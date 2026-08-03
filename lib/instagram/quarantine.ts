@@ -8,7 +8,7 @@ export type QuarantineIncident = {
   accountUsername: string;
   leadUsername: string;
   proxyUrl: string;
-  steelProfileId: string;
+  steelProfileId: string | null;
   sessionId: string | null;
   challenge: string;
   crawlJobId?: string | null;
@@ -65,7 +65,7 @@ export async function quarantineAccount(incident: QuarantineIncident): Promise<v
         `Account: @${incident.accountUsername}`,
         `Lead: @${incident.leadUsername}`,
         `Proxy: ${safePayload.proxy}`,
-        `Steel profile: ${incident.steelProfileId}`,
+        `Steel profile: ${incident.steelProfileId ?? "none"}`,
         `Steel session: ${incident.sessionId ?? "unknown"}`,
         `Challenge: ${incident.challenge}`,
         "The account is paused. Do not retry it through another proxy.",

@@ -33,6 +33,17 @@ type Events = {
       crawl_job_id?: string | null;
     };
   };
+  /*
+   * Batched bio-link pre-filter, between starting a run and fanning out to
+   * Steel. Carries the whole lead list rather than one event per lead: the
+   * saving comes from asking Apify about fifty profiles at once.
+   */
+  "run/prefilter.requested": {
+    data: {
+      run_id: string;
+      leads: Array<{ id: string; username: string }>;
+    };
+  };
   "lead/profile-acquisition.requested": {
     data: {
       lead_id: string;

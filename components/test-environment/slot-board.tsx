@@ -87,7 +87,13 @@ export function SlotBoard({
                   <div className="text-destructive font-medium">{slot.stuck} stuck</div>
                 )}
                 {slot.failed > 0 && <div className="text-destructive">{slot.failed} failed</div>}
-                {slot.blocked > 0 && <div className="text-muted-foreground">{slot.blocked} blocked</div>}
+                {slot.blocked > 0 && (
+                  // At the pre-filter every blocked lead is one we chose not to
+                  // run, so name the reason rather than leave it to be inferred.
+                  <div className="text-muted-foreground">
+                    {slot.blocked} {slot.key === "prefilter" ? "skipped" : "blocked"}
+                  </div>
+                )}
                 {slot.active === 0 && slot.stuck === 0 && slot.failed === 0 && slot.blocked === 0 && (
                   <div className="text-muted-foreground">—</div>
                 )}
