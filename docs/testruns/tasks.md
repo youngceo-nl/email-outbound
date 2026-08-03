@@ -10,15 +10,18 @@ smarter. The human track raises the speed ceiling. Neither blocks the other.
 
 ## Do these first — they block everything else
 
-### [ ] H1 · Check the Steel balance — human
-**Why first:** if Steel is nearly out of credit, nothing else matters. A
-100-lead run is ~45 minutes of browser time; 1000 leads is ~8 hours.
+### [x] H1 · Check the Steel balance — human
+**Answer: $28 of $30 used. About $2 left.**
 
-Log in to the Steel dashboard and look at remaining credit. Their API has no
-usage endpoint (`/v1/account` and `/v1/usage` both return 421), so this cannot
-be automated.
+That does not cover a 100-lead run (~45 minutes of browser time), so **C3 is
+blocked** until this is resolved.
 
-**Done when:** we know the number and whether it covers a 100-lead run.
+**Steel is open source and self-hostable — Apache 2.0.** The pre-built Docker
+image runs a full instance, and the SDK takes a `baseURL` option, so pointing at
+our own instance is a config change rather than a rewrite. Self-hosting makes
+Steel itself free; the cost moves to whatever server it runs on.
+
+Two ways forward — see H5.
 
 ### [ ] C1 · Build the pre-filter — Claude
 **Why first:** biggest win available, no risk, nothing depends on it.
@@ -37,34 +40,55 @@ how many were dropped and why, and tests cover the skip decision.
 
 ## Next
 
-### [ ] H2 · Buy proxies for the dead Instagram accounts — human
+### [ ] H2 · Get proxies for the dead Instagram accounts — human
 **Why it matters:** this is the real speed ceiling. Everything runs one lead at
 a time to stop cookies getting banned. More working accounts is the only safe
 way to go faster.
 
-16 accounts exist. **Only 3 work.** The other 13 are missing `proxy_url` and
-`steel_profile_id`.
+**You only need to supply proxies. Nothing else on this list is yours.**
 
-- Group A — 5 accounts, all missing both
-- Group B — 5 accounts, all missing both
-- Group C — 6 accounts, 3 working, 3 paused/incomplete ← currently active
+The 13 dead accounts are missing two fields. Only the first one costs money:
 
-Buy one proxy per account and keep it pinned. Do not rotate proxies on a
-logged-in session — that is what triggers Instagram challenges.
+| Field | Who | What it is |
+|---|---|---|
+| `proxy_url` | **you** | A real proxy that must be bought/assigned |
+| `steel_profile_id` | Claude (C2) | Just a UUID. Steel creates the profile on first use. Costs nothing. |
 
-**Done when:** each account you want live has its own stable proxy URL.
+**Check before buying anything.** The 3 working accounts use Oxylabs on
+sequential ports of the same endpoint:
 
-### [ ] C2 · Create the Steel profile IDs — Claude, needs H2
-Once proxies exist, Claude fills in the matching `steel_profile_id` for each
-account and writes both into `app_settings`.
+```
+disp.oxylabs.io:8001   masakonjoku61
+disp.oxylabs.io:8002   bethannbuczek1
+disp.oxylabs.io:8003   allinedowho
+```
 
-**Unverified:** Claude has not yet confirmed Steel's API allows creating
-profiles programmatically. Check this before relying on it — it may turn out to
-be a human dashboard task.
+That is Oxylabs' port-per-sticky-session scheme. If the existing plan allows
+more ports, **ports 8004–8016 may already be yours** and this task costs $0.
+Log in to Oxylabs and check the plan's session/IP limit first.
+
+- Group A — 5 accounts
+- Group B — 5 accounts
+- Group C — 6 accounts, 3 already working ← currently active
+
+Keep one proxy pinned per account. Do not rotate proxies on a logged-in
+session — that is what triggers Instagram challenges.
+
+**Done when:** each account you want live has its own stable proxy URL, or you
+have confirmed how many ports the Oxylabs plan allows.
+
+### [ ] C2 · Fill in the Steel profile IDs — Claude, needs H2
+**Resolved: this costs nothing and is not a human task.** `steel_profile_id` is
+a plain UUID supplied by us — `browser-backend.ts:127` passes it to
+`sessions.create({ profileId, persistProfile: true })` and Steel creates the
+profile on first use. The 3 working accounts hold ordinary UUIDs.
+
+So once proxies exist, Claude generates a UUID per account and writes both
+fields into `app_settings`.
 
 **Done when:** the identity pool reports more than 3 usable accounts.
 
-### [ ] C3 · Run 100 leads — Claude, needs C1
+### [ ] C3 · Run 100 leads — Claude, needs C1 **and H5 (Steel credit)**
 Costs about what the 20-lead run did. **20 leads from one seed is not enough to
 tune anything against** — this run produces the numbers the remaining decisions
 depend on.
@@ -100,6 +124,18 @@ errors at better than a coin flip. Fix the cheap model first, then reconsider.
 
 **Done when:** confidence is no longer `low` on the clear-cut leads, and the
 disagreement rate drops.
+
+### [ ] H5 · Decide: top up Steel Cloud, or self-host — human
+Blocking C3. Steel is at $28/$30.
+
+1. **Top up Steel Cloud** — instant, keeps everything working as-is, ongoing cost
+2. **Self-host** (Apache 2.0, Docker image) — Steel becomes free, but you run the
+   browser infrastructure and pay for the server. Proxies still cost either way.
+
+Claude can do the wiring for option 2 (it is a `baseURL` change plus deployment);
+the call on whether to run that infrastructure is yours.
+
+**Done when:** a decision is written here and C3 is unblocked.
 
 ### [ ] H4 · Top up Apify — human, only if sourcing at volume
 Token #1 is over its monthly limit (-$0.04); token #2 has $4.48 left. Rotation
