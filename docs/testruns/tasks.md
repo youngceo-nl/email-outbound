@@ -77,6 +77,43 @@ disagreement rate drops.
 
 ---
 
+## Fixed — the 2026-08-03 concurrency incident
+
+C3's 100-lead run hit what looked like a severe concurrency-control failure:
+43 leads showed `stage=acquiring, status=running` simultaneously, and the
+self-hosted Steel container crashed. Investigated with controlled tests rather
+than guessing.
+
+**What it was NOT:** Inngest's `concurrency: {limit: 1}` not being enforced.
+Proved this directly — a 20-event burst against an isolated test function
+showed zero overlap, and a single event holding for 90 seconds did not cause
+the concurrency slot to release early. Both ruled out.
+
+**What it actually was:** the self-hosted Steel container degrading under
+sequential load. The real server log showed acquire-profile step durations
+climbing 10s → 16s → 43s → 57s → 63s across sequential sessions, then every
+attempt after that completing in under 2 seconds — Steel started failing new
+sessions almost instantly once critically degraded, which is what made
+database timestamps look like a burst of parallel sessions. It then crashed on
+an unhandled exception in its own CDP code.
+
+**Fix:** `acquireInstagramEvidence` now bounds a single acquisition to 90s via
+an injectable `withTimeout` primitive, so a degrading container fails fast and
+cleanly instead of being allowed to spiral toward a crash. A timeout is
+handled as a distinct path in `acquire-profile.ts` — it does **not** trigger
+account quarantine, since it's evidence about the browser backend, not about
+that Instagram account's cookie or proxy.
+
+**Known limitation:** `Promise.race` doesn't cancel the losing side, so a
+timed-out request may keep running server-side after we give up waiting on
+it. This bounds our own wait; it doesn't stop Steel from continuing to
+degrade in the background. **Restart the Steel container before resuming any
+run** — it's still in its crashed state from the incident.
+
+154 tests pass; typecheck and lint clean.
+
+---
+
 ## Not urgent
 
 ### [ ] H4 · Top up Apify — human, only if sourcing at volume
