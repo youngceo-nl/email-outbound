@@ -56,6 +56,7 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     openai_api_key: String(formData.get("openai_api_key") ?? "") || null,
     youtube_api_key: String(formData.get("youtube_api_key") ?? "") || null,
     steel_api_key: String(formData.get("steel_api_key") ?? "") || null,
+    steel_base_url: String(formData.get("steel_base_url") ?? "") || null,
     openai_model: String(formData.get("openai_model") ?? prev.openai_model),
     gemini_api_key: String(formData.get("gemini_api_key") ?? "") || null,
     gemini_model: String(formData.get("gemini_model") ?? prev.gemini_model),

@@ -48,6 +48,8 @@ export async function acquireInstagramEvidence(input: {
   identity: AcquisitionPoolEntry;
   /** Sourced from app_settings by the caller; falls back to STEEL_API_KEY. */
   steelApiKey?: string | null;
+  /** Sourced from app_settings; falls back to STEEL_BASE_URL. Self-hosted only. */
+  steelBaseUrl?: string | null;
 }): Promise<AcquisitionResult> {
   const identity = validateAcquisitionIdentity(input.identity);
   const report = await runPlaywrightInstagramComplete({
@@ -57,6 +59,7 @@ export async function acquireInstagramEvidence(input: {
     steelProfileId: identity.steelProfileId,
     sessionCookie: identity.cookie,
     steelApiKey: input.steelApiKey ?? null,
+    steelBaseUrl: input.steelBaseUrl ?? null,
     writeArtifacts: false,
   });
 

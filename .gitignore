@@ -32,3 +32,5 @@ __pycache__/
 
 # local scratch: generated migration paste file
 apply-run-tables.sql
+
+apply-steel-base-url.sql

@@ -344,6 +344,7 @@ export type CompleteAcquisitionOptions = {
   steelProfileId?: string | null;
   sessionCookie?: string | null;
   steelApiKey?: string | null;
+  steelBaseUrl?: string | null;
   writeArtifacts?: boolean;
 };
 
@@ -414,6 +415,7 @@ export async function runPlaywrightInstagramComplete(
     profileId: steelProfileId,
     sessionCookie: options.sessionCookie,
     steelApiKey: options.steelApiKey ?? null,
+    steelBaseUrl: options.steelBaseUrl ?? null,
   });
   const context = session.context;
   report.steel_session_id = session.sessionId;

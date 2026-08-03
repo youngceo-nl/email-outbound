@@ -48,6 +48,14 @@ export type BackendOptions = {
    * Falls back to STEEL_API_KEY for the CLI harness, which has no settings row.
    */
   steelApiKey?: string | null;
+  /*
+   * Points the Steel SDK at a self-hosted instance instead of api.steel.dev —
+   * a docker run of ghcr.io/steel-dev/steel-browser-api, Apache 2.0. Cloud
+   * cost moves to whichever machine runs the container; the API is identical.
+   * Falls back to app_settings.steel_base_url / STEEL_BASE_URL so this stays
+   * a config change, never a code change, per lead.
+   */
+  steelBaseUrl?: string | null;
   /** Persistent Steel profile id — one per Instagram account in production. */
   profileId?: string | null;
   /** Exact cookie header paired with this profile. Never logged. */
@@ -85,14 +93,20 @@ async function openLocalSession(options: BackendOptions): Promise<BrowserSession
 }
 
 async function openSteelSession(options: BackendOptions): Promise<BrowserSession> {
-  const apiKey = options.steelApiKey?.trim() || process.env.STEEL_API_KEY;
+  const baseURL = options.steelBaseUrl?.trim() || process.env.STEEL_BASE_URL?.trim() || undefined;
+
+  /*
+   * A self-hosted instance needs no key — DOMAIN/CDP_DOMAIN on the container
+   * make it accept anything. Cloud always needs one.
+   */
+  const apiKey = options.steelApiKey?.trim() || process.env.STEEL_API_KEY || (baseURL ? "self-hosted" : undefined);
   if (!apiKey) {
     throw new Error(
       "A Steel API key is required: set app_settings.steel_api_key or STEEL_API_KEY",
     );
   }
 
-  const client = new Steel({ steelAPIKey: apiKey });
+  const client = new Steel({ steelAPIKey: apiKey, ...(baseURL ? { baseURL } : {}) });
 
   /*
    * Steel hands back a FRESH context every run — there is no profile directory
@@ -131,7 +145,9 @@ async function openSteelSession(options: BackendOptions): Promise<BrowserSession
 
   let browser: Browser;
   try {
-    browser = await chromium.connectOverCDP(`${session.websocketUrl}&apiKey=${apiKey}`);
+    browser = await chromium.connectOverCDP(
+      baseURL ? session.websocketUrl : `${session.websocketUrl}&apiKey=${apiKey}`,
+    );
   } catch (err) {
     // Never leave a paid session running because the connect failed.
     await client.sessions.release(session.id).catch(() => {});

@@ -62,6 +62,7 @@ export const acquireProfile = inngest.createFunction(
         username,
         identity,
         steelApiKey: settings.steel_api_key ?? process.env.STEEL_API_KEY ?? null,
+        steelBaseUrl: settings.steel_base_url ?? process.env.STEEL_BASE_URL ?? null,
       }),
     );
 

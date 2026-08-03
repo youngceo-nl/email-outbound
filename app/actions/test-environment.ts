@@ -245,7 +245,9 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
   await requireUser();
   const settings = await getSettings(true).catch(() => null);
 
-  const steelKey = !!(settings?.steel_api_key || process.env.STEEL_API_KEY);
+  const steelBaseUrl = settings?.steel_base_url || process.env.STEEL_BASE_URL || null;
+  // Self-hosted needs no key at all — the container accepts anything.
+  const steelKey = !!(steelBaseUrl || settings?.steel_api_key || process.env.STEEL_API_KEY);
   // buildAcquisitionPool throws before the first step when an identity is
   // incomplete, so count defensively rather than letting the run explode.
   let identities = 0;
@@ -261,14 +263,16 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
 
   return [
     {
-      label: "Steel API key",
+      label: "Steel",
       ok: steelKey,
       blocking: true,
-      detail: steelKey
-        ? settings?.steel_api_key
-          ? "set in app_settings (shared with the team)"
-          : "set from STEEL_API_KEY — only on this machine, teammates will fail"
-        : "not set — every acquisition fails instantly",
+      detail: steelBaseUrl
+        ? `self-hosted at ${steelBaseUrl}${settings?.steel_base_url ? " (shared with the team)" : " — only on this machine, teammates will fail"}`
+        : steelKey
+          ? settings?.steel_api_key
+            ? "Steel Cloud — set in app_settings (shared with the team)"
+            : "Steel Cloud — set from STEEL_API_KEY, only on this machine, teammates will fail"
+          : "not set — every acquisition fails instantly",
     },
     {
       label: "Instagram identities",
