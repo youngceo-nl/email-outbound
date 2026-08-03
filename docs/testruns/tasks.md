@@ -10,20 +10,32 @@ smarter. The human track raises the speed ceiling.
 
 ## Now — blocking the 100-lead run
 
-### [x] H5 · New Steel account + new Oxylabs password — 2026-08-03
-**Both verified end to end.** A fresh Steel key and a rotated Oxylabs password
-were provided; both are now live in `app_settings` and confirmed working —
-`@garyvee` captured in 27.4s through the new key and new proxy password, no
-challenge, all 5 Story Highlight titles, 5/5 identities usable.
+### [x] H5 · Steel self-hosted locally — $0, no credit ceiling — 2026-08-03
+**C3 runs self-hosted, not on the $30 Steel Cloud key.** $30 only covers ~40
+leads at the observed rate; self-hosting removes that ceiling entirely.
 
-**One thing still unconfirmed: the new Steel account's balance.** Same
-limitation as before — the API has no balance endpoint, only per-session
-credit usage, and auth succeeding says nothing about how much credit is behind
-it. Worth a quick look at the Steel dashboard before committing to a 100-lead
-run (~45 min of browser time); a mid-run exhaustion produces a partial,
-hard-to-interpret result.
+Steel is Apache 2.0 and ships a pre-built image
+(`ghcr.io/steel-dev/steel-browser-api`). Installed Colima (no prior container
+runtime existed on this machine) and ran it locally on port 3555.
 
-### [ ] C3 · Run 100 leads — Claude, needs H5 balance confirmed
+`steel_base_url` added to `app_settings` — set, everything reads from the
+local instance; left null, unchanged from Steel Cloud. Migration
+`20260805000000_steel_base_url.sql` applied.
+
+**Caught and fixed a real bug during verification, not a cosmetic one.** The
+self-hosted API does not return Steel Cloud's `proxySource` metadata field, so
+every self-hosted session logged "Proxy source: none (direct)" — on a
+codebase this careful about one account staying pinned to one IP, that reads
+as a leak. Verified it was not: navigated the actual browser to an IP-echo
+endpoint and it showed the pinned Oxylabs IP (45.155.196.117), not this
+machine's real IP (62.45.102.117). Fixed the log to fall back to what we
+configured rather than trust a field Cloud-only sessions populate.
+
+**New Steel key and rotated Oxylabs password from earlier today also verified
+working**, independent of the self-hosting question — kept as the fallback
+path.
+
+### [ ] C3 · Run 100 leads — Claude, unblocked
 Costs about what the 20-lead run did. **20 leads from one seed is not enough to
 tune anything against** — this run produces the numbers the remaining decisions
 depend on.
