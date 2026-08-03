@@ -40,54 +40,56 @@ how many were dropped and why, and tests cover the skip decision.
 
 ## Next
 
-### [ ] H2 · Get proxies for the dead Instagram accounts — human
--
-**Why it matters:** this is the real speed ceiling. Everything runs one lead at
-a time to stop cookies getting banned. More working accounts is the only safe
-way to go faster.
+### [x] H2 · Get proxies for the Instagram accounts — human · DONE 2026-08-03
+**Result: 5 accounts live, up from 3. No money spent.**
 
-**You only need to supply proxies. Nothing else on this list is yours.**
+The proxies were never dead. Oxylabs recreated the proxy user on **2026-08-01
+16:11**, which made the password stored in `app_settings` stale — the endpoint
+was returning `407 Unauthorized`, not a connection failure. A new password fixed
+every one of them.
 
-The 13 dead accounts are missing two fields. Only the first one costs money:
+Two earlier claims in this task were wrong and are corrected below:
 
-| Field | Who | What it is |
+- `dc.oxylabs.io` is a **different product** this user cannot access.
+  `disp.oxylabs.io` was correct all along.
+- Ports 8006+ **recycle the same five exit IPs**. More ports do not mean more
+  identities, so "8004–8016 may already be yours" was only half right — they are
+  yours, but there are only five distinct addresses behind them.
+
+Now live, one pinned proxy each, all unpaused:
+
+| Account | Port | Exit IP |
 |---|---|---|
-| `proxy_url` | **you** | A real proxy that must be bought/assigned |
-| `steel_profile_id` | Claude (C2) | Just a UUID. Steel creates the profile on first use. Costs nothing. |
+| `masakonjoku61` | 8001 | 45.155.196.117 |
+| `bethannbuczek1` | 8002 | 45.155.196.209 |
+| `allinedowho` | 8003 | 45.155.198.110 |
+| `jeanettaze` | 8004 | 45.155.197.126 |
+| `ilenekawchpw` | 8005 | 45.155.199.56 |
 
-**Check before buying anything.** The 3 working accounts use Oxylabs on
-sequential ports of the same endpoint:
+**Still open:** groups A and B (10 accounts, all with cookies) have no proxies,
+and this plan has no spare IPs. Going beyond 5 identities means buying more —
+see H6.
 
-```
-disp.oxylabs.io:8001   masakonjoku61
-disp.oxylabs.io:8002   bethannbuczek1
-disp.oxylabs.io:8003   allinedowho
-```
+### [x] C2 · Steel profile IDs — Claude · RESOLVED, not needed
+**This task no longer exists.** `steel_profile_id` is now optional and all
+stored ids have been cleared.
 
-That is Oxylabs' port-per-sticky-session scheme. If the existing plan allows
-more ports, **ports 8004–8016 may already be yours** and this task costs $0.
-Log in to Oxylabs and check the plan's session/IP limit first.
+The earlier note here was wrong: a Steel profile is **not** a UUID we invent.
+It is an uploaded browser archive scoped to one Steel organisation — Steel 404s
+on unknown ids, and creating one needs a multipart upload. Swapping the Steel
+API key moved us to a new organisation, which invalidated every stored id.
 
-- Group A — 5 accounts
-- Group B — 5 accounts
-- Group C — 6 accounts, 3 already working ← currently active
+Sessions do not need one. Cookies are injected at session-create time, verified
+end to end on 2026-08-03 (`@garyvee` captured in 25.7s, all 5 Story Highlight
+titles, no challenge). Requiring it had been disqualifying 13 of 16 accounts for
+no benefit.
 
-Keep one proxy pinned per account. Do not rotate proxies on a logged-in
-session — that is what triggers Instagram challenges.
+### [ ] H6 · Buy proxies for groups A and B — human, only to go past 5
+10 accounts in groups A and B already have cookies and need only a proxy each.
+The current Oxylabs plan is exhausted at 5 distinct IPs.
 
-**Done when:** each account you want live has its own stable proxy URL, or you
-have confirmed how many ports the Oxylabs plan allows.
-
-### [ ] C2 · Fill in the Steel profile IDs — Claude, needs H2
-**Resolved: this costs nothing and is not a human task.** `steel_profile_id` is
-a plain UUID supplied by us — `browser-backend.ts:127` passes it to
-`sessions.create({ profileId, persistProfile: true })` and Steel creates the
-profile on first use. The 3 working accounts hold ordinary UUIDs.
-
-So once proxies exist, Claude generates a UUID per account and writes both
-fields into `app_settings`.
-
-**Done when:** the identity pool reports more than 3 usable accounts.
+Not urgent: **concurrency is still pinned at 1**, so 5 identities are already
+more than the pipeline uses. Only worth doing once concurrency is raised.
 
 ### [ ] C3 · Run 100 leads — Claude, needs C1 **and H5 (Steel credit)**
 Costs about what the 20-lead run did. **20 leads from one seed is not enough to
