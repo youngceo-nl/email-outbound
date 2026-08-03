@@ -8,50 +8,24 @@ smarter. The human track raises the speed ceiling.
 
 ---
 
-## Now — blocking the 100-lead run
+## Open
 
-### [x] H5 · Steel self-hosted locally — $0, no credit ceiling — 2026-08-03
-**C3 runs self-hosted, not on the $30 Steel Cloud key.** $30 only covers ~40
-leads at the observed rate; self-hosting removes that ceiling entirely.
+### [ ] C3 · Finish the 100-lead run — Claude
+Paused at 13/77 acquired on 2026-08-03 when the self-hosted Steel container
+crashed mid-run (see Done — cause found and fixed). Verified safe to continue:
+fresh container + a 6-lead batch afterward, all captured cleanly, no failures,
+no timeouts, memory reclaimed properly between sessions.
 
-Steel is Apache 2.0 and ships a pre-built image
-(`ghcr.io/steel-dev/steel-browser-api`). Installed Colima (no prior container
-runtime existed on this machine) and ran it locally on port 3555.
-
-`steel_base_url` added to `app_settings` — set, everything reads from the
-local instance; left null, unchanged from Steel Cloud. Migration
-`20260805000000_steel_base_url.sql` applied.
-
-**Caught and fixed a real bug during verification, not a cosmetic one.** The
-self-hosted API does not return Steel Cloud's `proxySource` metadata field, so
-every self-hosted session logged "Proxy source: none (direct)" — on a
-codebase this careful about one account staying pinned to one IP, that reads
-as a leak. Verified it was not: navigated the actual browser to an IP-echo
-endpoint and it showed the pinned Oxylabs IP (45.155.196.117), not this
-machine's real IP (62.45.102.117). Fixed the log to fall back to what we
-configured rather than trust a field Cloud-only sessions populate.
-
-**New Steel key and rotated Oxylabs password from earlier today also verified
-working**, independent of the self-hosting question — kept as the fallback
-path.
-
-### [ ] C3 · Run 100 leads — Claude, unblocked
-Costs about what the 20-lead run did. **20 leads from one seed is not enough to
-tune anything against** — this run produces the numbers the remaining decisions
-depend on.
-
-C1 (pre-filter) is done and already wired into this path — see Done.
+**Not yet proven:** the original crash only appeared after ~13 sequential
+sessions; the post-fix verification only reached 6-7. Real confidence needs
+either finishing this run or a longer soak test.
 
 **Done when:** the run finishes and we have score, confidence, and challenger
 distributions across 100 leads.
 
----
-
-## After the 100-lead run
-
 ### [ ] H3 · Decide what to do about the review pile — human
-13 of 20 leads needed a human in the last run. That is a product decision, not
-a bug. Options:
+13 of 20 leads needed a human in the 2026-08-02 run. That is a product
+decision, not a bug. Options:
 
 1. Accept the volume and staff the review queue
 2. Lower the qualify threshold from 8.0 and accept more false positives
@@ -62,7 +36,9 @@ Claude should not choose this one.
 **Done when:** a decision is written down here.
 
 ### [ ] C4 · Fix the AI reliability — Claude, needs C3
-The biggest remaining engineering problem, and the root of the other two.
+**The biggest piece of unfinished work** — nothing here has been touched yet;
+2026-08-03 was entirely infrastructure (Steel self-hosting, the crash, the
+fix). This is what actually determines whether the pipeline judges leads well.
 
 - Confidence came back `low` on 16 of 20 leads. Only one hit `high`.
 - The expensive checking model disagreed with the cheap extracting model **5
@@ -74,43 +50,6 @@ errors at better than a coin flip. Fix the cheap model first, then reconsider.
 
 **Done when:** confidence is no longer `low` on the clear-cut leads, and the
 disagreement rate drops.
-
----
-
-## Fixed — the 2026-08-03 concurrency incident
-
-C3's 100-lead run hit what looked like a severe concurrency-control failure:
-43 leads showed `stage=acquiring, status=running` simultaneously, and the
-self-hosted Steel container crashed. Investigated with controlled tests rather
-than guessing.
-
-**What it was NOT:** Inngest's `concurrency: {limit: 1}` not being enforced.
-Proved this directly — a 20-event burst against an isolated test function
-showed zero overlap, and a single event holding for 90 seconds did not cause
-the concurrency slot to release early. Both ruled out.
-
-**What it actually was:** the self-hosted Steel container degrading under
-sequential load. The real server log showed acquire-profile step durations
-climbing 10s → 16s → 43s → 57s → 63s across sequential sessions, then every
-attempt after that completing in under 2 seconds — Steel started failing new
-sessions almost instantly once critically degraded, which is what made
-database timestamps look like a burst of parallel sessions. It then crashed on
-an unhandled exception in its own CDP code.
-
-**Fix:** `acquireInstagramEvidence` now bounds a single acquisition to 90s via
-an injectable `withTimeout` primitive, so a degrading container fails fast and
-cleanly instead of being allowed to spiral toward a crash. A timeout is
-handled as a distinct path in `acquire-profile.ts` — it does **not** trigger
-account quarantine, since it's evidence about the browser backend, not about
-that Instagram account's cookie or proxy.
-
-**Known limitation:** `Promise.race` doesn't cancel the losing side, so a
-timed-out request may keep running server-side after we give up waiting on
-it. This bounds our own wait; it doesn't stop Steel from continuing to
-degrade in the background. **Restart the Steel container before resuming any
-run** — it's still in its crashed state from the incident.
-
-154 tests pass; typecheck and lint clean.
 
 ---
 
@@ -132,63 +71,48 @@ more than the pipeline uses. Only worth doing once concurrency is raised.
 
 ## Done
 
-### C1 · Pre-filter — bio-link check before Steel opens a session
-Before Steel runs, Apify checks every lead's bio link in batches of 50. No
-link → skipped, marked `rejected` / `no_bio_link`, never opens a browser
-session. A lead Apify never returns, or a batch that errors, fails open to
-Steel — unknown is not the same as absent.
-
-Wired into both `startTestRun` and `startSourcedTestRun` via
-`run/prefilter.requested`. Reasoning: seen in the 2026-08-02 runs, 7 of 20
-leads had no bio link and not one of them qualified — Steel was spending 28s
-and AI tokens per lead to arrive at an answer Apify gives in one batched call.
-
-Verified 2026-08-03: 133/133 tests pass (9 specific to the pre-filter),
-typecheck and lint clean, full trigger chain confirmed end to end.
-
-**Provenance note:** this was not built in this conversation's visible thread.
-It appeared untracked in the repo, matching the C1 spec and citing this run's
-own findings — evidently another session picked up the task from this file.
-Read and independently verified rather than taken on trust.
-
-**Expected:** 1000 leads goes 8h → 5h and $69 → $45.
-
-### H1 · Checked the Steel balance
-$28 of $30 used, ~$2 left — did not cover a 100-lead run. Established that
-Steel is Apache 2.0 and self-hostable via a pre-built Docker image, with the
-SDK taking a `baseURL` option — carried forward into H5.
-
-### H2 · Fixed the Instagram proxies — 5 accounts live, up from 3, $0 spent
-The proxies were never dead. Oxylabs recreated the proxy user on 2026-08-01
-16:11, which made the stored password stale — `407 Unauthorized`, not a
-connection failure. A new password fixed all five.
-
-Two things learned and corrected: `dc.oxylabs.io` is a different product this
-user cannot access (`disp.oxylabs.io` was correct all along), and ports 8006+
-recycle the same five exit IPs — more ports do not mean more identities.
-
-| Account | Port | Exit IP |
-|---|---|---|
-| `masakonjoku61` | 8001 | 45.155.196.117 |
-| `bethannbuczek1` | 8002 | 45.155.196.209 |
-| `allinedowho` | 8003 | 45.155.198.110 |
-| `jeanettaze` | 8004 | 45.155.197.126 |
-| `ilenekawchpw` | 8005 | 45.155.199.56 |
-
-### C2 · Steel profile IDs — resolved, task turned out unnecessary
-`steel_profile_id` is now optional; all stored ids cleared. A Steel profile is
-an uploaded browser archive scoped to one Steel organisation, not a UUID we
-invent — swapping the Steel API key moved us to a new org, which 404'd every
-stored id. Sessions do not need one: cookies are injected at session-create
-time, verified end to end (`@garyvee` captured in 25.7s, all 5 Story Highlight
-titles, no challenge). Requiring it had disqualified 13 of 16 accounts for no
-benefit.
-
-### Other fixes
-- Pipeline runs end to end without failures — 2 × 20 leads, 0 failed
-- Fixed the captcha bug that was discarding readable funnel pages
-- Fixed the run summary showing `0 / 20 processed` and `cost unknown`
-- Fixed the false "Jammed at Stored" warning on completed runs
-- Fixed Apify token rotation so an exhausted token no longer blocks sourcing
-- Moved every API key into `app_settings` so the team shares one source
-- Added seed sourcing to the test environment page
+- **Pipeline runs end to end** — 2 × 20 leads on 2026-08-02, 0 failed
+- **Captcha bug fixed** — was discarding readable funnel pages (recaptcha
+  script tag false-matched as a bot wall)
+- **Run summary fixed** — was showing `0 / 20 processed`, `cost unknown` on
+  runs that worked
+- **False "Jammed at Stored" warning fixed** on completed runs
+- **Apify token rotation fixed** — an exhausted token no longer blocks sourcing
+- **All API keys moved into `app_settings`** — shared across the team, not
+  per-laptop `.env.local`
+- **Seed sourcing added** to the test environment page
+- **C1 · Pre-filter** — Apify checks every lead's bio link before Steel opens a
+  session; no link → skipped, never spends a browser session. 7 of 20 leads in
+  the 2026-08-02 run had no bio link and none qualified. Expected: 1000 leads
+  8h → 5h, $69 → $45. 133/133 tests pass.
+- **H1 · Steel balance checked** — $28/$30 used, ~$2 left, didn't cover a
+  100-lead run. Confirmed Steel is Apache 2.0 and self-hostable.
+- **H2 · Instagram proxies fixed** — 5 accounts live (up from 3), $0 spent. The
+  proxies were never dead; Oxylabs had rotated the account password. Also
+  corrected: `dc.oxylabs.io` is the wrong product, `disp.oxylabs.io` is
+  correct; ports beyond 8005 just recycle the same 5 exit IPs.
+- **C2 · Steel profile IDs made optional** — turned out unnecessary. A Steel
+  profile is an uploaded archive scoped to one Steel org, not something we
+  invent; sessions work fine without one. Requiring it had disqualified 13 of
+  16 accounts for no benefit.
+- **H5 · Steel self-hosted** — $0 instead of Steel Cloud's ~40-lead ceiling on
+  $30. Runs locally via Docker/Colima, `steel_base_url` in `app_settings`
+  switches to it. Caught and fixed a real bug in the process: self-hosted
+  sessions logged "Proxy source: none (direct)" because Steel Cloud's
+  `proxySource` field doesn't exist on the self-hosted API — verified the
+  proxy was genuinely working (browser's real exit IP matched the pinned
+  Oxylabs IP, not this machine's) and fixed the log to stop reporting it as a
+  leak.
+- **Concurrency incident diagnosed and fixed (2026-08-03)** — C3 briefly
+  showed 43 leads "acquiring" at once and the Steel container crashed. Proved
+  with direct tests that Inngest's `concurrency: {limit: 1}` was never the
+  problem (a 20-event burst and a 90-second single-step hold both serialized
+  correctly). The real cause, read from the server log: real acquisition
+  durations climbed 10s → 16s → 43s → 57s → 63s across sequential sessions as
+  the container degraded, then every attempt after that failed in under 2s —
+  fast failures that looked like parallelism in the database timestamps.
+  Fixed by bounding a single acquisition to 90s (`withTimeout`, 8 new tests);
+  a timeout is handled as its own path and does **not** quarantine the
+  account, since it's evidence about the browser backend, not that identity.
+  Verified post-fix: fresh container restart, 6 real leads captured cleanly,
+  durations varied 11–59s with no climb, memory reclaimed properly.
