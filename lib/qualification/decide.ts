@@ -26,7 +26,7 @@ import { ACTIVE_SCORECARD, type Scorecard } from "./scorecard";
 import { classifyTrack } from "./classify-track";
 import { applyCoreGate, applyHardBusinessModelGate } from "./eligibility";
 import { scoreCommercialFit } from "./score";
-import { deriveCertainty } from "./certainty";
+import { deriveCertainty, deriveRejectionConfidence } from "./certainty";
 import { computePriority } from "./priority";
 import {
   ACQUISITION_VERSION,
@@ -59,6 +59,12 @@ export function decideCommercialQualification(opts: DecideOptions): CommercialDe
   const track = classifyTrack(opts.extraction);
   const hardGate = applyHardBusinessModelGate(opts.extraction);
   const coreGate = applyCoreGate(opts.extraction);
+  const rejectionConfidence = deriveRejectionConfidence({
+    snapshot: opts.snapshot,
+    track,
+    coreGate,
+    challengerAgrees: opts.challengerAgrees,
+  });
   const scoring = scoreCommercialFit(opts.extraction, opts.snapshot, scorecard);
 
   const certainty = deriveCertainty({
@@ -105,6 +111,7 @@ export function decideCommercialQualification(opts: DecideOptions): CommercialDe
     hardGate,
     coreGate,
     certainty: certainty.certainty,
+    canAutoReject: rejectionConfidence.confident,
     commercialFit: scoring.scores.commercial_fit,
     informationFunnelScore: scoring.scores.information_funnel_evidence,
     conversionIntentScore: scoring.scores.conversion_intent,
@@ -180,6 +187,8 @@ function route(args: {
   hardGate: ReturnType<typeof applyHardBusinessModelGate>;
   coreGate: ReturnType<typeof applyCoreGate>;
   certainty: Certainty;
+  /** Evidence is complete enough to reject without a human — see deriveRejectionConfidence. */
+  canAutoReject: boolean;
   commercialFit: number;
   informationFunnelScore: number;
   conversionIntentScore: number;
@@ -226,7 +235,7 @@ function route(args: {
       return { outcome: "review", mode: "manual_review", autoApprove: false, reasons };
     }
     reasons.push("missing_core_evidence");
-    if (args.commercialFit <= thresholds.rejected_max && args.certainty === "high") {
+    if (args.commercialFit <= thresholds.rejected_max && args.canAutoReject) {
       return { outcome: "rejected", mode: "hard_excluded", autoApprove: false, reasons };
     }
     return { outcome: "review", mode: "manual_review", autoApprove: false, reasons };
@@ -252,8 +261,12 @@ function route(args: {
   }
   if (args.track.track !== "information_personal_brand") {
     reasons.push("excluded_track");
-    // Only a high-certainty exclusion may auto-reject; otherwise a human looks.
-    if (args.certainty === "high") {
+    /*
+     * Rejecting an off-ICP track needs only that we saw the profile clearly and
+     * resolved the business model — not the full approval bar. Gating this on
+     * `certainty === "high"` sent 44 streetwear brands to manual review.
+     */
+    if (args.canAutoReject) {
       return { outcome: "rejected", mode: "hard_excluded", autoApprove: false, reasons };
     }
     return { outcome: "review", mode: "manual_review", autoApprove: false, reasons };
@@ -263,7 +276,7 @@ function route(args: {
   // ---- 6. Score bands ----
   if (args.commercialFit <= thresholds.rejected_max) {
     reasons.push("score_below_threshold");
-    if (args.certainty === "high") {
+    if (args.canAutoReject) {
       return { outcome: "rejected", mode: "hard_excluded", autoApprove: false, reasons };
     }
     return { outcome: "review", mode: "manual_review", autoApprove: false, reasons };

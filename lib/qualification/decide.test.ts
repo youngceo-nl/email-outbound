@@ -613,3 +613,136 @@ test("every decision carries a full version chain", () => {
     assert.ok(value && value.length > 0, `${key} is missing`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// C4 · rejection confidence — the review-queue deadlock
+//
+// Regression suite for 2026-08-03. decide() gated every auto-reject behind
+// `certainty === "high"`, which is unreachable whenever the challenger has not
+// run — and it runs on a minority of leads. Across 75 real leads NOT ONE
+// reached `high`, so 60 leads scoring at or below rejected_max were routed to a
+// human. The review queue was 64 leads of which 4 genuinely needed an opinion.
+// ---------------------------------------------------------------------------
+
+/** An off-ICP commerce profile: fully captured, unambiguous, clearly not the ICP. */
+function commerceExtraction(): CommercialExtraction {
+  return extraction({
+    human_personal_brand: { state: "absent", strength: "absent", evidence: [] },
+    information_funnel: {
+      state: "absent", strength: "absent", label: "none",
+      visitor_receives: [], asset_or_offer: null, evidence: [],
+    },
+    transformation: {
+      state: "absent", strength: "absent", label: "none",
+      outcome: null, evidence: [],
+    },
+    authority: { state: "absent", strength: "absent", label: "absent", types: [], evidence: [] },
+    audience: { label: "none", value: null, evidence: [] },
+    business_models: [{ type: "commerce", prominence: "primary", evidence: cite() }],
+    primary_visitor_outcome: "commerce_product",
+    offers: [],
+  });
+}
+
+test("an off-ICP profile that was fully captured is auto-rejected without the challenger", () => {
+  const decision = decideCommercialQualification({
+    snapshot: snapshot(),
+    extraction: commerceExtraction(),
+    challenger: null,
+    challengerAgrees: null, // the challenger never ran — the common case
+  });
+  assert.equal(
+    decision.decision,
+    "rejected",
+    `got ${decision.decision}; track=${decision.track} fit=${decision.scores.commercial_fit} reasons=${JSON.stringify(decision.decision_reasons)}`,
+  );
+  assert.notEqual(decision.certainty, "high", "rejection must not depend on reaching high certainty");
+});
+
+test("an UNKNOWN core signal still blocks auto-rejection — unknown is not absent", () => {
+  /*
+   * The safety valve. `absent` means we looked and it was not there; `unknown`
+   * means we never saw the surface. Rejecting on evidence we failed to collect
+   * is how a real lead disappears silently.
+   */
+  const decision = decideCommercialQualification({
+    snapshot: snapshot(),
+    extraction: extraction({
+      ...commerceExtraction(),
+      human_personal_brand: { state: "unknown", strength: "absent", evidence: [] },
+    }),
+    challenger: null,
+    challengerAgrees: null,
+  });
+  assert.equal(decision.decision, "review", "an unseen core signal goes to a human, never the bin");
+});
+
+test("a challenger that DISPUTES the extraction blocks auto-rejection", () => {
+  // Acting on a reading the reviewing model rejected is unsafe in either
+  // direction. Caught during the replay: one lead was being auto-rejected on an
+  // extraction the challenger had explicitly disagreed with.
+  const decision = decideCommercialQualification({
+    snapshot: snapshot(),
+    extraction: commerceExtraction(),
+    challenger: null,
+    challengerAgrees: false,
+  });
+  assert.equal(decision.decision, "review");
+});
+
+test("an undetermined business model is never auto-rejected", () => {
+  const decision = decideCommercialQualification({
+    snapshot: snapshot(),
+    extraction: extraction({
+      human_personal_brand: { state: "absent", strength: "absent", evidence: [] },
+      business_models: [],
+      primary_visitor_outcome: null,
+      offers: [],
+    }),
+    challenger: null,
+    challengerAgrees: null,
+  });
+  assert.equal(decision.decision, "review", "\"we could not tell what this is\" is a question, not a rejection");
+});
+
+test("a profile that was never captured is a data retry, not a rejection", () => {
+  const decision = decideCommercialQualification({
+    snapshot: snapshot({
+      instagram: { ...snapshot().instagram, profile_capture_status: "failed" },
+    }),
+    extraction: commerceExtraction(),
+    challenger: null,
+    challengerAgrees: null,
+  });
+  assert.equal(decision.decision, "data_retry");
+});
+
+test("a challenger that agrees clears the conflicts that summoned it", () => {
+  /*
+   * `conflicts > 0` is exactly what triggers the challenger (challenger.ts:150)
+   * and it also forced certainty to `low`, so a challenged lead was condemned
+   * before its verdict was read — all 14 challenged leads in the 2026-08-03 run
+   * came back `low`, including the 4 the challenger agreed with.
+   */
+  const conflicted = extraction({ conflicts: ["unclear whether the offer is 1:1 or a course"] });
+  const disputed = decideCommercialQualification({
+    snapshot: snapshot(), extraction: conflicted, challenger: null, challengerAgrees: false,
+  });
+  const resolved = decideCommercialQualification({
+    snapshot: snapshot(), extraction: conflicted, challenger: null, challengerAgrees: true,
+  });
+  assert.equal(disputed.certainty, "low", "an unresolved dispute stays low");
+  assert.notEqual(resolved.certainty, "low", "agreement must be able to lift a lead out of low");
+});
+
+test("auto-approval still requires high certainty — the strict path is unchanged", () => {
+  // Risk is asymmetric: a wrong approval puts a bad lead into outreach.
+  const decision = decideCommercialQualification({
+    snapshot: snapshot(),
+    extraction: extraction({ conflicts: ["genuinely ambiguous offer"] }),
+    challenger: null,
+    challengerAgrees: false,
+  });
+  assert.equal(decision.certainty, "low");
+  assert.equal(decision.automatic_approval_eligible, false);
+});

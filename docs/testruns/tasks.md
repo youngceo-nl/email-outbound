@@ -10,43 +10,31 @@ smarter. The human track raises the speed ceiling.
 
 ## Open
 
-### [ ] H3 · Decide what to do about the review pile — human
-Was 13 of 20 (65%) on 2026-08-02. **C3's 100-lead run (see Done) puts it at
-64 of 77 processed — 83%,** a bigger sample pointing the same direction, worse
-than first thought. That is a product decision, not a bug. Options:
+### [ ] C4 follow-up · re-measure on a fresh run — Claude
+The certainty deadlock is fixed (see Done). What is **not** yet known is how the
+pipeline behaves on leads scored under the new logic from the start, rather than
+replayed. A fresh run also re-measures the challenger fire rate, which was 18%
+on C3 versus 45–65% on the smaller 2026-08-02 runs and has never been
+reconciled.
 
-1. Accept the volume and staff the review queue
-2. Lower the qualify threshold from 8.0 and accept more false positives
-3. Wait for C4 and see if better AI reliability fixes it on its own
+**Done when:** a fresh run's review rate and challenger rate are recorded here.
 
-Claude should not choose this one.
+### [ ] H7 · Seed selection — the yield problem — human
+**Probably a bigger lever on revenue than any pipeline fix.** Of the 75 leads
+C3 scored, **44 were streetwear/clothing brands** (track `commerce`) and only
+**9 were `information_personal_brand`** — the actual ICP. `@kishanslings`
+follows clothing brands, not infopreneurs.
 
-**Done when:** a decision is written down here.
+C4 makes the pipeline correctly *reject* those 44 instead of queueing them for
+a human, which is the right behaviour — but it does not create good leads. On
+this seed the usable yield is roughly **4–5 per 75 (~6%)**, and no amount of
+scoring work changes that.
 
-### [ ] C4 · Fix the AI reliability — Claude, needs C3
-**The biggest piece of unfinished work** — nothing here has been touched yet;
-2026-08-03 was entirely infrastructure (Steel self-hosting, the crash, the
-fix). This is what actually determines whether the pipeline judges leads well.
+Worth reviewing which seed accounts actually follow the people we want before
+running volume. A seed whose following is 60% off-ICP burns ~60% of the Steel
+time and Anthropic spend on leads that were never going to qualify.
 
-- Confidence came back `low` on 16 of 20 leads (2026-08-02 sample). Only one
-  hit `high`.
-- The expensive checking model disagreed with the cheap extracting model **5
-  times out of 9** — so the cheap one is wrong often.
-- 8 of 20 leads could not even have their business model determined.
-
-**C3's 100-lead run adds a data point worth noting, not yet reconciled:**
-challenger fire rate came in at **18% (14/77)**, well below the 45–65% seen in
-the two 2026-08-02 runs. Could mean evidence quality is more consistent at
-this scale, or that this batch's leads were less ambiguous, or something in
-the extraction pipeline behaves differently under load — not diagnosed yet.
-Worth checking before assuming either number is the "real" rate.
-
-**Do not turn the expensive model off to save money.** Even at 18%, it is
-catching real errors at better than a coin flip on the leads it does check.
-Fix the cheap model first, then reconsider.
-
-**Done when:** confidence is no longer `low` on the clear-cut leads, and the
-disagreement rate drops.
+**Done when:** a shortlist of seeds whose following skews to the ICP is agreed.
 
 ---
 
@@ -67,6 +55,38 @@ more than the pipeline uses. Only worth doing once concurrency is raised.
 ---
 
 ## Done
+
+- **H3 · Review-pile decision — option 3: improve the system until it works.**
+  Not staffing the queue, not lowering the threshold. Directly motivated C4.
+
+- **C4 · Certainty deadlock fixed (2026-08-03)** — the 83% review rate was not
+  model doubt, it was a logic deadlock. `decide.ts` gated every auto-reject
+  behind `certainty === "high"`, and `high` was unreachable: **0 of 75 C3 leads
+  reached it.** Two independent causes in `certainty.ts` — a challenger that had
+  not run blocked `high` unconditionally (it runs on a minority of leads), and
+  `conflicts > 0` forced `low` even though that is the very condition that
+  summons the challenger, so all 14 challenged leads came back `low` including
+  the 4 it agreed with. Its verdict was inert.
+
+  Fix: a separate `deriveRejectionConfidence` asking only "did we actually SEE
+  this" (profile captured, no `unknown` core signal, business model determined,
+  data reliable, challenger not disputing). Auto-**approval** still requires
+  `high` — that path is untouched, because the risk is asymmetric.
+
+  **Verified by replaying all 75 stored C3 decisions through the new logic at
+  zero API cost** (`decideCommercialQualification` is pure and the snapshots are
+  stored): **50 leads flip review → rejected, 0 in-ICP leads wrongly rejected,
+  review pile 64 → 14.** The 14 remaining are the 4 genuine review-band
+  information_personal_brand leads plus 10 correctly held back by the safety
+  valve (undetermined business model, unseen core signal, or a challenger
+  actively disputing the extraction).
+
+  The replay also caught a real gap mid-implementation: one lead was being
+  auto-rejected on an extraction the challenger had explicitly **disagreed**
+  with. Acting on a disputed reading is unsafe in either direction, so that now
+  blocks auto-rejection too.
+
+  140 tests pass (7 new C4 regressions); typecheck and lint clean.
 
 - **C3 · 100-lead run finished (2026-08-03)** — sourced 100, prefilter skipped
   23 (no bio link), 77 went through Steel. **77/77 processed, only 2 failures**
