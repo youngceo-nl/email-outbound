@@ -17,6 +17,39 @@ export type AcquisitionResult = {
   challenge: string | null;
 };
 
+/*
+ * Distinguishes "the container/session is unhealthy" from "this account was
+ * blocked or challenged". Found on 2026-08-03: a self-hosted Steel instance
+ * degraded across ~13 sequential real sessions (10s -> 63s, a clear climb —
+ * runPlaywrightInstagramComplete's own internal try/catches only cover page
+ * operations, not a slow/hanging session-create call, which sits before any
+ * of that), then began failing new session-create calls in under 2s, and
+ * finally crashed on an unhandled exception in its own CDP code. Nothing on
+ * our side bounded how long a single acquisition could run, so the pipeline
+ * had no chance to notice the climb or stop before the crash.
+ *
+ * A timeout here must never be treated as evidence against the ACCOUNT — it
+ * says nothing about that identity's cookie or proxy, so the caller must not
+ * quarantine on this error the way it does for a real Instagram challenge.
+ */
+export class AcquisitionTimeoutError extends Error {
+  constructor(username: string, ms: number) {
+    super(`Acquisition for @${username} exceeded ${Math.round(ms / 1000)}s — the browser backend is likely degraded`);
+    this.name = "AcquisitionTimeoutError";
+  }
+}
+
+/** Generous relative to real sessions (usually 10-30s); bounds the worst case. */
+export const ACQUISITION_TIMEOUT_MS = 90_000;
+
+/** Small, directly-testable primitive — no need to mock the real acquisition chain. */
+export function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => setTimeout(() => reject(onTimeout()), ms)),
+  ]);
+}
+
 export function validateAcquisitionIdentity(
   identity: AcquisitionPoolEntry,
 ): AcquisitionPoolEntry {
@@ -50,18 +83,25 @@ export async function acquireInstagramEvidence(input: {
   steelApiKey?: string | null;
   /** Sourced from app_settings; falls back to STEEL_BASE_URL. Self-hosted only. */
   steelBaseUrl?: string | null;
+  /** Overridable for tests; defaults to ACQUISITION_TIMEOUT_MS. */
+  timeoutMs?: number;
 }): Promise<AcquisitionResult> {
   const identity = validateAcquisitionIdentity(input.identity);
-  const report = await runPlaywrightInstagramComplete({
-    username: input.username,
-    backend: "steel",
-    proxyUrl: identity.proxyUrl,
-    steelProfileId: identity.steelProfileId,
-    sessionCookie: identity.cookie,
-    steelApiKey: input.steelApiKey ?? null,
-    steelBaseUrl: input.steelBaseUrl ?? null,
-    writeArtifacts: false,
-  });
+  const timeoutMs = input.timeoutMs ?? ACQUISITION_TIMEOUT_MS;
+  const report = await withTimeout(
+    runPlaywrightInstagramComplete({
+      username: input.username,
+      backend: "steel",
+      proxyUrl: identity.proxyUrl,
+      steelProfileId: identity.steelProfileId,
+      sessionCookie: identity.cookie,
+      steelApiKey: input.steelApiKey ?? null,
+      steelBaseUrl: input.steelBaseUrl ?? null,
+      writeArtifacts: false,
+    }),
+    timeoutMs,
+    () => new AcquisitionTimeoutError(input.username, timeoutMs),
+  );
 
   const profile = report.profile as {
     display_name?: string | null;

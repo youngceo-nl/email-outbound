@@ -6,7 +6,7 @@ import {
   buildAcquisitionPool,
   type AcquisitionPoolEntry,
 } from "@/lib/instagram/cookie-pool";
-import { acquireInstagramEvidence } from "@/lib/instagram/steel-acquisition";
+import { AcquisitionTimeoutError, acquireInstagramEvidence } from "@/lib/instagram/steel-acquisition";
 import { advanceRunLead, createEvidenceSnapshot } from "@/lib/qualification/repository";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logCrawl, logError } from "@/lib/pipeline/persist";
@@ -57,14 +57,42 @@ export const acquireProfile = inngest.createFunction(
       }),
     );
 
-    const acquisition = await step.run("acquire-profile", () =>
-      acquireInstagramEvidence({
+    let acquisition: Awaited<ReturnType<typeof acquireInstagramEvidence>>;
+    try {
+      acquisition = await step.run("acquire-profile", () =>
+        acquireInstagramEvidence({
+          username,
+          identity,
+          steelApiKey: settings.steel_api_key ?? process.env.STEEL_API_KEY ?? null,
+          steelBaseUrl: settings.steel_base_url ?? process.env.STEEL_BASE_URL ?? null,
+        }),
+      );
+    } catch (err) {
+      if (!(err instanceof AcquisitionTimeoutError)) throw err;
+      /*
+       * Deliberately NOT the same path as a real challenge/block below: a
+       * timeout is evidence the browser backend is unhealthy, not that this
+       * account's cookie or proxy is bad. Quarantining it here would blame
+       * the wrong thing — found 2026-08-03 when a degrading self-hosted Steel
+       * instance made session-open calls climb from 10s to 63s before it
+       * crashed, with nothing bounding how long a single lead could run.
+       */
+      await step.run("log-acquisition-timeout", () =>
+        logError({
+          context: "profile-acquisition",
+          error_message: err.message,
+          payload: { username, account: identity.accountUsername },
+          crawl_job_id,
+        }),
+      );
+      await advanceRunLead({
+        runId: run_id,
         username,
-        identity,
-        steelApiKey: settings.steel_api_key ?? process.env.STEEL_API_KEY ?? null,
-        steelBaseUrl: settings.steel_base_url ?? process.env.STEEL_BASE_URL ?? null,
-      }),
-    );
+        stage: "acquiring",
+        patch: { status: "acquisition_failed", acquisition_status: "timeout", error_message: err.message },
+      });
+      return { status: "timeout", qualified: false };
+    }
 
     if (acquisition.status !== "captured") {
       if (shouldQuarantine(acquisition.status, acquisition.report.errors)) {
