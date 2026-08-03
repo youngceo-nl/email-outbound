@@ -162,7 +162,16 @@ async function openSteelSession(options: BackendOptions): Promise<BrowserSession
     context,
     sessionId: session.id,
     debugUrl: session.sessionViewerUrl ?? session.debugUrl ?? null,
-    proxySource: session.proxySource ?? null,
+    /*
+     * session.proxySource is Steel Cloud-only metadata — the self-hosted image
+     * never returns it, so reading it here always reported "none (direct)"
+     * against a self-hosted instance regardless of whether a proxy was used.
+     * Verified 2026-08-03: a self-hosted session with proxyUrl set showed the
+     * pinned Oxylabs exit IP to the target site, not this host's real IP — the
+     * proxying works, only Cloud's extra reporting field is absent. Falling
+     * back to what we ourselves configured keeps the log honest either way.
+     */
+    proxySource: session.proxySource ?? (options.proxyUrl ? "external" : options.useRotatingProxy ? "steel" : null),
     close: async () => {
       await browser.close().catch(() => {});
       // Releasing is what stops the billing clock; always attempt it.
