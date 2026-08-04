@@ -61,6 +61,16 @@ export type BackendOptions = {
   /** Exact cookie header paired with this profile. Never logged. */
   sessionCookie?: string | null;
   sessionTimeoutMs?: number;
+  /*
+   * Cloudflare Access Service Token for a self-hosted instance sitting behind
+   * Cloudflare Tunnel + Access (see self-hosting-server ADR-006). Required on
+   * both the session-create REST call and the connectOverCDP WebSocket —
+   * Access enforces at Cloudflare's edge independently for each. Falls back
+   * to CF_ACCESS_CLIENT_ID/CF_ACCESS_CLIENT_SECRET env vars. Irrelevant for
+   * Steel Cloud (api.steel.dev) or a self-hosted instance reached directly.
+   */
+  cfAccessClientId?: string | null;
+  cfAccessClientSecret?: string | null;
 };
 
 export async function openBrowserSession(options: BackendOptions): Promise<BrowserSession> {
@@ -106,7 +116,19 @@ async function openSteelSession(options: BackendOptions): Promise<BrowserSession
     );
   }
 
-  const client = new Steel({ steelAPIKey: apiKey, ...(baseURL ? { baseURL } : {}) });
+  const cfAccessClientId = options.cfAccessClientId?.trim() || process.env.CF_ACCESS_CLIENT_ID?.trim() || null;
+  const cfAccessClientSecret =
+    options.cfAccessClientSecret?.trim() || process.env.CF_ACCESS_CLIENT_SECRET?.trim() || null;
+  const cfAccessHeaders: Record<string, string> =
+    cfAccessClientId && cfAccessClientSecret
+      ? { "CF-Access-Client-Id": cfAccessClientId, "CF-Access-Client-Secret": cfAccessClientSecret }
+      : {};
+
+  const client = new Steel({
+    steelAPIKey: apiKey,
+    ...(baseURL ? { baseURL } : {}),
+    ...(Object.keys(cfAccessHeaders).length > 0 ? { defaultHeaders: cfAccessHeaders } : {}),
+  });
 
   /*
    * Steel hands back a FRESH context every run — there is no profile directory
@@ -147,6 +169,7 @@ async function openSteelSession(options: BackendOptions): Promise<BrowserSession
   try {
     browser = await chromium.connectOverCDP(
       baseURL ? session.websocketUrl : `${session.websocketUrl}&apiKey=${apiKey}`,
+      Object.keys(cfAccessHeaders).length > 0 ? { headers: cfAccessHeaders } : undefined,
     );
   } catch (err) {
     // Never leave a paid session running because the connect failed.
