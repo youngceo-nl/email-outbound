@@ -19,15 +19,19 @@ missing.
 ## 👤 YOU
 
 ### [ ] Create a Cloudflare Access service token
-1. **Zero Trust → Access → Service Auth → Create Service Token**
-   Name it something like `email-outbound-pipeline`.
+Cloudflare renamed **Access** to **Access controls** — the paths below are the
+current ones, checked against Cloudflare's own docs on 2026-08-05.
+
+1. **Zero Trust → Access controls → Service credentials → Service Tokens →
+   Create Service Token.** Name it something like `email-outbound-pipeline`.
 2. Copy **both** values. The **Client Secret is shown only once.**
    - Client ID looks like `<long-string>.access`
    - Client Secret is a long random string
-3. Attach it to the app, or the token exists but is still rejected:
-   **Access → Applications →** the `steel-api.paidinfunnel.com` app **→
-   Policies → Add policy**, action **Service Auth**, include **Service Token →
-   the one you just created**.
+3. Attach it to the app, or the token exists and is still rejected:
+   **Zero Trust → Access controls → Applications →** the `steel-api` app **→
+   Policies → Add policy**, action **Service Auth** — not the default identity
+   action, or Cloudflare still demands a browser login and the token is
+   rejected. Include **Service Token → the one you just created**.
 4. Paste both values into the chat.
 
 **Done when:** a probe of `/v1/sessions` returns 200 instead of 403.
