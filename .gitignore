@@ -1,0 +1,10 @@
+# Secrets - never commit these
+# .env* also covers .env.local, .env.production.local, etc. — plain .env/*.env
+# alone does NOT match *.local suffixed files (confirmed gap, 2026-08-04).
+.env*
+!*.env.example
+*credentials*.json
+*token*.txt
+
+# Cloudflare tunnel credentials (kept outside the repo, in ~/.cloudflared/, by design)
+cloudflared/*.json
