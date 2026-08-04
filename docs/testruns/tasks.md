@@ -1,25 +1,58 @@
-# Task list — work through these in order
+# Task list
 
 Started 2026-08-02, after the first successful test runs.
 Full background and evidence: [testrun.md](testrun.md).
 
-Two tracks run in parallel. Claude's track makes the pipeline cheaper and
-smarter. The human track raises the speed ceiling.
-
 ---
 
-## Open
+# 🔴 BLOCKING RIGHT NOW — nothing can run until this is done
 
-### [ ] C4 follow-up · re-measure on a fresh run — Claude
-The certainty deadlock is fixed (see Done). What is **not** yet known is how the
-pipeline behaves on leads scored under the new logic from the start, rather than
-replayed. A fresh run also re-measures the challenger fire rate, which was 18%
-on C3 versus 45–65% on the smaller 2026-08-02 runs and has never been
-reconciled.
+The pipeline points at the self-hosted Steel server
+(`https://steel-api.paidinfunnel.com`), which sits behind **Cloudflare Access**.
+Access answers **403 to every request** regardless of Steel's own API key —
+verified against no-auth, `steel-api-key`, and `Bearer`. **A run started today
+fails on every single lead.**
+
+Migration `20260806000000` is applied and the code is ready. Only the token is
+missing.
+
+## 👤 YOU
+
+### [ ] Create a Cloudflare Access service token
+1. **Zero Trust → Access → Service Auth → Create Service Token**
+   Name it something like `email-outbound-pipeline`.
+2. Copy **both** values. The **Client Secret is shown only once.**
+   - Client ID looks like `<long-string>.access`
+   - Client Secret is a long random string
+3. Attach it to the app, or the token exists but is still rejected:
+   **Access → Applications →** the `steel-api.paidinfunnel.com` app **→
+   Policies → Add policy**, action **Service Auth**, include **Service Token →
+   the one you just created**.
+4. Paste both values into the chat.
+
+**Done when:** a probe of `/v1/sessions` returns 200 instead of 403.
+
+## 🤖 CLAUDE
+
+### [ ] Store the token and verify the connection
+Writes both values to `app_settings` (not `.env.local` — see CLAUDE.md), then
+re-probes and runs **one** real acquisition end to end before touching the 667
+waiting leads. Blocked on your step above.
+
+### [ ] Then: fresh run to re-measure C4
+The certainty deadlock is fixed and replay-verified, but **no run has ever
+executed under the new logic** — the 64 → 14 result comes from replaying stored
+C3 decisions, not from live scoring. A fresh run also re-measures the challenger
+fire rate, which was 18% on C3 versus 45–65% on the 2026-08-02 runs and has
+never been reconciled.
 
 **Done when:** a fresh run's review rate and challenger rate are recorded here.
 
-### [ ] H7 · Seed selection — the yield problem — human
+---
+
+## Open — not blocking
+
+### [ ] H7 · Seed selection — the yield problem — 👤 YOU
 **Probably a bigger lever on revenue than any pipeline fix.** Of the 75 leads
 C3 scored, **44 were streetwear/clothing brands** (track `commerce`) and only
 **9 were `information_personal_brand`** — the actual ICP. `@kishanslings`
@@ -40,12 +73,12 @@ time and Anthropic spend on leads that were never going to qualify.
 
 ## Not urgent
 
-### [ ] H4 · Top up Apify — human, only if sourcing at volume
+### [ ] H4 · Top up Apify — 👤 YOU, only if sourcing at volume
 Token #1 is over its monthly limit (-$0.04); token #2 has $4.48 left. Rotation
 skips the dead one automatically, and sourcing 100 accounts cost $0.00, so this
 is not urgent. Only needed for large sourcing runs.
 
-### [ ] H6 · Buy proxies for groups A and B — human, only to go past 5
+### [ ] H6 · Buy proxies for groups A and B — 👤 YOU, only to go past 5
 10 accounts in groups A and B already have cookies and need only a proxy each.
 The current Oxylabs plan is exhausted at 5 distinct IPs.
 
