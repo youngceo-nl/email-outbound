@@ -246,6 +246,36 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
   const settings = await getSettings(true).catch(() => null);
 
   const steelBaseUrl = settings?.steel_base_url || process.env.STEEL_BASE_URL || null;
+  /*
+   * A self-hosted Steel behind Cloudflare Access answers 403 to everything, and
+   * "the key is set" says nothing about reachability — the failure would
+   * otherwise only surface as every lead in the run failing. Probed live with a
+   * short timeout; any probe failure degrades to "unknown" rather than a false
+   * red, since a slow network is not the same as a broken deployment.
+   */
+  let steelUnreachable: string | null = null;
+  if (steelBaseUrl) {
+    const cfId = settings?.steel_cf_client_id?.trim();
+    const cfSecret = settings?.steel_cf_client_secret?.trim();
+    try {
+      const res = await fetch(`${steelBaseUrl.replace(/\/$/, "")}/v1/sessions?limit=1`, {
+        headers:
+          cfId && cfSecret
+            ? { "CF-Access-Client-Id": cfId, "CF-Access-Client-Secret": cfSecret }
+            : {},
+        signal: AbortSignal.timeout(6000),
+      });
+      if (res.status === 403) {
+        steelUnreachable = cfId
+          ? "Cloudflare Access rejected the service token (403)"
+          : "blocked by Cloudflare Access (403) — a service token is needed";
+      } else if (!res.ok) {
+        steelUnreachable = `HTTP ${res.status}`;
+      }
+    } catch {
+      // Unknown, not broken.
+    }
+  }
   // Self-hosted needs no key at all — the container accepts anything.
   const steelKey = !!(steelBaseUrl || settings?.steel_api_key || process.env.STEEL_API_KEY);
   // buildAcquisitionPool throws before the first step when an identity is
@@ -264,9 +294,11 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
   return [
     {
       label: "Steel",
-      ok: steelKey,
+      ok: steelKey && !steelUnreachable,
       blocking: true,
-      detail: steelBaseUrl
+      detail: steelUnreachable
+        ? `self-hosted at ${steelBaseUrl} is unreachable — ${steelUnreachable}`
+        : steelBaseUrl
         ? `self-hosted at ${steelBaseUrl}${settings?.steel_base_url ? " (shared with the team)" : " — only on this machine, teammates will fail"}`
         : steelKey
           ? settings?.steel_api_key

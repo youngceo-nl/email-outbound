@@ -124,6 +124,8 @@ export type AppSettings = {
   youtube_api_key: string | null;
   steel_api_key: string | null;
   steel_base_url: string | null;
+  steel_cf_client_id: string | null;
+  steel_cf_client_secret: string | null;
   openai_model: string;
   /** Report generation only — see migration 20260727000000_report_model.sql. */
   report_model: string;

@@ -34,3 +34,4 @@ __pycache__/
 apply-run-tables.sql
 
 apply-steel-base-url.sql
+apply-cf-access.sql

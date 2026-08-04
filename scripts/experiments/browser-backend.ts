@@ -56,6 +56,15 @@ export type BackendOptions = {
    * a config change, never a code change, per lead.
    */
   steelBaseUrl?: string | null;
+  /*
+   * Cloudflare Access service token. A self-hosted Steel behind Access rejects
+   * every request with 403 regardless of Steel's own key, because Access is a
+   * browser-SSO layer. These two headers are its machine-to-machine path, and
+   * they must go on BOTH legs — the REST calls AND the CDP websocket — since
+   * Access sits in front of the whole hostname.
+   */
+  steelCfClientId?: string | null;
+  steelCfClientSecret?: string | null;
   /** Persistent Steel profile id — one per Instagram account in production. */
   profileId?: string | null;
   /** Exact cookie header paired with this profile. Never logged. */
@@ -106,7 +115,16 @@ async function openSteelSession(options: BackendOptions): Promise<BrowserSession
     );
   }
 
-  const client = new Steel({ steelAPIKey: apiKey, ...(baseURL ? { baseURL } : {}) });
+  const cfId = options.steelCfClientId?.trim();
+  const cfSecret = options.steelCfClientSecret?.trim();
+  const cfHeaders: Record<string, string> =
+    cfId && cfSecret ? { "CF-Access-Client-Id": cfId, "CF-Access-Client-Secret": cfSecret } : {};
+
+  const client = new Steel({
+    steelAPIKey: apiKey,
+    ...(baseURL ? { baseURL } : {}),
+    ...(Object.keys(cfHeaders).length > 0 ? { defaultHeaders: cfHeaders } : {}),
+  });
 
   /*
    * Steel hands back a FRESH context every run — there is no profile directory
@@ -147,6 +165,7 @@ async function openSteelSession(options: BackendOptions): Promise<BrowserSession
   try {
     browser = await chromium.connectOverCDP(
       baseURL ? session.websocketUrl : `${session.websocketUrl}&apiKey=${apiKey}`,
+      Object.keys(cfHeaders).length > 0 ? { headers: cfHeaders } : undefined,
     );
   } catch (err) {
     // Never leave a paid session running because the connect failed.
