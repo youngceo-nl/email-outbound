@@ -27,6 +27,18 @@ import { qualifyLead } from "@/inngest/functions/qualify-lead";
 // are registered but inert by default — every follow-up chain is created
 // with status='paused', and both jobs only ever act on status='active'
 // chains. Nothing auto-sends until a chain is deliberately flipped to active.
+/*
+ * Vercel kills a serverless function at 10s by default, and one Inngest step is
+ * one HTTP request — so an acquisition step would be truncated mid-session.
+ * Measured on the 2026-08-05 run: median 19.2s per lead, max 58.9s, and steps
+ * reached 63s during the container degradation on 2026-08-03. Hobby's 60s
+ * ceiling has no headroom against that; 300 is the Pro maximum and leaves room
+ * for a slow profile without ever silently cutting a lead in half.
+ *
+ * This is not optional for a hosted deploy. Without it most leads die.
+ */
+export const maxDuration = 300;
+
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
