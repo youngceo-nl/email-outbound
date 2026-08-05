@@ -1,0 +1,24 @@
+services:
+  api:
+    environment:
+      # Without these, session.websocketUrl (what Playwright actually connects
+      # to) comes back as ws://localhost:3000/..., unreachable from anywhere
+      # off this PC. DOMAIN/USE_SSL only change the URL strings the API hands
+      # out — the container still listens on plain HTTP internally; TLS is
+      # terminated by Cloudflare, not here. See decisions.md ADR-006/ADR-008.
+      - DOMAIN=steel-api.paidinfunnel.com
+      - USE_SSL=true
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4g
+    restart: unless-stopped
+
+  ui:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512m
+    restart: unless-stopped
