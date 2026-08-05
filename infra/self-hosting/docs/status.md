@@ -149,7 +149,19 @@ There is no self-hosted Inngest container on this box and there never was one; t
 
 Notable: the **signing key on the box was already `signkey-prod-*`** - only the event key had been a branch-environment one, which is why the failure looked stranger than it was.
 
+## Deploy pipeline working end to end (2026-08-05, later)
+
+**`deploy-remote.sh` now does a full deploy from the Mac in one command, and has been run for real.** Verified: build from freshly pulled source, container replaced, health check green locally and from the Mac, event send `200`, app re-registered against Inngest Production.
+
+Getting there took five runs and found five separate defects, all of which were invisible until the scripts were actually executed - see ADR-015. The load-bearing one: **`docker build` cannot run over an SSH session on this box.** Windows OpenSSH key auth yields a network logon token, and Docker Desktop's credential helper needs DPAPI access that such a token does not have. No Docker setting fixes it (four were tried). `run-interactive.ps1` hands the build to a scheduled task registered `/IT`, which runs in the already-logged-on desktop session. Commands that skip the credential store - `docker ps`, `exec`, `logs`, `compose up` without `--build` - work fine over plain SSH, which is why everything before this point worked.
+
+**Note the new dependency:** deploys now require the PC to be *logged in*, not just powered on. Auto-login already covers that (ADR-007), but a reboot stopping at the login screen would break deploys, not only Docker.
+
+**Also: the PC had been 16 files / 737 insertions behind `main`** - its running image predated the Cloudflare Access work entirely. That is now built in and confirmed present in the image.
+
+**A helper script written this session corrupted two live credentials.** `set-inngest-keys.ps1` read its hidden prompt with `PtrToStringAuto`, which returns only the first character of a BSTR, so both Inngest keys were written as 1-character values while the script reported success. Caught by a post-deploy event send returning 404, and recovered from the timestamped backup the script had taken. Replaced by `deploy/set-env-value.ps1`, which uses `PtrToStringBSTR`, refuses values under 8 characters, and prints the written length. **Use that one for any future key change; do not resurrect the old script.**
+
 **Still open:**
-1. **Rotate the Inngest event key.** Two were exposed in a chat transcript during this work - the original (a branch key, can simply be deleted) and its replacement. The replacement is live and working, so rotate it once convenient and write the new value in with the `Read-Host`-based script rather than by pasting.
-2. Reconcile the Mac's `.env.production.generated` with the PC's file, or delete it, so the two stop diverging. It is a stale subset and is what `--push-env` would have overwritten the good file with.
-3. **`deploy.ps1` has still never been run.** The fix above was applied by hand over SSH, not through it. Its `--env-file` handling is still correct and still unexercised: there is no `.env` in `infra/self-hosting/deploy/`, so the current image only built successfully because a shell happened to have the variables exported. The next `--build` from a clean shell would have failed exactly as ADR-013 described. Use `deploy-remote.sh` for the next real code deploy and treat it as a test of the script.
+1. **Rotate the Inngest event key.** It was exposed in a chat transcript. Rotate with `deploy/set-env-value.ps1 -Key INNGEST_EVENT_KEY`, then recreate the container.
+2. **A new migration is pending:** `supabase/migrations/20260806000000_steel_cf_access.sql` arrived with the catch-up pull and has not been applied. Per the repo root `CLAUDE.md`, never `supabase db push` - paste it into the dashboard SQL editor.
+3. `.env.production.generated` on the Mac is now an exact copy of the PC's file (47 keys), pulled down as an off-box backup. It is gitignored on both ends. Keep in mind it will drift again the moment the PC's copy changes; the PC remains the source of truth and `deploy-remote.sh` will not push over it without `--push-env`.
