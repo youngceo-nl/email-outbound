@@ -107,3 +107,16 @@ Found and fixed along the way: the **Server Mode** power plan had reverted to Ba
 7. Decide on DiagTrack / SysMain / WSearch (telemetry + Superfetch + Windows Search indexing) — flagged during the startup/services audit but not yet acted on.
 8. Consider whether the api/ui resource limits in `deploy/docker-compose.override.yml` need tuning once real usage patterns are known.
 9. Remember to switch back to the **Balanced** plan when using this PC as a regular desktop — Server Mode trades video quality for power savings and there's no auto-switch.
+
+## Repo merged into email-outbound (2026-08-05)
+
+User decided to self-host the whole `email-outbound` app on this PC too, not just Steel — this repo (`self-hosting-server`) has been merged into `email-outbound` via `git subtree` (full history preserved, both original commits `e805e4f`/`2f34df4` are real ancestors of the merge commit, verifiable via `git log <merge-commit>^2`). This doc, and everything else that was in this repo, now lives at `email-outbound/infra/self-hosting/`. The standalone `self-hosting-server` GitHub repo and local clone are slated for archival once the merged copy is confirmed good — not done yet, see the email-outbound side of this work for current status.
+
+**Steel's compose invocation path changed** as a direct consequence — the override file moved:
+```powershell
+cd ../steel-browser
+docker compose -f docker-compose.yml -f ../email-outbound/infra/self-hosting/deploy/docker-compose.override.yml up -d
+```
+(previously `../self-hosting-server/deploy/docker-compose.override.yml`).
+
+email-outbound itself now also runs in Docker on this PC (see `infra/self-hosting/deploy/docker-compose.app.yml` and the root `Dockerfile`) — full detail in `email-outbound`'s own `CLAUDE.md` and commit history from this point forward, since new decisions about the app itself belong there, not in this doc.

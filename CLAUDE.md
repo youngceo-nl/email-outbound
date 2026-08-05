@@ -37,6 +37,24 @@ Most readers already prefer the database with env as fallback, e.g.
   throws without it and there is no `steel_api_key` column yet. Until that is
   wired, Steel is the one credential that still has to live in `.env.local`.
 
+Infra-level secrets are a separate category from the above and are the
+exception to "always the database": Cloudflare Access tokens, Supabase's own
+service role key, and anything else needed just to *reach* the app or its
+dependencies at all stay in env files (`.env.local` for dev, `.env.production`
+for the self-hosted container) — see `infra/self-hosting/CLAUDE.md`.
+
+## Infra / self-hosting
+
+This app runs in Docker on the same PC as Steel (see `Dockerfile`,
+`infra/self-hosting/deploy/docker-compose.app.yml`). Host-level changes —
+Docker Desktop, Cloudflare Tunnel, BIOS/power settings, anything that touches
+the physical machine rather than just this repo's code — follow the
+confirm-before-changing convention in `infra/self-hosting/CLAUDE.md`. Read it
+before any deploy/infra task. That folder also holds the ADR-style decisions
+log and current-state doc (`infra/self-hosting/docs/{decisions,status}.md`)
+for everything about how this PC is set up, including the Steel integration
+this app depends on.
+
 ## Supabase access
 
 The Supabase JS client (service role key in `.env.local`) supports data queries

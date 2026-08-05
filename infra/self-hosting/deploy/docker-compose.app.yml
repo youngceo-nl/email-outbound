@@ -1,0 +1,20 @@
+services:
+  email-outbound:
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    image: email-outbound:latest
+    container_name: email-outbound
+    env_file:
+      - ../../../.env.production
+    ports:
+      - "3417:3417"
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1g
+    restart: unless-stopped

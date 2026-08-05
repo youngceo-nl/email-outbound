@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   experimental: { serverActions: { bodySizeLimit: "5mb" } },
   turbopack: { root: __dirname },
   // Playwright drives real Chromium and must never be bundled into the server

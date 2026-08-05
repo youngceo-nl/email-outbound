@@ -1,10 +1,10 @@
-# self-hosting-server
+# infra/self-hosting
 
-## What this project is
+## What this folder is
 
-Turning this Windows 10 PC into a 24/7 self-hosted server for [Steel](https://github.com/steel-dev/steel-browser) — an open-source browser API for AI agents (Puppeteer/CDP-controllable Chrome sandbox), run via Docker.
+Docs and config for turning this Windows 10 PC into a 24/7 self-hosted server — originally just for [Steel](https://github.com/steel-dev/steel-browser) (an open-source browser API for AI agents, run via Docker), now also the host for `email-outbound` itself. Merged in from the standalone `self-hosting-server` repo via `git subtree` (full history preserved) once the decision was made to self-host the whole app here, not just Steel.
 
-Primary constraint: **minimize electricity cost of running this 24/7**, since the server always stays on. Everything else is secondary to that unless stated otherwise.
+Primary constraint on the machine-level work in this folder: **minimize electricity cost of running this 24/7**, since the server always stays on. Everything else is secondary to that unless stated otherwise. This constraint applies to the host/OS/Docker layer covered here — not to `email-outbound`'s own application-level conventions, which live in the repo root `CLAUDE.md`.
 
 ## Docs map
 
