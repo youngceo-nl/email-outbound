@@ -184,7 +184,16 @@ async function openSteelSession(options: BackendOptions): Promise<BrowserSession
     kind: "steel",
     context,
     sessionId: session.id,
-    debugUrl: session.sessionViewerUrl ?? session.debugUrl ?? null,
+    /*
+     * debugUrl (steel-browser's own /v1/sessions/debug, "an HTML page with a
+     * live debugger view of the session") is the one that actually works on
+     * a self-hosted instance. sessionViewerUrl is a Steel Cloud concept — a
+     * hosted app.steel.dev page — and on self-hosted it's just a hardcoded
+     * placeholder (getBaseUrl(), the bare domain root, identical on every
+     * session). Preferring sessionViewerUrl here silently handed out a dead
+     * link for anyone actually trying to watch/drive a self-hosted session.
+     */
+    debugUrl: session.debugUrl ?? session.sessionViewerUrl ?? null,
     /*
      * session.proxySource is Steel Cloud-only metadata — the self-hosted image
      * never returns it, so reading it here always reported "none (direct)"
