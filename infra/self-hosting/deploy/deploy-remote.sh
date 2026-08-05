@@ -91,10 +91,24 @@ else
   echo "    pushed (previous file backed up on the PC as .env.production.bak-<timestamp>)"
 fi
 
+# Pull from here rather than letting deploy.ps1 do it. PowerShell parses a
+# script into memory before running it, so a deploy.ps1 that pulls its own
+# update still executes the pre-pull copy - which cost one confusing round of
+# "the fix is on the box but is not running". Pulling first means the version
+# invoked below is always the version that was just fetched.
+if [ -n "$SKIP_PULL" ]; then
+  step "Skipping git pull (--skip-pull)"
+else
+  step "Pulling latest on $PC_HOST"
+  ssh -o BatchMode=yes "$PC_HOST" "cd /d $PC_REPO && git pull --ff-only" \
+    || fail "git pull failed on the PC - check for local changes there."
+fi
+
 step "Running deploy.ps1 on $PC_HOST"
 # Forward slashes throughout - PC_REPO already uses them, and mixing separators
 # is how the first run of this script failed.
 REMOTE_SCRIPT="$PC_REPO/infra/self-hosting/deploy/deploy.ps1"
+RUNNER="$PC_REPO/infra/self-hosting/deploy/run-interactive.ps1"
 
 # -ExecutionPolicy Bypass because the script is unsigned; -NoProfile so a stray
 # user profile on the box cannot change how it behaves.
@@ -103,9 +117,13 @@ REMOTE_SCRIPT="$PC_REPO/infra/self-hosting/deploy/deploy.ps1"
 # bad -File path it prints an error and still exits 0, which made the first run
 # of this script report a successful deploy of nothing. The remote exit code is
 # not trustworthy, so the health check below is what actually decides.
+# Via run-interactive.ps1, because `docker build` cannot run from an SSH session
+# on this box - see the header of that script. -SkipPull because the pull
+# already happened above, over a channel that does not need the interactive
+# session.
 set +e
 ssh -t "$PC_HOST" \
-  "powershell -NoProfile -ExecutionPolicy Bypass -File \"$REMOTE_SCRIPT\" $SKIP_PULL"
+  "powershell -NoProfile -ExecutionPolicy Bypass -File \"$RUNNER\" -Script \"$REMOTE_SCRIPT\" -ScriptArgs \"-SkipPull\""
 rc=$?
 set -e
 

@@ -140,20 +140,12 @@ try {
     # --- 3. Build and start -------------------------------------------------
     Write-Step 'Building and starting the container'
 
-    # Docker Desktop stores registry credentials via a Windows credential helper
-    # that needs the interactive logon session. Over SSH there isn't one, and the
-    # build dies with "error getting credentials - A specified logon session does
-    # not exist" before it even reads the Dockerfile.
-    #
-    # Every image this build pulls is public, so no credentials are needed at
-    # all. Point DOCKER_CONFIG at a minimal config with no credsStore rather than
-    # editing the user's real ~/.docker/config.json, which would also change how
-    # Docker Desktop behaves interactively.
-    $sshDockerConfig = Join-Path $env:USERPROFILE '.docker-ssh'
-    if (-not (Test-Path $sshDockerConfig)) { New-Item -ItemType Directory -Path $sshDockerConfig | Out-Null }
-    $cfg = Join-Path $sshDockerConfig 'config.json'
-    if (-not (Test-Path $cfg)) { Set-Content -Path $cfg -Value '{}' -Encoding ascii }
-    $env:DOCKER_CONFIG = $sshDockerConfig
+    # NOTE: this step cannot run over an SSH session. Docker Desktop's credential
+    # helper needs the interactive logon token, which SSH key auth does not
+    # provide, and the build fails with "error getting credentials - A specified
+    # logon session does not exist". deploy-remote.sh therefore invokes this
+    # script through run-interactive.ps1; see that file for why no Docker config
+    # setting fixes it. Running this script directly at the PC is unaffected.
 
     # --env-file is load-bearing, not decoration. Compose interpolates the
     # ${NEXT_PUBLIC_*} build args in docker-compose.app.yml from the shell env or
