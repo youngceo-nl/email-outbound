@@ -120,3 +120,36 @@ docker compose -f docker-compose.yml -f ../email-outbound/infra/self-hosting/dep
 (previously `../self-hosting-server/deploy/docker-compose.override.yml`).
 
 email-outbound itself now also runs in Docker on this PC (see `infra/self-hosting/deploy/docker-compose.app.yml` and the root `Dockerfile`) — full detail in `email-outbound`'s own `CLAUDE.md` and commit history from this point forward, since new decisions about the app itself belong there, not in this doc.
+
+## Remote access live + the app is not actually broken (2026-08-05)
+
+**Remote access from the Mac is working (ADR-012).** Tailscale on both machines, Windows OpenSSH Server enabled, key-based login confirmed: `ssh self-hosting-pc` reaches `tokki@DESKTOP-8N83F8S`. The PC's Tailscale name is `desktop-8n83f8s` (`desktop-8n83f8s.tail537ab3.ts.net`, `100.119.195.52`); the Mac's `~/.ssh/config` maps the stable alias `self-hosting-pc` onto it. SSH is firewalled to the Tailscale CGNAT range only. Setup steps in `remote-access.md`. This does **not** reverse ADR-006 - that rejected Tailscale for *Vercel serverless* reaching Steel, which still holds and still uses the Cloudflare Tunnel.
+
+**With access, the actual state of the box was checked, and the app is substantially healthy.** `/login` returns 200, `/leads` returns 307 (the correct unauthenticated redirect), the Supabase URL is properly baked into the built middleware, and all three containers are up. **Two successive root-cause claims made by reading code were both wrong** - see ADR-014, which supersedes ADR-013's diagnosis.
+
+**The one real fault:** `INNGEST_EVENT_KEY` on this box is an Inngest **Cloud** key belonging to a *branch* environment, and `INNGEST_ENV` is unset, so every send fails with `400 Branch environment name is required`. That is the only error in the container's entire log, and it fired once - from a user action, not from page rendering (`app/(dashboard)/leads/page.tsx` imports no Inngest client). Consequence: page loads, Supabase reads and the Steel path all work; every Inngest-dispatching action (crawl start, scoring, acquisition fan-out, bulk lead ops) fails. Inngest Cloud *can* reach the app - `GET` and `PUT` on `https://app.paidinfunnel.com/api/inngest` both return 200, so Cloudflare Access is not in the way.
+
+There is no self-hosted Inngest container on this box and there never was one; the env template's `<from your self-hosted inngest>` placeholder described something that was never the plan. The fix is Production keys from the Inngest Cloud dashboard.
+
+**Added in `email-outbound` (committed but not yet exercised against the box):**
+- `deploy/deploy.ps1` - pull, validate `.env.production`, build with `--env-file`, health-check `/login`, dump `docker logs` on failure. Never run yet.
+- `deploy/deploy-remote.sh` - drives the above from the Mac over SSH. **Does not touch the PC's `.env.production` unless `--push-env` is passed.**
+- `.env.production.example` at the repo root, plus a `.gitignore` exception so it is actually tracked.
+- `docs/remote-access.md` - the Tailscale + OpenSSH setup, including the `administrators_authorized_keys` ACL gotcha.
+
+**Near-miss worth remembering:** the PC's `.env.production` is the source of truth and holds `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, `INNGEST_DEV` and `STEEL_API_KEY` that the Mac's `.env.production.generated` has never had. The first version of `deploy-remote.sh` pushed the Mac's copy by default and would have destroyed all four. Now opt-in, diffs key names first, refuses to drop keys without `--force`, and backs up the remote file.
+
+**Credential exposed:** the Inngest event key was printed in full to a terminal while inspecting the container environment. Rotate it - which pairs with needing new Production keys anyway.
+
+**RESOLVED, same day.** A new Production event key was created in Inngest Cloud and written into the PC's `.env.production` over SSH; the container was recreated with `docker compose --env-file .env.production -f ... up -d`. Verified, not assumed:
+
+- A real event send from inside the container returns `HTTP 200 {"ids":["01KZ96N6ZQ..."]}` - previously `400 Branch environment name is required`.
+- `PUT https://app.paidinfunnel.com/api/inngest` returns `{"message":"Successfully registered","modified":true}`, so the app's functions are now registered against **Production** rather than a branch environment.
+- `/login` 200, `/leads` 307, and the container log is completely clean since the recreate.
+
+Notable: the **signing key on the box was already `signkey-prod-*`** - only the event key had been a branch-environment one, which is why the failure looked stranger than it was.
+
+**Still open:**
+1. **Rotate the Inngest event key.** Two were exposed in a chat transcript during this work - the original (a branch key, can simply be deleted) and its replacement. The replacement is live and working, so rotate it once convenient and write the new value in with the `Read-Host`-based script rather than by pasting.
+2. Reconcile the Mac's `.env.production.generated` with the PC's file, or delete it, so the two stop diverging. It is a stale subset and is what `--push-env` would have overwritten the good file with.
+3. **`deploy.ps1` has still never been run.** The fix above was applied by hand over SSH, not through it. Its `--env-file` handling is still correct and still unexercised: there is no `.env` in `infra/self-hosting/deploy/`, so the current image only built successfully because a shell happened to have the variables exported. The next `--build` from a clean shell would have failed exactly as ADR-013 described. Use `deploy-remote.sh` for the next real code deploy and treat it as a test of the script.

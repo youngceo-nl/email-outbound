@@ -3,6 +3,7 @@ node_modules
 .next.corrupted-*
 .env*
 !.env.local.example
+!.env.production.example
 .DS_Store
 *.log
 .vercel

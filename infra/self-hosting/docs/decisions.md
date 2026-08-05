@@ -191,3 +191,72 @@ Root cause traced into `steel-browser`'s own code (`api/src/services/cdp/cdp.ser
 - **Did not** run `onboard-instagram-account.ts` itself (the new-account human-login capture path) — that was deliberately deferred. The queued test candidate, `livelypageant8`, is a genuinely fresh/never-onboarded account but has no proxy, and all 5 Oxylabs dedicated ports are already claimed by the other group-C accounts. Reusing one would link two accounts to the same exit IP, which `assign-oxylabs-proxies.ts` already refuses to do for exactly this reason. User explicitly chose not to wait on provisioning a 6th port right now.
 
 **Consequences:** The Steel integration is now proven live with real authentication, not just theorized or logged-out-tested — a meaningfully stronger claim than any prior entry in this log. The stale `steel_base_url` fix in particular may have been silently affecting the production Vercel deployment this whole time; worth confirming the deployed app is now picking up the corrected value (it reads the same shared settings row, so no redeploy should be needed, but not separately verified from Vercel's side). `onboard-instagram-account.ts` remains unverified in practice — next real test of *that specific script* still needs a spare proxy for `livelypageant8` (or another genuinely-fresh account).
+
+---
+
+## ADR-012: Tailscale for admin access from the Mac (this does not reverse ADR-006's rejection of it)
+
+**Date:** 2026-08-05
+**Status:** Accepted — decided and documented; setup not yet performed on either machine.
+
+**Context:** Deploying `email-outbound` to this box was a hand-run sequence: copy `.env.production` over by some out-of-band means, edit it in place, `git pull`, `docker compose up --build`, then open the site and — when it failed with a Next.js digest and nothing else — ask whoever was at the PC to run `docker logs` and paste the output back. Every step needed a human physically at the machine, and the slowest part of the loop was not the build but the round-trip for the error message.
+
+ADR-006 rejected Tailscale, so adopting it now needs an explicit note about why that is not a contradiction. **The rejection was scoped to a specific caller and still holds for it.** ADR-006's problem was Vercel serverless functions reaching Steel: no persistent process exists in a serverless invocation to run a VPN client, which is why a public HTTPS endpoint behind Cloudflare Access was the right answer there and remains so. This ADR is about a *different* caller — a Mac, which is an ordinary always-on machine that can trivially run a VPN client. The two decisions do not overlap: app-to-Steel traffic continues to go over the Cloudflare Tunnel exactly as before, and nothing about ADR-006's architecture changes.
+
+**Decision:**
+- **Tailscale on the Mac and the PC**, plus Windows OpenSSH Server, giving `ssh`/`scp` to the box over a private WireGuard mesh. Setup steps in `remote-access.md`.
+- **Rejected: SSH over the existing Cloudflare Tunnel.** Genuinely viable, and appealing because it reuses the cloudflared service and Zero Trust config already on the box — no new vendor, no second agent, no extra idle power draw. Rejected on cost/benefit: it needs a new tunnel ingress, an Access application and policy, and a `cloudflared access ssh` ProxyCommand on the Mac, *and still requires OpenSSH Server on Windows anyway*, so it is strictly more configuration for the same result. It also makes `scp` awkward, and pushing `.env.production` is half the point. Worth revisiting if the Tailscale agent's power cost ever measures as non-trivial.
+- **Rejected for now: RDP or Parsec** alongside SSH. Acknowledged gap — `status.md` records two failures (Docker Desktop's `AutoStart` setting, the cold-start API container crash) that were diagnosed and fixed through the Docker Desktop GUI, and SSH would not have helped with either. Deferred rather than dismissed: SSH covers the deploy loop, which is the actual recurring pain, and a desktop channel is more setup and more exposed surface for a case that has come up twice.
+- **SSH restricted to the Tailscale CGNAT range** (`100.64.0.0/10`) at the Windows firewall, matching the existing treatment of Steel's ports — installing OpenSSH Server opens port 22 on all profiles by default, including the LAN, which is not wanted.
+
+**Consequences:** Accepts a small always-on agent on a box whose stated primary constraint is minimizing 24/7 power draw. Judged worth it: the deploy loop currently costs a human trip to the PC, and the alternative (Cloudflare Access SSH) avoids the agent but not the complexity. Not yet measured against the 61W idle baseline — if the next wattage reading moves, this is a candidate cause. Also note Tailscale is a new third-party dependency in the path to administering the machine; if it is down or an account lapses, access falls back to physically using the PC, which is exactly today's situation and so not a regression.
+
+---
+
+## ADR-013: Deploy via a checked-in script, not documented commands — prompted by a build-arg bug that made the app unbootable
+
+**Date:** 2026-08-05
+**Status:** Accepted — scripts written; not yet executed against the PC.
+
+**Context:** The app was failing on `app.paidinfunnel.com/leads` with a Next.js digest-only 500. Reading the deploy path rather than the logs found a cause that the documented command could not avoid:
+
+`deploy/docker-compose.app.yml` passes `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` as **build args** via `${...}` interpolation — correctly, because `Dockerfile` notes that `NEXT_PUBLIC_*` values are baked into the bundle at build time and cannot be supplied at runtime. But Compose resolves `${...}` from the shell environment or from a `.env` in the **compose file's own directory** (`infra/self-hosting/deploy/`). It does *not* read the `env_file:` entry for interpolation — that is runtime-only, and it is the only place `.env.production` is referenced. Neither source exists on the PC, so the documented `docker compose -f infra/self-hosting/deploy/docker-compose.app.yml up -d --build` builds with both values as empty strings. Next then inlines a blank Supabase URL, and `middleware.ts` — which calls `createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, ...)` and runs on effectively every route — throws on every request. Compose does emit a warning for each unset variable, but it scrolls past in build output and the resulting failure surfaces in the browser as a digest hash with no other detail.
+
+This is a failure the correct manual command cannot prevent, which is the argument for a script over a documented procedure.
+
+**Decision:**
+- **`deploy/deploy.ps1`** (runs on the PC): `git pull --ff-only`, validate `.env.production`, build, health-check, and dump `docker logs --tail 80` automatically on any failure. Specifics worth recording:
+  - Passes `--env-file` explicitly, which is the actual fix for the above.
+  - Treats every uncommented key in `.env.production.example` as required, so the required-key list lives in the template rather than duplicated in the script.
+  - Rejects any value matching `<...>` anywhere in the file. This is aimed squarely at `INNGEST_EVENT_KEY`: `inngest/client.ts` decides dev-vs-cloud on whether that variable is non-empty, so a leftover placeholder is *worse* than an absent one — it silently points the app at Inngest Cloud with a garbage key.
+  - Health-checks `/login`, not `/leads`. `middleware.ts` redirects unauthenticated requests, so `/leads` returns 307 even when healthy; `/login` returns a real 200 and still executes middleware, so it fails loudly if the Supabase env is wrong.
+- **`deploy/deploy-remote.sh`** (runs on the Mac, needs ADR-012): pushes `.env.production.generated` to the box as `.env.production`, then runs `deploy.ps1` over SSH. This closes the loop — `.env.production` is gitignored and so can never arrive via `git pull`, which is why copying it was a manual step in the first place.
+- **`.env.production.example` checked in**, with `.gitignore` amended to except it (`.env*` was swallowing it; only `.env.local.example` had been excepted). No values in it, only key names.
+- **Recorded separately, not fixed here: there is no self-hosted Inngest on this box.** The env template shipped `INNGEST_EVENT_KEY=<from your self-hosted inngest>`, but no Inngest service exists in either compose file and nothing in `status.md` ever deployed one; `README.md` still describes the keys as coming from Inngest Cloud. Both lines are commented out in the template with an explanation. Consequence: background jobs (crawl, scoring, acquisition fan-out) do not run on this deployment at all. Page loads are unaffected. Deciding what to actually do about Inngest is deferred and is not a deploy problem.
+
+**Consequences:** The digest-only-error debugging loop is closed: a failed deploy prints the real error at the Mac without anyone touching the PC. The `--env-file` finding means any previous successful-looking build on this box likely produced a broken image, so the first run of this script is also the first build expected to actually work. Neither script has been executed yet — `deploy.ps1` in particular has not been run on Windows and PowerShell was not available to even syntax-check it locally, so treat the first run as a test of the script as much as of the deploy. Both must be committed and pushed before `deploy.ps1` can reach the PC via `git pull`, so the very first deploy has a bootstrap step.
+
+---
+
+## ADR-014: ADR-013's diagnosis was wrong — the app boots fine; the real fault is an Inngest Cloud branch-environment key
+
+**Date:** 2026-08-05
+**Status:** Accepted — supersedes ADR-013's *diagnosis*. ADR-013's code changes stand; its root-cause claim does not.
+
+**Context:** ADR-013 concluded, by reading the deploy path rather than the box, that the `app.paidinfunnel.com` failure was caused by Compose interpolating the `NEXT_PUBLIC_*` build args to empty strings, baking a blank Supabase URL into the bundle and making `middleware.ts` throw on every request. Once SSH access existed (ADR-012), that was checked directly and **is not what is happening**:
+
+- `http://localhost:3417/login` returns `200` and `/leads` returns `307` — the correct unauthenticated redirect. Both are healthy responses.
+- `supabase.co` is present in the built `.next/server/middleware.js`, so the build did receive real values.
+- The container's log contains exactly **one** error across its entire lifetime: `Inngest API Error: 400 Branch environment name is required`, digest `2497154375` — the same digest the browser was showing.
+- `app/(dashboard)/leads/page.tsx` imports no Inngest client at all; it reads Supabase directly. Rendering `/leads` cannot produce that error. It came from a user action that dispatches events, and fired once, not per request.
+
+**What ADR-013 got right, and why the fix stays:** there is no `.env` in `infra/self-hosting/deploy/`, so Compose genuinely has no interpolation source for those build args. The image that exists was built by a shell that happened to have the variables exported. That is a real latent bug — the next build from a clean shell would produce exactly the broken image ADR-013 described — so passing `--env-file` remains correct. It was a real defect found by the wrong reasoning, not the failure being investigated.
+
+**The actual fault:** `INNGEST_EVENT_KEY` on the PC is a real **Inngest Cloud** key belonging to a *branch* environment, and `INNGEST_ENV` is unset. Inngest derives that from `VERCEL_GIT_COMMIT_REF` on Vercel; a self-hosted container has no equivalent, so the SDK sends no environment name and Cloud rejects the send. This also corrects ADR-013's framing: it is true that **no self-hosted Inngest exists on this box** (no container in either compose file), but the deployment is not therefore Inngest-less — it points at Inngest Cloud, and the env template's `<from your self-hosted inngest>` placeholder was describing something that was never the plan. Cloud can reach the app: `GET` and `PUT` to `https://app.paidinfunnel.com/api/inngest` both return `200`, so Cloudflare Access is not blocking the sync path.
+
+**Decision:**
+- Use **Production** Inngest Cloud keys for this deployment rather than setting `INNGEST_ENV` to a branch name. Setting `INNGEST_ENV` would work, but it would file a production self-host's runs under a branch environment, which is wrong on its own terms.
+- **`deploy-remote.sh` no longer pushes `.env.production` by default** — it is now opt-in via `--push-env`. This was a genuine near-miss: the PC's `.env.production` holds `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, `INNGEST_DEV` and `STEEL_API_KEY`, none of which exist in the Mac's `.env.production.generated`. Running the script as originally written would have silently destroyed all four. The PC's copy is the source of truth; the Mac's is a stale subset. When `--push-env` is given, the script now diffs key *names* (never values, never pulling the remote file down), refuses if the PC has keys the local file lacks unless `--force`, and takes a timestamped backup on the box first.
+- **A credential was exposed** reading the container's environment during this investigation: the Inngest event key was printed in full to a terminal. It needs rotating regardless of the branch-environment problem. Subsequent env inspection was done with values masked to key-name-and-length only.
+
+**Consequences:** The app was substantially working the whole time — the "fix the app" task it was filed under was based on a misreading of a digest-only error page, and so was ADR-013. What is actually broken is narrower: every Inngest-dispatching action (crawl start, scoring, acquisition fan-out, bulk lead operations) fails at the send. Page loads, Supabase reads, and the Steel path are unaffected. The general lesson, and the reason ADR-012 was worth doing first: two successive root-cause claims were made by reading code, and the first thing that actually looked at the machine overturned both.
