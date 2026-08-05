@@ -92,7 +92,32 @@ else
 fi
 
 step "Running deploy.ps1 on $PC_HOST"
+# Forward slashes throughout - PC_REPO already uses them, and mixing separators
+# is how the first run of this script failed.
+REMOTE_SCRIPT="$PC_REPO/infra/self-hosting/deploy/deploy.ps1"
+
 # -ExecutionPolicy Bypass because the script is unsigned; -NoProfile so a stray
 # user profile on the box cannot change how it behaves.
+#
+# `|| true` because powershell.exe does NOT reliably propagate failure: given a
+# bad -File path it prints an error and still exits 0, which made the first run
+# of this script report a successful deploy of nothing. The remote exit code is
+# not trustworthy, so the health check below is what actually decides.
+set +e
 ssh -t "$PC_HOST" \
-  "powershell -NoProfile -ExecutionPolicy Bypass -File \"$PC_REPO\\infra\\self-hosting\\deploy\\deploy.ps1\" $SKIP_PULL"
+  "powershell -NoProfile -ExecutionPolicy Bypass -File \"$REMOTE_SCRIPT\" $SKIP_PULL"
+rc=$?
+set -e
+
+# Check this BEFORE the health check. A failed build leaves the previous
+# container running and serving happily, so the health check would go green and
+# report a successful deploy of code that never shipped - which is exactly what
+# this script did on its first real run.
+[ "$rc" -eq 0 ] || fail "deploy.ps1 exited $rc - see its output above. The previously running container is untouched."
+
+step "Verifying from this Mac"
+# Independent of anything the remote reported. /login is the one route that
+# returns a real 200 without a session while still executing middleware.
+code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://app.paidinfunnel.com/login || echo 000)"
+[ "$code" = "200" ] || fail "https://app.paidinfunnel.com/login returned $code, expected 200."
+echo "    https://app.paidinfunnel.com/login -> 200"
