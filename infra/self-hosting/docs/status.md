@@ -161,7 +161,21 @@ Getting there took five runs and found five separate defects, all of which were 
 
 **A helper script written this session corrupted two live credentials.** `set-inngest-keys.ps1` read its hidden prompt with `PtrToStringAuto`, which returns only the first character of a BSTR, so both Inngest keys were written as 1-character values while the script reported success. Caught by a post-deploy event send returning 404, and recovered from the timestamped backup the script had taken. Replaced by `deploy/set-env-value.ps1`, which uses `PtrToStringBSTR`, refuses values under 8 characters, and prints the written length. **Use that one for any future key change; do not resurrect the old script.**
 
+**Pipeline verified end to end, 2026-08-05.** Sent `leads/backfill.metadata.requested` for a deliberately non-existent username: Inngest Cloud accepted it (`200`), invoked the function over the public URL, and it ran to completion and wrote `crawl_logs` id 25824 (`profile_acquisition_queued`, `requested=1 queued=0 missing=1`). That is the whole chain - app -> Inngest Cloud -> function execution -> Supabase - proven rather than inferred. No Apify, Instagram or AI calls were made; the adapter resolves usernames to lead IDs and fans out, nothing more.
+
+**Two earlier notes in this doc were wrong and are corrected here:**
+- `supabase/migrations/20260806000000_steel_cf_access.sql` is **already applied**. `steel_cf_client_id` and `steel_cf_client_secret` exist on `app_settings` and are populated (39 / 64 chars). Nothing to paste.
+- `anthropic_api_key` being NULL is **not** a problem: `scoring_provider` is `openai`, `openai_api_key` is set, `openai_model` is `gpt-4o-mini`. Anthropic is not in the scoring path.
+
+**The real capacity limit is proxies, not anything about the deploy.** `lib/instagram/cookie-pool.ts:53` skips any account without a `proxy_url` outright (`if (!cookie || !proxyUrl || !accountUsername ...) continue`), and there is no fallback: `instagram_proxy_pool` is empty and `instagram_proxy_url` is NULL. Current state of the 16 accounts:
+
+- **4 usable** - `masakonjoku61`, `bethannbuczek1`, `allinedowho`, `jeanettaze`. All group C, all on their own Oxylabs dedicated port. At `max_profiles_per_account = 1000` that is ~4000 profiles of headroom, so this is a scale ceiling, not an outage.
+- **10 have valid cookies but no proxy** (groups A and B) and are therefore invisible to the pipeline. This is the single highest-leverage fix: they need proxy ports, and status.md already records all 5 Oxylabs dedicated ports as claimed.
+- Several group-B accounts additionally carry `checkpoint_state` or verification errors and need a re-login through `onboard-instagram-account.ts` - which itself needs a spare proxy first, so proxies gate that too.
+- `ilenekawchpw` quarantined on a checkpoint; `livelypageant8` still cookie-less and paused (the long-deferred onboarding test candidate).
+
 **Still open:**
-1. **Rotate the Inngest event key.** It was exposed in a chat transcript. Rotate with `deploy/set-env-value.ps1 -Key INNGEST_EVENT_KEY`, then recreate the container.
-2. **A new migration is pending:** `supabase/migrations/20260806000000_steel_cf_access.sql` arrived with the catch-up pull and has not been applied. Per the repo root `CLAUDE.md`, never `supabase db push` - paste it into the dashboard SQL editor.
-3. `.env.production.generated` on the Mac is now an exact copy of the PC's file (47 keys), pulled down as an off-box backup. It is gitignored on both ends. Keep in mind it will drift again the moment the PC's copy changes; the PC remains the source of truth and `deploy-remote.sh` will not push over it without `--push-env`.
+1. **Buy or provision more proxy ports.** Everything else about capacity is downstream of this.
+2. Re-login the checkpointed group-B accounts once a proxy exists for each.
+3. **Rotate the Inngest event key** - exposed in a chat transcript. User has explicitly decided to accept this for now; the key only permits sending events into Production (no read access), and the mitigation is watching the Inngest events stream for anything unexpected. Rotate with `deploy/set-env-value.ps1 -Key INNGEST_EVENT_KEY`.
+4. `.env.production.generated` on the Mac is now an exact copy of the PC's file (47 keys), pulled down as an off-box backup. Gitignored on both ends. It will drift the moment the PC's copy changes; the PC remains the source of truth and `deploy-remote.sh` will not push over it without `--push-env`.
