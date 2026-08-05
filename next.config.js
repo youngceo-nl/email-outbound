@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  /*
+   * Emits .next/standalone — a self-contained server with only the node_modules
+   * it actually reaches. The Dockerfile copies exactly this
+   * (infra/self-hosting), so removing it breaks the container build.
+   */
   output: "standalone",
   experimental: { serverActions: { bodySizeLimit: "5mb" } },
   turbopack: { root: __dirname },
