@@ -1,0 +1,12 @@
+node_modules
+.next
+worker/
+archive/
+CSVs
+*.csv
+docs/
+.git
+*.tsbuildinfo
+.worktrees/
+.env*
+!.env.local.example

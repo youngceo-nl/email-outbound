@@ -83,9 +83,14 @@ export async function acquireInstagramEvidence(input: {
   steelApiKey?: string | null;
   /** Sourced from app_settings; falls back to STEEL_BASE_URL. Self-hosted only. */
   steelBaseUrl?: string | null;
-  /** Cloudflare Access service token, when the self-hosted instance is behind it. */
-  steelCfClientId?: string | null;
-  steelCfClientSecret?: string | null;
+  /*
+   * Cloudflare Access service token, when the self-hosted Steel is behind it.
+   * browser-backend falls back to CF_ACCESS_CLIENT_ID/SECRET from the
+   * environment — which is where infra secrets live per CLAUDE.md — so passing
+   * these is an override, not a requirement.
+   */
+  cfAccessClientId?: string | null;
+  cfAccessClientSecret?: string | null;
   /** Overridable for tests; defaults to ACQUISITION_TIMEOUT_MS. */
   timeoutMs?: number;
 }): Promise<AcquisitionResult> {
@@ -100,8 +105,8 @@ export async function acquireInstagramEvidence(input: {
       sessionCookie: identity.cookie,
       steelApiKey: input.steelApiKey ?? null,
       steelBaseUrl: input.steelBaseUrl ?? null,
-      steelCfClientId: input.steelCfClientId ?? null,
-      steelCfClientSecret: input.steelCfClientSecret ?? null,
+      cfAccessClientId: input.cfAccessClientId ?? null,
+      cfAccessClientSecret: input.cfAccessClientSecret ?? null,
       writeArtifacts: false,
     }),
     timeoutMs,

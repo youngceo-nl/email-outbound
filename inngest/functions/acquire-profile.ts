@@ -65,8 +65,8 @@ export const acquireProfile = inngest.createFunction(
           identity,
           steelApiKey: settings.steel_api_key ?? process.env.STEEL_API_KEY ?? null,
           steelBaseUrl: settings.steel_base_url ?? process.env.STEEL_BASE_URL ?? null,
-        steelCfClientId: settings.steel_cf_client_id ?? process.env.STEEL_CF_CLIENT_ID ?? null,
-        steelCfClientSecret: settings.steel_cf_client_secret ?? process.env.STEEL_CF_CLIENT_SECRET ?? null,
+        cfAccessClientId: settings.steel_cf_client_id ?? process.env.STEEL_CF_CLIENT_ID ?? null,
+        cfAccessClientSecret: settings.steel_cf_client_secret ?? process.env.STEEL_CF_CLIENT_SECRET ?? null,
         }),
       );
     } catch (err) {

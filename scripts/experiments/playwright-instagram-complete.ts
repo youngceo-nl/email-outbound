@@ -345,8 +345,8 @@ export type CompleteAcquisitionOptions = {
   sessionCookie?: string | null;
   steelApiKey?: string | null;
   steelBaseUrl?: string | null;
-  steelCfClientId?: string | null;
-  steelCfClientSecret?: string | null;
+  cfAccessClientId?: string | null;
+  cfAccessClientSecret?: string | null;
   writeArtifacts?: boolean;
 };
 
@@ -418,8 +418,8 @@ export async function runPlaywrightInstagramComplete(
     sessionCookie: options.sessionCookie,
     steelApiKey: options.steelApiKey ?? null,
     steelBaseUrl: options.steelBaseUrl ?? null,
-    steelCfClientId: options.steelCfClientId ?? null,
-    steelCfClientSecret: options.steelCfClientSecret ?? null,
+    cfAccessClientId: options.cfAccessClientId ?? null,
+    cfAccessClientSecret: options.cfAccessClientSecret ?? null,
   });
   const context = session.context;
   report.steel_session_id = session.sessionId;

@@ -56,20 +56,21 @@ export type BackendOptions = {
    * a config change, never a code change, per lead.
    */
   steelBaseUrl?: string | null;
-  /*
-   * Cloudflare Access service token. A self-hosted Steel behind Access rejects
-   * every request with 403 regardless of Steel's own key, because Access is a
-   * browser-SSO layer. These two headers are its machine-to-machine path, and
-   * they must go on BOTH legs — the REST calls AND the CDP websocket — since
-   * Access sits in front of the whole hostname.
-   */
-  steelCfClientId?: string | null;
-  steelCfClientSecret?: string | null;
   /** Persistent Steel profile id — one per Instagram account in production. */
   profileId?: string | null;
   /** Exact cookie header paired with this profile. Never logged. */
   sessionCookie?: string | null;
   sessionTimeoutMs?: number;
+  /*
+   * Cloudflare Access Service Token for a self-hosted instance sitting behind
+   * Cloudflare Tunnel + Access (see self-hosting-server ADR-006). Required on
+   * both the session-create REST call and the connectOverCDP WebSocket —
+   * Access enforces at Cloudflare's edge independently for each. Falls back
+   * to CF_ACCESS_CLIENT_ID/CF_ACCESS_CLIENT_SECRET env vars. Irrelevant for
+   * Steel Cloud (api.steel.dev) or a self-hosted instance reached directly.
+   */
+  cfAccessClientId?: string | null;
+  cfAccessClientSecret?: string | null;
 };
 
 export async function openBrowserSession(options: BackendOptions): Promise<BrowserSession> {
@@ -115,15 +116,18 @@ async function openSteelSession(options: BackendOptions): Promise<BrowserSession
     );
   }
 
-  const cfId = options.steelCfClientId?.trim();
-  const cfSecret = options.steelCfClientSecret?.trim();
-  const cfHeaders: Record<string, string> =
-    cfId && cfSecret ? { "CF-Access-Client-Id": cfId, "CF-Access-Client-Secret": cfSecret } : {};
+  const cfAccessClientId = options.cfAccessClientId?.trim() || process.env.CF_ACCESS_CLIENT_ID?.trim() || null;
+  const cfAccessClientSecret =
+    options.cfAccessClientSecret?.trim() || process.env.CF_ACCESS_CLIENT_SECRET?.trim() || null;
+  const cfAccessHeaders: Record<string, string> =
+    cfAccessClientId && cfAccessClientSecret
+      ? { "CF-Access-Client-Id": cfAccessClientId, "CF-Access-Client-Secret": cfAccessClientSecret }
+      : {};
 
   const client = new Steel({
     steelAPIKey: apiKey,
     ...(baseURL ? { baseURL } : {}),
-    ...(Object.keys(cfHeaders).length > 0 ? { defaultHeaders: cfHeaders } : {}),
+    ...(Object.keys(cfAccessHeaders).length > 0 ? { defaultHeaders: cfAccessHeaders } : {}),
   });
 
   /*
@@ -165,7 +169,7 @@ async function openSteelSession(options: BackendOptions): Promise<BrowserSession
   try {
     browser = await chromium.connectOverCDP(
       baseURL ? session.websocketUrl : `${session.websocketUrl}&apiKey=${apiKey}`,
-      Object.keys(cfHeaders).length > 0 ? { headers: cfHeaders } : undefined,
+      Object.keys(cfAccessHeaders).length > 0 ? { headers: cfAccessHeaders } : undefined,
     );
   } catch (err) {
     // Never leave a paid session running because the connect failed.
@@ -180,7 +184,16 @@ async function openSteelSession(options: BackendOptions): Promise<BrowserSession
     kind: "steel",
     context,
     sessionId: session.id,
-    debugUrl: session.sessionViewerUrl ?? session.debugUrl ?? null,
+    /*
+     * debugUrl (steel-browser's own /v1/sessions/debug, "an HTML page with a
+     * live debugger view of the session") is the one that actually works on
+     * a self-hosted instance. sessionViewerUrl is a Steel Cloud concept — a
+     * hosted app.steel.dev page — and on self-hosted it's just a hardcoded
+     * placeholder (getBaseUrl(), the bare domain root, identical on every
+     * session). Preferring sessionViewerUrl here silently handed out a dead
+     * link for anyone actually trying to watch/drive a self-hosted session.
+     */
+    debugUrl: session.debugUrl ?? session.sessionViewerUrl ?? null,
     /*
      * session.proxySource is Steel Cloud-only metadata — the self-hosted image
      * never returns it, so reading it here always reported "none (direct)"
