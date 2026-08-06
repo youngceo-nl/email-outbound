@@ -12,6 +12,7 @@ import type {
   SignalState,
   SignalStates,
 } from "./types";
+import { INFORMATION_VISITOR_OUTCOMES } from "./types";
 import { informationOffers } from "./classify-track";
 
 export type HardGateResult = {
@@ -70,6 +71,36 @@ export function applyHardBusinessModelGate(extraction: CommercialExtraction): Ha
     };
   }
   if (agencyReliable && !agencyOutcome) {
+    /*
+     * Agency evidence alongside a positively-identified information outcome is
+     * not an unresolved offer — it is an information seller whose AUDIENCE is
+     * agencies. "Helps agency owners hit $100k/month" cites agency service
+     * delivery, team performance and service CTAs all day; what they sell is
+     * still coaching.
+     *
+     * Sending these to review was the single biggest source of manual review:
+     * on the 2026-08-05 run it held back three leads scoring 8.5-9.0, all with
+     * primary_visitor_outcome "coaching", and the user confirmed all three were
+     * qualified. It was also incoherent — the gate keys off the extractor's
+     * confidence label rather than the business. @adrixnk auto-qualified with
+     * TEN cited agency evidence items because reliability came back
+     * "incomplete", while @drcleoamelia went to review on FIVE because it came
+     * back "reliable".
+     *
+     * Only the information outcomes are let through. An unknown or commercial
+     * outcome sitting next to reliable agency evidence is still genuinely
+     * unresolved and still goes to a human.
+     */
+    // A null outcome is not a positive identification, so it keeps the review.
+    if (outcome && INFORMATION_VISITOR_OUTCOMES.includes(outcome)) {
+      return {
+        icp_eligible: true,
+        hard_exclusion: false,
+        rejection_reason: null,
+        reason: `agency evidence is present but the primary visitor outcome is ${outcome}`,
+        needs_review: false,
+      };
+    }
     return {
       icp_eligible: true,
       hard_exclusion: false,

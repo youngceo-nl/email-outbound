@@ -296,6 +296,49 @@ test("the isolated word agency never triggers the hard gate", () => {
   assert.equal(result.hard_exclusion, false);
 });
 
+/*
+ * Regression for the 2026-08-05 run, where three leads scoring 8.5-9.0 were
+ * held in manual review despite all three selling coaching. Reviewed by hand
+ * and confirmed qualified: what a lead SELLS decides eligibility, not who it
+ * serves. "Helps agency owners hit $100k/month" cites agency evidence and is
+ * still an information seller.
+ */
+test("agency evidence next to an information outcome does not force review", () => {
+  for (const outcome of ["coaching", "community", "education", "membership"] as const) {
+    const result = applyHardBusinessModelGate(
+      extraction({
+        primary_visitor_outcome: outcome,
+        agency_evidence_bundle: {
+          service_delivery: cite(),
+          team_performance: cite(),
+          service_cta: cite(),
+          reliability: "reliable",
+        },
+      }),
+    );
+    assert.equal(result.needs_review, false, `${outcome} should not need review`);
+    assert.equal(result.icp_eligible, true);
+    assert.equal(result.hard_exclusion, false);
+  }
+});
+
+test("agency evidence next to a non-information outcome still goes to review", () => {
+  const result = applyHardBusinessModelGate(
+    extraction({
+      // Not an information outcome and not done-for-you: genuinely unresolved,
+      // so a human still decides.
+      primary_visitor_outcome: "unknown",
+      agency_evidence_bundle: {
+        service_delivery: cite(),
+        team_performance: cite(),
+        service_cta: cite(),
+        reliability: "reliable",
+      },
+    }),
+  );
+  assert.equal(result.needs_review, true);
+});
+
 test("an agency owner with a verified independent information funnel goes to review, not rejection", () => {
   const mixed = extraction({
     primary_visitor_outcome: "done_for_you_service",
