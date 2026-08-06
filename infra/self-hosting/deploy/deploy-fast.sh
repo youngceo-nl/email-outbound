@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+#
+# Fast deploy: compile here, ship the build output, restart there.
+#
+# The PC compiles this app in ~81s; this Mac does it in ~31s. The Docker layer
+# around the build is only ~10s of a deploy, so the win is moving the compile,
+# not removing the container.
+#
+# Only .next is shipped. node_modules stays in the image because `sharp` has a
+# platform-native binary - see Dockerfile.runtime.
+#
+#   ./deploy-fast.sh          build, ship, restart, verify
+#   ./deploy-fast.sh --no-build   ship whatever .next already exists
+#
+set -euo pipefail
+
+PC_HOST="${EO_PC_HOST:-self-hosting-pc}"
+PC_REPO="${EO_PC_REPO:-C:/Users/tokki/OneDrive/Documenten/GitHub/email-outbound}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+# Runs alongside the proven path on 3417 rather than replacing it, so this can
+# be validated against the real box without risking the live app.
+HEALTH_URL="http://localhost:3418/login"
+
+BUILD=1
+[ "${1:-}" = "--no-build" ] && BUILD=0
+
+T0=$(date +%s)
+elapsed() { echo $(( $(date +%s) - T0 )); }
+step() { printf '\n==> [%3ss] %s\n' "$(elapsed)" "$1"; }
+fail() { printf '\nFAILED after %ss: %s\n' "$(elapsed)" "$1" >&2; exit 1; }
+
+GIT_SHA="$(git -C "$REPO_ROOT" rev-parse --short HEAD)"
+
+if [ "$BUILD" -eq 1 ]; then
+  step "Building locally (NEXT_PUBLIC_* from the server's env, not this Mac's)"
+  ENV_SRC="$REPO_ROOT/.env.production.generated"
+  [ -f "$ENV_SRC" ] || fail "$ENV_SRC missing - it is the copy of the PC's .env.production."
+
+  # NEXT_PUBLIC_* are inlined into the bundle at build time. Building here with
+  # this machine's .env.local would bake dev values into the production image -
+  # the same failure shape that once made every request 500 with only a digest.
+  # Read them from the server's own env instead.
+  # Extracted by name rather than sourced: an env file is data, not shell, and
+  # a single unquoted character in any unrelated value would otherwise break or
+  # execute something here.
+  env_value() { grep -m1 "^$1=" "$ENV_SRC" | cut -d= -f2- | tr -d '\r'; }
+  NEXT_PUBLIC_SUPABASE_URL="$(env_value NEXT_PUBLIC_SUPABASE_URL)"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY="$(env_value NEXT_PUBLIC_SUPABASE_ANON_KEY)"
+  export NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY
+  [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] || fail "NEXT_PUBLIC_SUPABASE_URL not found in $ENV_SRC"
+  [ -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] || fail "NEXT_PUBLIC_SUPABASE_ANON_KEY not found in $ENV_SRC"
+
+  ( cd "$REPO_ROOT" && npm run build ) || fail "local build failed"
+fi
+
+[ -d "$REPO_ROOT/.next" ] || fail "no .next to ship."
+
+step "Shipping .next to $PC_HOST"
+# tar over ssh rather than rsync: Windows has tar.exe (bsdtar) but no rsync.
+# .next/cache is the incremental compile cache - large, and useless to the
+# server, which never compiles.
+tar czf - -C "$REPO_ROOT" --exclude='.next/cache' .next \
+  | ssh -o BatchMode=yes "$PC_HOST" "tar xzf - -C \"$PC_REPO\"" \
+  || fail "transfer failed"
+echo "    shipped"
+
+step "Restarting the container"
+ssh -o BatchMode=yes "$PC_HOST" \
+  "cd /d $PC_REPO && set GIT_SHA=$GIT_SHA && docker compose --env-file .env.production -f infra/self-hosting/deploy/docker-compose.fast.yml up -d" \
+  || fail "compose up failed"
+
+step "Waiting for $HEALTH_URL"
+deadline=$(( $(date +%s) + 90 ))
+until ssh -o BatchMode=yes "$PC_HOST" "curl.exe -s -o NUL -w %%{http_code} $HEALTH_URL" 2>/dev/null | grep -q 200; do
+  [ "$(date +%s)" -lt "$deadline" ] || {
+    ssh -o BatchMode=yes "$PC_HOST" "docker logs email-outbound-fast --tail 40" 2>&1 | sed 's/^/    /'
+    fail "did not become healthy"
+  }
+  sleep 3
+done
+echo "    healthy"
+
+step "Done"
+live="$(ssh -o BatchMode=yes "$PC_HOST" "docker exec email-outbound-fast printenv GIT_SHA" 2>/dev/null | tr -d '\r')"
+echo "    live on the PC : ${live:-unknown}"
+echo "    local HEAD     : $GIT_SHA"
+[ "$live" = "$GIT_SHA" ] || fail "container reports a different commit than what was built."
+printf '\nFast deploy finished in %ss (port 3418; the live app on 3417 is untouched).\n' "$(elapsed)"

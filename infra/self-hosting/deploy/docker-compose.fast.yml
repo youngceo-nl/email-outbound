@@ -1,0 +1,32 @@
+# Fast deploy path: the image carries only node_modules, and the compiled .next
+# is bind-mounted from the repo checkout on the PC after being rsynced there by
+# deploy-fast.sh. See Dockerfile.runtime for why node_modules stays in the image.
+#
+# The slow-but-self-contained path (docker-compose.app.yml) is unchanged and
+# still works; this runs as a separate service so the two never fight over the
+# same container name.
+
+services:
+  email-outbound-fast:
+    build:
+      context: ../../..
+      dockerfile: infra/self-hosting/deploy/Dockerfile.runtime
+    image: email-outbound-runtime:latest
+    container_name: email-outbound-fast
+    env_file:
+      - ../../../.env.production
+    environment:
+      # Stamped at run time rather than baked in, since the image no longer
+      # changes per commit. deploy-fast.sh sets it from the built tree.
+      GIT_SHA: ${GIT_SHA:-unknown}
+    volumes:
+      # Read-only: the container must never be able to mutate the build output.
+      - ../../../.next:/app/.next:ro
+    ports:
+      - "3418:3417"
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1g
+    restart: unless-stopped

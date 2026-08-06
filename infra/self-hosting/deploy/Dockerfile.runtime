@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+#
+# Runtime-only image for the fast deploy path (deploy-fast.sh).
+#
+# Deliberately contains NO application build. It holds node_modules and nothing
+# else that changes, so it is rebuilt only when package-lock.json moves - not on
+# every code change. The compiled .next output is bind-mounted in at run time
+# after being built on a dev machine, which is ~2.6x faster than this box.
+#
+# Why not ship .next/standalone instead and skip this image entirely: standalone
+# bundles a pruned node_modules, and `sharp` (used by next/image at runtime)
+# ships a platform-native binary. A macOS arm64 build would put
+# @img/sharp-darwin-arm64 into a linux/amd64 container and fail at runtime.
+# Keeping node_modules here, installed for linux by npm itself, avoids the
+# entire class of problem: .next is portable JavaScript, node_modules is not.
+
+FROM node:24-alpine
+WORKDIR /app
+RUN apk add --no-cache libc6-compat
+
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+
+# Static assets are served straight from disk and change rarely; baking them in
+# keeps the bind-mount surface limited to .next alone.
+COPY public ./public
+
+ENV NODE_ENV=production PORT=3417
+EXPOSE 3417
+
+# `next start` rather than standalone's server.js: it resolves dependencies from
+# THIS image's linux node_modules instead of whatever the build machine had.
+CMD ["npx", "next", "start", "-p", "3417"]
