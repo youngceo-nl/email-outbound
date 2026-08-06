@@ -65,6 +65,17 @@ tar czf - -C "$REPO_ROOT" --exclude='.next/cache' .next \
 echo "    shipped"
 
 step "Restarting the container"
+# A docker BUILD cannot run over SSH here (Docker Desktop's credential helper
+# needs an interactive logon token - see run-interactive.ps1), so the runtime
+# image is built separately and this path only ever restarts against it.
+# Building it on demand keeps that an implementation detail rather than a
+# documented prerequisite someone has to remember.
+if ! ssh -o BatchMode=yes "$PC_HOST" "docker image inspect email-outbound-runtime:latest" >/dev/null 2>&1; then
+  echo "    runtime image missing - building it once (this part is slow)"
+  ssh -o BatchMode=yes "$PC_HOST" \
+    "powershell -NoProfile -ExecutionPolicy Bypass -File \"$PC_REPO/infra/self-hosting/deploy/run-interactive.ps1\" -Script \"$PC_REPO/infra/self-hosting/deploy/build-runtime.ps1\"" \
+    || fail "runtime image build failed"
+fi
 ssh -o BatchMode=yes "$PC_HOST" \
   "cd /d $PC_REPO && set GIT_SHA=$GIT_SHA && docker compose --env-file .env.production -f infra/self-hosting/deploy/docker-compose.fast.yml up -d" \
   || fail "compose up failed"
