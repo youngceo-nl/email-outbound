@@ -3,7 +3,10 @@ FROM node:24-alpine AS deps
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
-RUN npm ci
+# Cache mount so a lockfile change re-resolves from a warm npm cache instead of
+# re-downloading every package. The layer cache already covers the no-change
+# case; this covers the change case.
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 FROM node:24-alpine AS builder
 WORKDIR /app
@@ -20,7 +23,16 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
 # used by Steel) — raise it explicitly rather than touching WSL2's own
 # memory config.
 ENV NODE_OPTIONS=--max-old-space-size=5120
-RUN npm run build
+# `next build` is the entire cost of a deploy - measured at 144s of a ~240s
+# run, with every other step either cached or under a second. Next writes its
+# incremental compilation cache to .next/cache, which a container build
+# normally discards, so every deploy was a cold full compile.
+#
+# A BuildKit cache mount persists that directory on the builder between builds
+# without putting it in the image. Deploys that touch a handful of files now
+# recompile only those. A cold cache (first run, or after `docker builder
+# prune`) still costs the full 144s.
+RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 FROM node:24-alpine AS runner
 WORKDIR /app
