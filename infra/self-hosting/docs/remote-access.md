@@ -132,9 +132,37 @@ That last command should list the running containers. If it does, deploys work.
 From the Mac, from the repo root:
 
 ```bash
-npm run deploy          # pull on the PC, rebuild, health-check, verify
+npm run deploy          # ~30s: compile here, ship .next, restart there
 npm run deploy:check    # what is live vs your HEAD - deploys nothing
+npm run deploy:full     # ~160s fallback: build the whole image on the PC
+npm run deploy:rollback # swap back to the deploy:full container
 ```
+
+### Why there are two paths
+
+`npm run deploy` compiles on your machine (~22s, versus 81s on the PC) and ships
+only `.next` (~24MB). The PC never compiles, so a deploy is a file copy and a
+container restart. Measured end to end at **29s**, against 240s originally.
+
+It deliberately ships **only** `.next`, never `node_modules`. `sharp`, which
+`next/image` uses at run time, has a platform-native binary - a macOS arm64
+`.next/standalone` would put `@img/sharp-darwin-arm64` into a linux container.
+The runtime image keeps its own linux `node_modules` and runs `next start`
+against the shipped `.next`, which is portable JavaScript. Verified by
+comparing both containers on `/login`, `/leads`, `/api/inngest`, a static asset
+and `/_next/image`: byte-identical on all five.
+
+`npm run deploy:full` builds the entire image on the PC and needs nothing from
+your machine. Slower, but it is the fallback when the fast path cannot run -
+and the one to use if you are ever deploying from a machine that cannot build.
+
+Both bind port 3417 and each stops the other's container first, so whichever you
+run wins rather than failing on a port conflict. `deploy:rollback` swaps back.
+
+`NEXT_PUBLIC_*` are inlined at build time, so the fast path reads them from
+`.env.production.generated` - the server's own env - never from your
+`.env.local`. Building with dev values is what once made every request 500 with
+nothing but a digest.
 
 **Committing is not deploying.** The PC runs a Docker image; pushing to `main`
 changes nothing until that image is rebuilt. "I committed but the page did not

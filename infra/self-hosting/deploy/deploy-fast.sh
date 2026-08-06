@@ -119,4 +119,5 @@ live="$(ssh -o BatchMode=yes "$PC_HOST" "docker exec email-outbound-fast printen
 echo "    live on the PC : ${live:-unknown}"
 echo "    local HEAD     : $GIT_SHA"
 [ "$live" = "$GIT_SHA" ] || fail "container reports a different commit than what was built."
-printf '\nFast deploy finished in %ss (port 3418; the live app on 3417 is untouched).\n' "$(elapsed)"
+printf '\nFast deploy finished in %ss - live at https://app.paidinfunnel.com\n' "$(elapsed)"
+printf 'Rollback: ssh %s "docker stop email-outbound-fast; docker start email-outbound"\n' "$PC_HOST"
