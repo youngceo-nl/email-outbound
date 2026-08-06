@@ -22,8 +22,12 @@ services:
     volumes:
       # Read-only: the container must never be able to mutate the build output.
       - ../../../.next:/app/.next:ro
+    # Serves production. The Cloudflare tunnel points at 3417 and is unchanged;
+    # only one of the two containers can hold this port, which is deliberate -
+    # each deploy script stops the other before starting its own, so whichever
+    # path you run wins cleanly instead of failing on a port conflict.
     ports:
-      - "3418:3417"
+      - "3417:3417"
     deploy:
       resources:
         limits:

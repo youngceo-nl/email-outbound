@@ -17,9 +17,8 @@ set -euo pipefail
 PC_HOST="${EO_PC_HOST:-self-hosting-pc}"
 PC_REPO="${EO_PC_REPO:-C:/Users/tokki/OneDrive/Documenten/GitHub/email-outbound}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-# Runs alongside the proven path on 3417 rather than replacing it, so this can
-# be validated against the real box without risking the live app.
-HEALTH_URL="http://localhost:3418/login"
+HEALTH_URL="http://localhost:3417/login"
+PUBLIC_URL="https://app.paidinfunnel.com/login"
 
 BUILD=1
 [ "${1:-}" = "--no-build" ] && BUILD=0
@@ -57,9 +56,16 @@ fi
 
 step "Shipping .next to $PC_HOST"
 # tar over ssh rather than rsync: Windows has tar.exe (bsdtar) but no rsync.
-# .next/cache is the incremental compile cache - large, and useless to the
-# server, which never compiles.
-tar czf - -C "$REPO_ROOT" --exclude='.next/cache' .next \
+#
+# Two exclusions, both large and both useless here:
+#   .next/cache     1.2GB incremental compile cache; the server never compiles.
+#   .next/standalone 94MB of the ~100MB payload, and actively harmful - it is
+#                   the pruned bundle carrying @img/sharp-darwin-arm64. We run
+#                   `next start` against .next/server + .next/static and the
+#                   image's own linux node_modules, so excluding it both shrinks
+#                   the transfer ~4x and guarantees a macOS binary can never
+#                   reach the container.
+tar czf - -C "$REPO_ROOT" --exclude='.next/cache' --exclude='.next/standalone' .next \
   | ssh -o BatchMode=yes "$PC_HOST" "tar xzf - -C \"$PC_REPO\"" \
   || fail "transfer failed"
 echo "    shipped"
@@ -76,13 +82,22 @@ if ! ssh -o BatchMode=yes "$PC_HOST" "docker image inspect email-outbound-runtim
     "powershell -NoProfile -ExecutionPolicy Bypass -File \"$PC_REPO/infra/self-hosting/deploy/run-interactive.ps1\" -Script \"$PC_REPO/infra/self-hosting/deploy/build-runtime.ps1\"" \
     || fail "runtime image build failed"
 fi
+# Both paths bind 3417, so release it first. Stopped, not removed: `docker start
+# email-outbound` is the whole rollback.
+ssh -o BatchMode=yes "$PC_HOST" "docker stop email-outbound" >/dev/null 2>&1 || true
+
 ssh -o BatchMode=yes "$PC_HOST" \
   "cd /d $PC_REPO && set GIT_SHA=$GIT_SHA && docker compose --env-file .env.production -f infra/self-hosting/deploy/docker-compose.fast.yml up -d" \
   || fail "compose up failed"
 
 step "Waiting for $HEALTH_URL"
 deadline=$(( $(date +%s) + 90 ))
-until ssh -o BatchMode=yes "$PC_HOST" "curl.exe -s -o NUL -w %%{http_code} $HEALTH_URL" 2>/dev/null | grep -q 200; do
+# PowerShell rather than curl.exe: a `-w %{http_code}` format string does not
+# survive bash -> ssh -> cmd.exe intact, which made this loop time out against a
+# container that was already answering 200.
+until ssh -o BatchMode=yes "$PC_HOST" \
+  "powershell -NoProfile -Command \"(Invoke-WebRequest -Uri $HEALTH_URL -UseBasicParsing -TimeoutSec 10).StatusCode\"" \
+  2>/dev/null | grep -q 200; do
   [ "$(date +%s)" -lt "$deadline" ] || {
     ssh -o BatchMode=yes "$PC_HOST" "docker logs email-outbound-fast --tail 40" 2>&1 | sed 's/^/    /'
     fail "did not become healthy"
@@ -91,8 +106,16 @@ until ssh -o BatchMode=yes "$PC_HOST" "curl.exe -s -o NUL -w %%{http_code} $HEAL
 done
 echo "    healthy"
 
+step "Verifying publicly"
+code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$PUBLIC_URL" || echo 000)"
+[ "$code" = "200" ] || fail "$PUBLIC_URL returned $code. Roll back with: ssh $PC_HOST 'docker stop email-outbound-fast; docker start email-outbound'"
+echo "    $PUBLIC_URL -> 200"
+
 step "Done"
-live="$(ssh -o BatchMode=yes "$PC_HOST" "docker exec email-outbound-fast printenv GIT_SHA" 2>/dev/null | tr -d '\r')"
+# tr -d over the whole whitespace class: the value comes back with a trailing
+# space as well as CR, and comparing an untrimmed string failed a deploy that
+# had in fact shipped the right commit.
+live="$(ssh -o BatchMode=yes "$PC_HOST" "docker exec email-outbound-fast printenv GIT_SHA" 2>/dev/null | tr -d '[:space:]')"
 echo "    live on the PC : ${live:-unknown}"
 echo "    local HEAD     : $GIT_SHA"
 [ "$live" = "$GIT_SHA" ] || fail "container reports a different commit than what was built."

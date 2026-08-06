@@ -160,6 +160,10 @@ try {
     try { $env:GIT_SHA = (& git rev-parse --short HEAD) } finally { Pop-Location }
     Write-Ok "building from commit $env:GIT_SHA"
 
+    # The fast path's container binds the same port. Release it so this path
+    # always works as the fallback, rather than failing on a port conflict.
+    & docker stop email-outbound-fast 2>$null | Out-Null
+
     Invoke-Checked docker @(
         'compose',
         '--env-file', $EnvFile,
