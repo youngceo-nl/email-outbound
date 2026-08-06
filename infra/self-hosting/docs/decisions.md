@@ -304,3 +304,27 @@ This is a failure the correct manual command cannot prevent, which is the argume
 **Result:** 240s to **29s** (22s compile, 4s transfer, 2s restart+health), an 8x improvement.
 
 **Consequences:** Deploys now depend on a machine that can compile, which is the real cost of the speed; `deploy:full` exists precisely for when that is not available. The runtime image needs rebuilding only when `package-lock.json` changes, and `deploy-fast.sh` does that on demand through `run-interactive.ps1` (a Docker build still cannot run over SSH here - ADR-015). Getting materially below ~29s would need a faster build machine or fewer statically-generated pages; the remaining time is real compile work, not overhead.
+
+---
+
+## ADR-017: Remote power resilience - deferred, with the options mapped
+
+**Date:** 2026-08-06
+**Status:** Deferred by the user, deliberately. Recorded now so the gap is a known, costed choice rather than something rediscovered during an outage.
+
+**Context:** As of ADR-012/015/016 every operational task is remote: deploys, logs, container restarts, database access, Steel. The box also survives a reboot unattended, proven this session. One gap remains, and it is the only one that requires a human beside the machine: **nothing can power it on.** BIOS "Restore on AC Power Loss" is unset and there is no Wake-on-LAN. A power cut, brownout, or someone pressing the button takes down the app, Steel and the whole pipeline, and it stays down until someone is physically there.
+
+This matters more than it did. The original deferral (2026-08-04, "skip auto start up for now, leave that for when everything else is perfect") was made when someone was always near the box. It becomes the single point of failure the moment nobody is.
+
+**Options, cheapest first:**
+
+1. **BIOS "Restore on AC Power Loss" - free, ~2 minutes, requires being at the machine once.** Makes the box power itself back on when mains returns. Covers the common case: a cut, a tripped breaker, a brownout. Does *not* cover a soft shutdown or someone holding the power button, because mains never dropped. Prerequisite for option 3.
+2. **Wake-on-LAN - free, but of limited use here.** Needs NIC and BIOS support plus standby power to the NIC, so it does nothing after a real power cut - the state WoL depends on is gone. It only helps for a soft shutdown, and it needs something on the LAN to send the magic packet, which is the same machine that is down. Weakest option; noted mainly so it is not reached for by reflex.
+3. **Smart plug plus option 1 - roughly EUR 20-30, and the only combination that makes power genuinely remote.** Cutting and restoring the plug forces a cold boot; "Restore on AC Power Loss" then brings the machine up. Together they cover every failure mode including a hung box that SSH cannot reach. Choose a model with local/API control rather than cloud-only, so recovery does not depend on a vendor's service also being up. Note the plug becomes a new always-on device, which is a small draw against this repo's wattage constraint, and a new remote-controllable way to hard-cut power to a running machine - worth a thought about who can reach it.
+4. **UPS - EUR 60+.** Rides out brief cuts and brownouts entirely and allows a clean shutdown on a long one. Complementary to, not a substitute for, option 1: after the battery is exhausted the machine still needs to come back by itself.
+
+**Decision:** none of these now, at the user's explicit call (2026-08-06). The state is understood and accepted rather than overlooked.
+
+**Revisit when** the machine is to be left unattended for a meaningful stretch, or immediately after the first real outage - whichever comes first. If it is ever picked up, do option 1 first regardless of the rest: it is free, it is a prerequisite for option 3, and it alone covers the most likely failure.
+
+**Consequences:** Until then, uptime depends on mains power and on nobody touching the box. Everything else about this deployment is remote-operable; this is the one thing that is not, and it cannot be fixed remotely - by definition, it needs one physical visit.
