@@ -291,7 +291,31 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
   const scrapingBee = settings ? resolveScrapingBeeKeys(settings).length > 0 : false;
   const youtube = !!(settings?.youtube_api_key || process.env.YOUTUBE_API_KEY);
 
+  /*
+   * Ordered to match the order a lead actually consumes them, which is the
+   * SLOTS sequence in lib/qualification/pipeline-stages.ts:
+   *
+   *   prefilter          -> Apify
+   *   acquiring          -> identity picked, then Steel opens the session
+   *   external_evidence  -> ScrapingBee
+   *   youtube            -> YouTube API
+   *   extracting         -> Anthropic (Haiku), then challenger (Opus)
+   *
+   * Worth keeping in sync: read top-to-bottom this is also the order things
+   * fail in, so the first red row is the earliest stage that breaks.
+   */
   return [
+    await apifyCheck(settings),
+    {
+      label: "Instagram identities",
+      ok: identities > 0 && !poolError,
+      blocking: true,
+      detail: poolError
+        ? `pool is malformed: ${poolError}`
+        : identities > 0
+          ? `${identities} usable cookie identity(ies)`
+          : "empty pool — acquisition throws before the first step runs",
+    },
     {
       label: "Steel",
       ok: steelKey && !steelUnreachable,
@@ -307,22 +331,6 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
           : "not set — every acquisition fails instantly",
     },
     {
-      label: "Instagram identities",
-      ok: identities > 0 && !poolError,
-      blocking: true,
-      detail: poolError
-        ? `pool is malformed: ${poolError}`
-        : identities > 0
-          ? `${identities} usable cookie identity(ies)`
-          : "empty pool — acquisition throws before the first step runs",
-    },
-    {
-      label: "Anthropic API key",
-      ok: anthropicKey,
-      blocking: true,
-      detail: anthropicKey ? "set" : "no key — extraction fails and every lead scores zero",
-    },
-    {
       label: "ScrapingBee key",
       ok: scrapingBee,
       blocking: false,
@@ -330,12 +338,17 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
         ? "set — JavaScript landing pages can be read"
         : "not set — JS-shell landing pages will read as empty",
     },
-    await apifyCheck(settings),
     {
       label: "YouTube API key",
       ok: youtube,
       blocking: false,
       detail: youtube ? "set" : "not set — falls back to rate-limited HTML scraping",
+    },
+    {
+      label: "Anthropic API key",
+      ok: anthropicKey,
+      blocking: true,
+      detail: anthropicKey ? "set" : "no key — extraction fails and every lead scores zero",
     },
   ];
 }
