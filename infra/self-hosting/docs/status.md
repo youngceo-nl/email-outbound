@@ -174,8 +174,19 @@ Getting there took five runs and found five separate defects, all of which were 
 - Several group-B accounts additionally carry `checkpoint_state` or verification errors and need a re-login through `onboard-instagram-account.ts` - which itself needs a spare proxy first, so proxies gate that too.
 - `ilenekawchpw` quarantined on a checkpoint; `livelypageant8` still cookie-less and paused (the long-deferred onboarding test candidate).
 
+## Unattended operation (2026-08-06)
+
+**Reboot survival is proven, not assumed.** The box rebooted mid-session and recovered with no intervention: `Tailscale`, `sshd` and `Cloudflared` all `Running`/`Automatic`, Docker Desktop `AutoStart: True`, every container back up, confirmed ~2h later from the Mac. This closes the item that had been "fixed, but only proven via a Docker Desktop stop/start, never a real reboot".
+
+**Everything operational is remote.** Deploys, `docker logs`/`exec`/`restart`, database queries, Steel - none of this session's work needed physical access.
+
+**The only remaining tie to physical presence is power.** BIOS "Restore on AC Power Loss" is still unset (deferred 2026-08-04) and there is no Wake-on-LAN. A power cut, brownout, or someone pressing the button leaves the PC off, takes the app and Steel down with it, and there is no remote way back - it needs a hand on the button. That was a reasonable deferral while someone was always near the machine; it is the single point of failure the moment nobody is.
+
+**Deploys are now ~29s** via `npm run deploy` (compile on a dev machine, ship only `.next`, restart there). `npm run deploy:full` is the fallback that builds everything on the PC and needs nothing from a dev machine - worth knowing if the only machine that can build is far away. See ADR-016 and `remote-access.md`.
+
 **Still open:**
-1. **Buy or provision more proxy ports.** Everything else about capacity is downstream of this.
+1. **BIOS "Restore on AC Power Loss"** - the only thing that still requires being physically at the box, and the highest-value item if it is to be left unattended. Two minutes in UEFI setup.
+2. **Buy or provision more proxy ports.** Everything else about capacity is downstream of this.
 2. Re-login the checkpointed group-B accounts once a proxy exists for each.
 3. **Rotate the Inngest event key** - exposed in a chat transcript. User has explicitly decided to accept this for now; the key only permits sending events into Production (no read access), and the mitigation is watching the Inngest events stream for anything unexpected. Rotate with `deploy/set-env-value.ps1 -Key INNGEST_EVENT_KEY`.
 4. `.env.production.generated` on the Mac is now an exact copy of the PC's file (47 keys), pulled down as an off-box backup. Gitignored on both ends. It will drift the moment the PC's copy changes; the PC remains the source of truth and `deploy-remote.sh` will not push over it without `--push-env`.
