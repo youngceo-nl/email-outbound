@@ -256,6 +256,21 @@ export type EvidenceScoreComponent = {
   citations: { phrase: string; source_type: string }[];
 };
 
+/*
+ * Which scorer verdict the evidence queue shows.
+ *
+ * `review` is the operational queue: leads the pipeline could not decide, which
+ * a human resolves so they can move on. `rejected` is not operational — it
+ * exists to measure the scorer. Errors run in two directions, and only one of
+ * them is visible anywhere else: a lead wrongly *qualified* surfaces in the
+ * normal review tab before handover, but a lead wrongly *rejected* is simply
+ * gone. On the 2026-08-04 run that was 28 of 39 leads, unexamined.
+ *
+ * See docs/KPI/scoring-targets.md — labelling both is what makes accuracy a
+ * number rather than an opinion.
+ */
+export type EvidenceReviewDecision = "review" | "rejected";
+
 export type EvidenceReviewLead = {
   id: string;
   decision_id: string;
@@ -306,6 +321,7 @@ type DecisionRow = {
 export async function getEvidenceReviewQueue(
   limit = 50,
   direction: "asc" | "desc" = "asc",
+  decision: EvidenceReviewDecision = "review",
 ): Promise<EvidenceReviewLead[]> {
   await requireUser();
   const sb = createAdminClient();
@@ -313,7 +329,7 @@ export async function getEvidenceReviewQueue(
   const { data: decisions } = await sb
     .from("lead_qualification_decisions")
     .select("id, lead_id, track, certainty, commercial_fit, decision_reasons, review_flags, payload, created_at")
-    .eq("decision", "review")
+    .eq("decision", decision)
     .order("created_at", { ascending: false })
     .limit(1000);
 
@@ -366,14 +382,16 @@ export async function getEvidenceReviewQueue(
 }
 
 /** Drives the "Evidence Review" tab badge count. */
-export async function getEvidenceReviewPendingCount(): Promise<number> {
+export async function getEvidenceReviewPendingCount(
+  decision: EvidenceReviewDecision = "review",
+): Promise<number> {
   await requireUser();
   const sb = createAdminClient();
 
   const { data: decisions } = await sb
     .from("lead_qualification_decisions")
     .select("lead_id")
-    .eq("decision", "review")
+    .eq("decision", decision)
     .order("created_at", { ascending: false })
     .limit(1000);
   const leadIds = [...new Set((decisions ?? []).map((d) => d.lead_id).filter((id): id is string => !!id))];

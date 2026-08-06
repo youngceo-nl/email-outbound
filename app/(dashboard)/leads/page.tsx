@@ -26,7 +26,7 @@ import { MarkBadLeadButton } from "@/components/leads/mark-bad-lead-button";
 import { VoiceDmButton } from "@/components/leads/voice-dm-button";
 import { BadLeadsTable, type RejectedLeadRow } from "@/components/leads/bad-leads-table";
 import { createClient } from "@/lib/supabase/server";
-import { getReviewQueue, getReviewStats, getReviewTrackCounts, getReviewPendingCount, getEvidenceReviewQueue, getEvidenceReviewPendingCount, type ReviewTrack } from "@/app/actions/review";
+import { getReviewQueue, getReviewStats, getReviewTrackCounts, getReviewPendingCount, getEvidenceReviewQueue, getEvidenceReviewPendingCount, type ReviewTrack, type EvidenceReviewDecision } from "@/app/actions/review";
 import { ReviewClient } from "@/components/review/review-client";
 import { EvidenceReviewClient } from "@/components/review/evidence-review-client";
 import { CheckCircle2 } from "lucide-react";
@@ -52,11 +52,17 @@ type Search = {
   tab?: string;
 };
 
-type View = "all" | "review" | "evidence" | "bad";
+/*
+ * `rejected` is an audit tab, not a work queue. The other tabs clear work; this
+ * one exists to catch leads the scorer threw away that should have been kept —
+ * the only error direction nothing else surfaces. See docs/KPI/scoring-targets.md.
+ */
+type View = "all" | "review" | "evidence" | "rejected" | "bad";
 const VIEW_LABELS: Record<View, string> = {
   all: "All Leads",
   review: "Review Queue",
   evidence: "Evidence Review",
+  rejected: "Rejected (audit)",
   bad: "Bad Leads",
 };
 
@@ -68,7 +74,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const { data: { user } } = await authed.auth.getUser();
   const isVa = user?.app_metadata?.role === "va";
 
-  const views: View[] = isVa ? ["all", "review", "evidence"] : ["all", "review", "evidence", "bad"];
+  const views: View[] = isVa
+    ? ["all", "review", "evidence"]
+    : ["all", "review", "evidence", "rejected", "bad"];
   const view: View = (views as string[]).includes(sp.tab ?? "") ? (sp.tab as View) : "all";
   const [pendingReview, pendingEvidence] = await Promise.all([
     getReviewPendingCount().catch(() => 0),
@@ -103,6 +111,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       {view === "all" && <AllLeadsView sp={sp} />}
       {view === "review" && <ReviewView />}
       {view === "evidence" && <EvidenceReviewView />}
+      {view === "rejected" && !isVa && <EvidenceReviewView decision="rejected" />}
       {view === "bad" && !isVa && <BadLeadsView />}
     </div>
   );
@@ -431,27 +440,52 @@ async function ReviewView() {
   return <ReviewClient queue={queue} stats={stats} trackCounts={trackCounts} defaultTrack={defaultTrack} />;
 }
 
-async function EvidenceReviewView() {
+async function EvidenceReviewView({
+  decision = "review",
+}: { decision?: EvidenceReviewDecision } = {}) {
   const [queue, totalPending] = await Promise.all([
-    getEvidenceReviewQueue(100, "asc"),
-    getEvidenceReviewPendingCount(),
+    getEvidenceReviewQueue(100, "asc", decision),
+    getEvidenceReviewPendingCount(decision),
   ]);
+
+  const auditing = decision === "rejected";
 
   if (queue.length === 0) {
     return (
       <Card className="max-w-2xl mx-auto">
         <CardContent className="py-16 text-center text-muted-foreground">
           <CheckCircle2 className="h-8 w-8 mx-auto mb-3 opacity-40" />
-          <p className="text-sm">Nothing left to review.</p>
+          <p className="text-sm">
+            {auditing ? "No rejected leads left to audit." : "Nothing left to review."}
+          </p>
           <p className="text-xs mt-1">
-            Leads the evidence-first pipeline (lib/qualification/*) marks uncertain show up here.
+            {auditing
+              ? "Leads the pipeline rejected outright show up here until someone rules on them."
+              : "Leads the evidence-first pipeline (lib/qualification/*) marks uncertain show up here."}
           </p>
         </CardContent>
       </Card>
     );
   }
 
-  return <EvidenceReviewClient queue={queue} totalPending={totalPending} />;
+  return (
+    <div className="space-y-4">
+      {auditing && (
+        <Card className="max-w-2xl mx-auto border-amber-500/40">
+          <CardContent className="py-4 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">Auditing the scorer, not clearing a queue.</p>
+            <p className="mt-1 text-xs">
+              These were rejected outright. Approving one means the scorer got it wrong — that
+              is the point. Judge on what the lead <em>sells</em>, not who it serves: any info
+              offer counts (community, coaching, course) at any ticket size. See
+              docs/KPI/scoring-targets.md.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      <EvidenceReviewClient queue={queue} totalPending={totalPending} />
+    </div>
+  );
 }
 
 async function BadLeadsView() {
