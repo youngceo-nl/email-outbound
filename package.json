@@ -11,6 +11,7 @@
     "start": "next start -p ${PORT:-3417}",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "predeploy": "tsc --noEmit",
     "deploy": "bash infra/self-hosting/deploy/deploy-remote.sh",
     "deploy:check": "bash infra/self-hosting/deploy/deploy-remote.sh --check",
     "check": "tsc --noEmit && eslint . && rm -rf .next && next build",

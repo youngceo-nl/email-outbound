@@ -47,8 +47,12 @@ for arg in "$@"; do
   esac
 done
 
-step() { printf '\n==> %s\n' "$1"; }
-fail() { printf '\nFAILED: %s\n' "$1" >&2; exit 1; }
+# Elapsed time on every phase, so "the deploy is slow" is always answerable with
+# a number rather than a guess about which part.
+T0=$(date +%s)
+elapsed() { echo $(( $(date +%s) - T0 )); }
+step() { printf '\n==> [%3ss] %s\n' "$(elapsed)" "$1"; }
+fail() { printf '\nFAILED after %ss: %s\n' "$(elapsed)" "$1" >&2; exit 1; }
 
 step "Checking the tunnel to $PC_HOST"
 command -v tailscale >/dev/null 2>&1 || fail "tailscale not installed - see infra/self-hosting/docs/remote-access.md"
