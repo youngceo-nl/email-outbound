@@ -185,7 +185,7 @@ Getting there took five runs and found five separate defects, all of which were 
 **Deploys are now ~29s** via `npm run deploy` (compile on a dev machine, ship only `.next`, restart there). `npm run deploy:full` is the fallback that builds everything on the PC and needs nothing from a dev machine - worth knowing if the only machine that can build is far away. See ADR-016 and `remote-access.md`.
 
 **Still open:**
-1. **BIOS "Restore on AC Power Loss"** - the only thing that still requires being physically at the box, and the highest-value item if it is to be left unattended. Two minutes in UEFI setup.
+1. **Remote power resilience - deferred by choice, see ADR-017.** The only thing that still requires being physically at the box. Not being done now; the ADR costs out the options (free BIOS toggle, why Wake-on-LAN barely helps here, and the ~EUR 25 smart-plug combination that would make power genuinely remote) and records when to revisit.
 2. **Buy or provision more proxy ports.** Everything else about capacity is downstream of this.
 2. Re-login the checkpointed group-B accounts once a proxy exists for each.
 3. **Rotate the Inngest event key** - exposed in a chat transcript. User has explicitly decided to accept this for now; the key only permits sending events into Production (no read access), and the mitigation is watching the Inngest events stream for anything unexpected. Rotate with `deploy/set-env-value.ps1 -Key INNGEST_EVENT_KEY`.
