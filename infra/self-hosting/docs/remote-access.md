@@ -132,8 +132,29 @@ That last command should list the running containers. If it does, deploys work.
 From the Mac, from the repo root:
 
 ```bash
-./infra/self-hosting/deploy/deploy-remote.sh
+npm run deploy          # pull on the PC, rebuild, health-check, verify
+npm run deploy:check    # what is live vs your HEAD - deploys nothing
 ```
+
+**Committing is not deploying.** The PC runs a Docker image; pushing to `main`
+changes nothing until that image is rebuilt. "I committed but the page did not
+change" and "the code does not do what I think" look identical in a browser,
+which is why the image is stamped with the commit it was built from (`GIT_SHA`,
+set by `deploy.ps1`, baked in via the `Dockerfile`). `deploy:check` reads it back
+off the running container and compares:
+
+```
+live on the PC : a1b2c3d
+local HEAD     : d2eceab
+-> DIFFERENT: the running app is not built from your current HEAD
+```
+
+It also warns about the two things that silently produce a no-op deploy:
+uncommitted changes (the PC deploys from git, not your disk) and a local HEAD
+ahead of `origin/main` (the PC pulls from the remote, so push first).
+
+A deploy re-runs the same comparison at the end, so a build that succeeded but
+whose container failed to swap is caught rather than passing on a 200.
 
 By default it touches only code: it runs `deploy/deploy.ps1` on the PC (pull,
 validate the env, rebuild, health-check, and dump `docker logs` automatically if

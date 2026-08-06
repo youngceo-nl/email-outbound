@@ -153,6 +153,13 @@ try {
     # env_file: entry for that. Without this flag both bake in as empty strings,
     # Next inlines the blank URL at build time, and middleware.ts throws on every
     # request: a 500 whose only visible trace in the browser is a digest hash.
+    # Stamp the image with the commit it is built from. Shell environment beats
+    # --env-file for Compose interpolation, so this wins without touching
+    # .env.production.
+    Push-Location $RepoRoot
+    try { $env:GIT_SHA = (& git rev-parse --short HEAD) } finally { Pop-Location }
+    Write-Ok "building from commit $env:GIT_SHA"
+
     Invoke-Checked docker @(
         'compose',
         '--env-file', $EnvFile,

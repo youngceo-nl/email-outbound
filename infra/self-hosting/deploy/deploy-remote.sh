@@ -29,12 +29,20 @@ LOCAL_ENV="${EO_ENV_FILE:-$REPO_ROOT/.env.production.generated}"
 # newer, and read what the diff reports before confirming.
 PUSH_ENV=0
 FORCE=0
+CHECK_ONLY=0
 SKIP_PULL=""
 for arg in "$@"; do
   case "$arg" in
     --push-env)  PUSH_ENV=1 ;;
     --force)     FORCE=1 ;;
+    --check)     CHECK_ONLY=1 ;;
     --skip-pull) SKIP_PULL="-SkipPull" ;;
+    -h|--help)
+      sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      echo "  --check      report what is live vs local HEAD, deploy nothing"
+      echo "  --push-env   also replace the PC's .env.production (see below)"
+      echo "  --skip-pull  build the PC's working tree as-is"
+      exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -49,6 +57,37 @@ command -v tailscale >/dev/null 2>&1 || fail "tailscale not installed - see infr
 ssh -o BatchMode=yes -o ConnectTimeout=10 "$PC_HOST" "echo ok" >/dev/null 2>&1 \
   || fail "cannot ssh to $PC_HOST. Check 'tailscale status' on both machines, and that OpenSSH Server is running on the PC."
 echo "    reachable"
+
+# What is actually serving right now, versus what you have locally. This is the
+# whole point of stamping GIT_SHA into the image: "I committed but the page did
+# not change" and "the code does not do what I think" look identical in a
+# browser, and only this tells them apart.
+report_versions() {
+  local live local_head
+  live="$(ssh -o BatchMode=yes "$PC_HOST" "docker exec email-outbound printenv GIT_SHA" 2>/dev/null | tr -d '\r' || true)"
+  local_head="$(git -C "$REPO_ROOT" rev-parse --short HEAD)"
+  echo "    live on the PC : ${live:-unknown (image predates version stamping)}"
+  echo "    local HEAD     : $local_head"
+  if [ -n "$live" ] && [ "$live" = "$local_head" ]; then
+    echo "    -> up to date"
+    return 0
+  fi
+  echo "    -> DIFFERENT: the running app is not built from your current HEAD"
+  return 1
+}
+
+if [ "$CHECK_ONLY" -eq 1 ]; then
+  step "Version check"
+  report_versions || true
+  # Uncommitted work never reaches the PC - it deploys from git, not your disk.
+  if ! git -C "$REPO_ROOT" diff --quiet || ! git -C "$REPO_ROOT" diff --cached --quiet; then
+    echo "    note: you have uncommitted changes; deploying will NOT include them"
+  fi
+  if [ -n "$(git -C "$REPO_ROOT" log --oneline origin/main..HEAD 2>/dev/null)" ]; then
+    echo "    note: local HEAD is ahead of origin/main - push first, the PC pulls from the remote"
+  fi
+  exit 0
+fi
 
 if [ "$PUSH_ENV" -eq 0 ]; then
   step "Leaving the PC's .env.production alone (pass --push-env to replace it)"
@@ -139,3 +178,7 @@ step "Verifying from this Mac"
 code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://app.paidinfunnel.com/login || echo 000)"
 [ "$code" = "200" ] || fail "https://app.paidinfunnel.com/login returned $code, expected 200."
 echo "    https://app.paidinfunnel.com/login -> 200"
+
+# Confirms the new image is the one serving, not just that something is. A
+# successful build whose container failed to swap would still answer 200.
+report_versions || fail "deployed, but the running container reports a different commit than local HEAD."

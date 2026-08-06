@@ -24,7 +24,11 @@ RUN npm run build
 
 FROM node:24-alpine AS runner
 WORKDIR /app
-ENV NODE_ENV=production PORT=3417
+# Stamped so the running container can say which commit it was built from.
+# Without it there is no way to tell "the deploy did not happen" from "the code
+# does not do what you think" - the failure looks identical in the browser.
+ARG GIT_SHA=unknown
+ENV NODE_ENV=production PORT=3417 GIT_SHA=$GIT_SHA
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

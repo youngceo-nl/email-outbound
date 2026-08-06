@@ -6,6 +6,9 @@ services:
       args:
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        # Set by deploy.ps1 from the working tree's HEAD. Defaults to "unknown"
+        # rather than failing, so a manual `docker compose build` still works.
+        GIT_SHA: ${GIT_SHA:-unknown}
     image: email-outbound:latest
     container_name: email-outbound
     env_file:

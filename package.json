@@ -11,6 +11,8 @@
     "start": "next start -p ${PORT:-3417}",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "deploy": "bash infra/self-hosting/deploy/deploy-remote.sh",
+    "deploy:check": "bash infra/self-hosting/deploy/deploy-remote.sh --check",
     "check": "tsc --noEmit && eslint . && rm -rf .next && next build",
     "inngest:dev": "inngest dev -u http://localhost:${DEV_PORT:-3417}/api/inngest",
     "db:push": "supabase db push",
