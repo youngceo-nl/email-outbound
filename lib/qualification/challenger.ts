@@ -130,11 +130,12 @@ export type ChallengerTrigger =
   | "none";
 
 /*
- * Deliberately does NOT run for reliable universal exclusions or data failures:
- * a second opinion on a profile we could not even load buys nothing, and a
- * reliably excluded agency is not a close call.
+ * Disabled: the Opus challenger pass was the majority of qualification spend
+ * (see pricing.ts). Kept as a hard "never fire" rather than deleted so the
+ * call sites, types, and certainty logic that depend on a ChallengerDecision
+ * do not need to change. Re-enable by restoring the trigger conditions below.
  */
-export function challengerTrigger(args: {
+export function challengerTrigger(_args: {
   proposedAutoApproval: boolean;
   trackMixed: boolean;
   conflicts: number;
@@ -142,13 +143,7 @@ export function challengerTrigger(args: {
   acquisitionFailed: boolean;
   auditSample?: boolean;
 }): ChallengerTrigger {
-  if (args.hardExclusion || args.acquisitionFailed) {
-    return args.auditSample ? "audit_sample" : "none";
-  }
-  if (args.proposedAutoApproval) return "proposed_auto_approval";
-  if (args.trackMixed) return "mixed_offers";
-  if (args.conflicts > 0) return "conflicting_evidence";
-  return args.auditSample ? "audit_sample" : "none";
+  return "none";
 }
 
 export async function runChallenger(opts: {
