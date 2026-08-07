@@ -447,11 +447,32 @@ async function resolveUserIdViaSearch(opts: {
   }
 }
 
+/*
+ * A username's numeric id never changes, but crawl-seed.ts walks a following
+ * list one cursor-page per Inngest step and each step re-enters
+ * fetchFollowingDirect — so a 3,000-following account re-resolved the same id
+ * ~60 times, spending two extra Instagram requests per page for an answer we
+ * already had. That is what produced "Rate-limited resolving user_id" partway
+ * through a crawl. Short TTL because the process is long-lived and a renamed
+ * account should not stay wrong forever.
+ */
+const USER_ID_TTL_MS = 30 * 60 * 1000;
+const userIdCache = new Map<string, { id: string; at: number }>();
+
 async function resolveUserIdDirect(opts: {
   username: string;
   sessionCookie: string;
   session: BrowserSession | null;
 }): Promise<string | null> {
+  const cacheKey = opts.username.toLowerCase();
+  const cached = userIdCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < USER_ID_TTL_MS) return cached.id;
+
+  const remember = (id: string | null): string | null => {
+    if (id) userIdCache.set(cacheKey, { id, at: Date.now() });
+    return id;
+  };
+
   await sleep(jitter(300, 900));
 
   const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(opts.username)}`;
@@ -482,13 +503,13 @@ async function resolveUserIdDirect(opts: {
   if (res.status >= 200 && res.status < 300) {
     try {
       const parsed = JSON.parse(res.body);
-      if (parsed?.data?.user?.id) return String(parsed.data.user.id);
+      if (parsed?.data?.user?.id) return remember(String(parsed.data.user.id));
     } catch {
       // fall through to search
     }
   }
 
-  return resolveUserIdViaSearch(opts);
+  return remember(await resolveUserIdViaSearch(opts));
 }
 
 export async function fetchFollowingDirect(opts: {
