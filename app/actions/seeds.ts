@@ -7,6 +7,8 @@ import { inngest } from "@/inngest/client";
 import { getSettings, resolveApifyTokens } from "@/lib/config/settings";
 import { getScrapedSeedIds, hasBeenScraped, checkRescrapeOverride } from "@/lib/seeds/scraped";
 import { scrapeFollowingDetailedWithFallback } from "@/lib/pipeline/scrape-following";
+import { buildAcquisitionPool } from "@/lib/instagram/cookie-pool";
+import { acquireInstagramEvidence } from "@/lib/instagram/steel-acquisition";
 
 async function requireUser() {
   const sb = await createClient();
@@ -109,12 +111,41 @@ export async function checkFollowingCount(
   if (!seed) return { ok: false, error: "seed_not_found" };
 
   const settings = await getSettings(true);
+
   /*
-   * Respects the same provider dropdown the crawl itself uses. This was
-   * hardcoded to "apify", so with Apify out of quota the button reported a
-   * quota error no matter which provider was selected — and no other provider
-   * could ever be reached from here, even a working one.
+   * Read the number off the profile instead of counting the list.
+   *
+   * Instagram states the following count on the profile itself, and Steel
+   * renders that page in a real browser — one page load for an exact figure,
+   * versus ~60 sequential API calls to enumerate a 3,000-account list. It also
+   * sidesteps the two things that made counting unreliable: provider quota,
+   * and `web_profile_info` returning 400 for professional accounts.
+   *
+   * Enumeration stays as the fallback, because it needs no Steel and still
+   * answers when acquisition is unavailable.
    */
+  try {
+    const pool = buildAcquisitionPool(settings);
+    if (pool.length > 0) {
+      const acquired = await acquireInstagramEvidence({
+        username: seed.username,
+        identity: pool[0],
+        steelApiKey: settings.steel_api_key,
+        steelBaseUrl: settings.steel_base_url,
+        cfAccessClientId: settings.steel_cf_client_id,
+        cfAccessClientSecret: settings.steel_cf_client_secret,
+      });
+      const stated = acquired.instagram.following;
+      if (typeof stated === "number" && stated > 0) {
+        await sb.from("seeds").update({ following_count: stated }).eq("id", id);
+        revalidatePath("/seeds");
+        return { ok: true, following_count: stated, partial: false };
+      }
+    }
+  } catch {
+    // Steel unavailable or the profile did not render — fall through to counting.
+  }
+
   const provider = providerOverride ?? settings.following_scraper_provider;
   // All tokens, not one: runActorAsync rotates past a token that has hit its
   // monthly limit. With a single token an exhausted account fails the scrape
@@ -138,17 +169,13 @@ export async function checkFollowingCount(
     // not an uncaught exception that takes down the whole route.
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
-  const followingCount = result.items.length;
 
   /*
    * A returned cursor means the provider handed back a page rather than the
-   * whole list (the cookie path pages and relies on crawl-seed.ts to loop),
-   * so this is a floor, not the real total. It is still worth storing and
-   * showing — the alternative is no number at all — but it is reported as
-   * `partial` so the UI can say "1,000+" instead of asserting a number that
-   * understates the scrape. The crawl itself overwrites this with the true
-   * total when it finishes (crawl-seed.ts's set-counters step).
+   * whole list, so this is a floor, not the real total — reported as `partial`
+   * rather than asserted as the scrape size.
    */
+  const followingCount = result.items.length;
   await sb.from("seeds").update({ following_count: followingCount }).eq("id", id);
   revalidatePath("/seeds");
   return { ok: true, following_count: followingCount, partial: !!result.nextCursor };
