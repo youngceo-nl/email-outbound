@@ -73,12 +73,23 @@ async function igFetch(
   },
 ): Promise<{ status: number; body: string }> {
   if (init.session) {
-    return init.session.fetch(url, {
-      method: init.method,
-      headers: init.headers,
-      body: init.body,
-      timeoutMs: init.timeoutMs,
-    });
+    try {
+      return await init.session.fetch(url, {
+        method: init.method,
+        headers: init.headers,
+        body: init.body,
+        timeoutMs: init.timeoutMs,
+      });
+    } catch (err) {
+      /*
+       * The browser is a remote Steel session and can die at any point — a real
+       * crawl lost it on its very first request. The request itself never left,
+       * so retrying over plain proxied HTTPS is safe and is what the batch
+       * metadata path already does by default. Handled here rather than at each
+       * call site so every Instagram request in this module inherits it.
+       */
+      if (!isBrowserGone(err)) throw err;
+    }
   }
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), init.timeoutMs);
@@ -421,6 +432,7 @@ async function resolveUserIdViaSearch(opts: {
   username: string;
   sessionCookie: string;
   session: BrowserSession | null;
+  proxyUrl?: string | null;
 }): Promise<string | null> {
   const url = `https://www.instagram.com/api/v1/web/search/topsearch/?query=${encodeURIComponent(opts.username)}`;
   const referer = `https://www.instagram.com/${encodeURIComponent(opts.username)}/`;
@@ -429,6 +441,7 @@ async function resolveUserIdViaSearch(opts: {
     headers: chromeHeaders(randomUA(), opts.sessionCookie, referer),
     timeoutMs: 15_000,
     session: opts.session,
+    proxyUrl: opts.proxyUrl,
   });
   if (res.status === 429) throw new InstagramDirectError("Rate-limited resolving user_id via search", 429, true);
   if (res.status < 200 || res.status >= 300) return null;
@@ -463,6 +476,7 @@ async function resolveUserIdDirect(opts: {
   username: string;
   sessionCookie: string;
   session: BrowserSession | null;
+  proxyUrl?: string | null;
 }): Promise<string | null> {
   const cacheKey = opts.username.toLowerCase();
   const cached = userIdCache.get(cacheKey);
@@ -482,6 +496,7 @@ async function resolveUserIdDirect(opts: {
     headers: chromeHeaders(randomUA(), opts.sessionCookie, referer),
     timeoutMs: 15_000,
     session: opts.session,
+    proxyUrl: opts.proxyUrl,
   });
 
   if (res.status === 429) {
@@ -490,6 +505,7 @@ async function resolveUserIdDirect(opts: {
       headers: chromeHeaders(randomUA(), opts.sessionCookie, referer),
       timeoutMs: 15_000,
       session: opts.session,
+      proxyUrl: opts.proxyUrl,
     });
   }
 
@@ -585,7 +601,12 @@ async function _fetchFollowingPages(opts: {
     }
   };
 
-  const userId = await resolveUserIdDirect({ username: opts.username, sessionCookie: opts.sessionCookie, session });
+  const userId = await resolveUserIdDirect({
+    username: opts.username,
+    sessionCookie: opts.sessionCookie,
+    session,
+    proxyUrl: opts.proxyUrl,
+  });
   if (!userId) throw new InstagramDirectError(`Could not resolve user_id for @${opts.username}`, undefined, false);
 
   const referer = `https://www.instagram.com/${encodeURIComponent(opts.username)}/following/`;
