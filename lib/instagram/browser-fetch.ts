@@ -114,23 +114,75 @@ export async function browserFetch(
   }
 }
 
+export type SteelConnectionOptions = {
+  steelApiKey?: string | null;
+  steelBaseUrl?: string | null;
+  cfAccessClientId?: string | null;
+  cfAccessClientSecret?: string | null;
+};
+
 // Lightweight wrapper that keeps one browser alive for the duration of
 // a paginated scrape session (following list, etc.). Caller must call .close().
+//
+// Connects to Steel rather than launching Chromium locally — the runner image
+// (node:24-alpine) has no Playwright browser binaries and Playwright's
+// bundled Chromium is not reliably supported on Alpine/musl in the first
+// place, so a local chromium.launch() here always fails in the deployed
+// container. Steel is already the browser backend the rest of acquisition
+// uses (lib/instagram/steel-acquisition.ts); this reuses that same service
+// instead of adding a second, broken way to get a browser.
 export class BrowserSession {
   private browser: import("playwright").Browser | null = null;
   private page: import("playwright").Page | null = null;
+  private steelClient: InstanceType<typeof import("steel-sdk").default> | null = null;
+  private steelSessionId: string | null = null;
 
-  async init(cookie: string, proxyUrl?: string | null) {
+  async init(cookie: string, proxyUrl?: string | null, steel?: SteelConnectionOptions) {
     const { chromium } = await import("playwright");
-    this.browser = await chromium.launch({
-      headless: true,
-      ...(proxyUrl ? { proxy: parseProxyUrl(proxyUrl) } : {}),
+    const Steel = (await import("steel-sdk")).default;
+
+    const baseURL = steel?.steelBaseUrl?.trim() || process.env.STEEL_BASE_URL?.trim() || undefined;
+    const apiKey = steel?.steelApiKey?.trim() || process.env.STEEL_API_KEY || (baseURL ? "self-hosted" : undefined);
+    if (!apiKey) {
+      throw new Error("A Steel API key is required: set app_settings.steel_api_key or STEEL_API_KEY");
+    }
+    const cfAccessClientId = steel?.cfAccessClientId?.trim() || process.env.CF_ACCESS_CLIENT_ID?.trim() || null;
+    const cfAccessClientSecret =
+      steel?.cfAccessClientSecret?.trim() || process.env.CF_ACCESS_CLIENT_SECRET?.trim() || null;
+    const cfAccessHeaders: Record<string, string> =
+      cfAccessClientId && cfAccessClientSecret
+        ? { "CF-Access-Client-Id": cfAccessClientId, "CF-Access-Client-Secret": cfAccessClientSecret }
+        : {};
+
+    this.steelClient = new Steel({
+      steelAPIKey: apiKey,
+      ...(baseURL ? { baseURL } : {}),
+      ...(Object.keys(cfAccessHeaders).length > 0 ? { defaultHeaders: cfAccessHeaders } : {}),
     });
-    const context = await this.browser.newContext({
+
+    const session = await this.steelClient.sessions.create({
+      dimensions: randomViewport(),
       userAgent: randomUA(),
-      viewport: randomViewport(),
-      locale: "en-US",
+      timeout: 180_000,
+      blockAds: true,
+      // Steel wants the full proxy URL string (scheme + optional user:pass@),
+      // not Playwright's split {server,username,password} launch-option shape.
+      ...(proxyUrl ? { proxyUrl: /^https?:\/\//i.test(proxyUrl) ? proxyUrl : `http://${proxyUrl}` } : {}),
     });
+    this.steelSessionId = session.id;
+
+    try {
+      this.browser = await chromium.connectOverCDP(
+        baseURL ? session.websocketUrl : `${session.websocketUrl}&apiKey=${apiKey}`,
+        Object.keys(cfAccessHeaders).length > 0 ? { headers: cfAccessHeaders } : undefined,
+      );
+    } catch (err) {
+      // Never leave a paid/running session behind because the connect failed.
+      await this.steelClient.sessions.release(session.id).catch(() => {});
+      throw err;
+    }
+
+    const context = this.browser.contexts()[0] ?? (await this.browser.newContext());
     await context.addCookies(parseCookies(cookie));
     this.page = await context.newPage();
   }
@@ -153,8 +205,15 @@ export class BrowserSession {
   }
 
   async close() {
-    await this.browser?.close();
+    await this.browser?.close().catch(() => {});
     this.browser = null;
     this.page = null;
+    // Releasing is what stops the billing clock — always attempt it even if
+    // the browser-side close already failed or was a no-op.
+    if (this.steelSessionId) {
+      await this.steelClient?.sessions.release(this.steelSessionId).catch(() => {});
+      this.steelSessionId = null;
+    }
+    this.steelClient = null;
   }
 }

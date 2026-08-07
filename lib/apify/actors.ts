@@ -1,5 +1,5 @@
 import "server-only";
-import { runActorSync, runActorAsync } from "./client";
+import { runActorSync, runActorAsync, runActorAsyncWithOutput } from "./client";
 import type { RecentPost, ScrapedProfile } from "@/lib/types";
 
 const FOLLOWING_ACTOR = process.env.APIFY_FOLLOWING_ACTOR || "apify~instagram-follower-scraper";
@@ -30,24 +30,62 @@ export type DiscoveredFollowing = {
   ig_user_id: string | null;
 };
 
+/*
+ * The configured actor (scraping_solutions/instagram-scraper-followers-
+ * following-no-cookies) delivers at most ~1000 results per run and reports
+ * the rest via a `continuationToken` in its OUTPUT record rather than by
+ * accepting a larger `resultsLimit` in one call — confirmed directly against
+ * a real run (OUTPUT: `"hasNextPage": true, "nextContinuationToken": "..."`)
+ * after a crawl against a 3,116-following account silently returned only the
+ * first 1,000 and reported it as complete. `resultsLimit`/`maxResults` still
+ * matter (they cap the total across all pages, per the actor's own schema:
+ * "50-20000 are the allowed values"), but reaching that total takes multiple
+ * runs, not one. MAX_PAGES bounds the worst case (a token/plan wedge before
+ * runaway spend) rather than trusting hasNextPage never to loop.
+ */
+const MAX_CONTINUATION_PAGES = 10;
+
 export async function scrapeFollowingDetailed(opts: {
   token: string | string[];
   username: string;
   limit: number;
 }): Promise<DiscoveredFollowing[]> {
   const resultsLimit = Math.max(100, Math.min(500000, opts.limit));
-  const items = await runActorAsync<AnyRec>({
-    token: opts.token,
-    actorId: FOLLOWING_ACTOR,
-    input: {
+  const items: AnyRec[] = [];
+  let continuationToken: string | undefined;
+
+  for (let page = 0; page < MAX_CONTINUATION_PAGES; page++) {
+    const input: AnyRec = {
       Account: [opts.username],
       resultsLimit,
       dataToScrape: "Followings",
       usernames: [opts.username],
       maxResults: resultsLimit,
-    },
-    timeoutSecs: 600,
-  });
+    };
+    if (continuationToken) input.continuationToken = continuationToken;
+
+    const { items: pageItems, output } = await runActorAsyncWithOutput<AnyRec>({
+      token: opts.token,
+      actorId: FOLLOWING_ACTOR,
+      input,
+      timeoutSecs: 600,
+      // A free-tier token that's used its daily allowance gets a 200 OK with
+      // 0 items and this shape in OUTPUT, not an HTTP 403 — treating it as
+      // exhausted rotates to the next token in `opts.token` automatically,
+      // same as a real rate-limit response.
+      isOutputExhausted: (o) => {
+        const rec = o as AnyRec | null;
+        return rec?.success === false && typeof rec?.status === "string" && rec.status.includes("LIMIT");
+      },
+    });
+    items.push(...pageItems);
+    if (items.length >= resultsLimit) break;
+
+    const continuation = (output as AnyRec | null)?.continuations as AnyRec[] | undefined;
+    const next = continuation?.[0];
+    if (!next?.hasNextPage || typeof next.nextContinuationToken !== "string") break;
+    continuationToken = next.nextContinuationToken;
+  }
 
   const byUsername = new Map<string, DiscoveredFollowing>();
   for (const it of items) {

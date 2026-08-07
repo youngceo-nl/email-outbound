@@ -1,6 +1,6 @@
 import "server-only";
 import type { RecentPost } from "@/lib/types";
-import { BrowserSession, randomUA } from "@/lib/instagram/browser-fetch";
+import { BrowserSession, randomUA, type SteelConnectionOptions } from "@/lib/instagram/browser-fetch";
 
 // Free, direct-fetch profile metadata lookup against IG's own
 // `web_profile_info` endpoint, with no proxy middleman — so it's $0/profile but
@@ -443,11 +443,13 @@ export async function fetchFollowingDirect(opts: {
   sessionCookie: string;
   limit: number;
   startCursor?: string | null;
+  proxyUrl?: string | null;
+  steel?: SteelConnectionOptions;
 }): Promise<{ items: DiscoveredFollowingDirect[]; nextCursor: string | null }> {
   // One browser session for the whole paginated scrape — Chrome start cost is
   // paid once and amortised across all page requests.
   const session = new BrowserSession();
-  await session.init(opts.sessionCookie);
+  await session.init(opts.sessionCookie, opts.proxyUrl, opts.steel);
   try {
     return await _fetchFollowingPages({ ...opts, session });
   } finally {

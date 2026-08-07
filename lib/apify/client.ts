@@ -16,18 +16,53 @@ type RunActorOptions = {
   timeoutSecs?: number;
   memoryMbytes?: number;
   retries?: number;
+  /*
+   * Some actors report per-account quota exhaustion inside a 200 OK response
+   * (run status SUCCEEDED, 0 items) rather than an HTTP 403 — the following-
+   * scraper's OUTPUT includes `{"success": false, "status":
+   * "FREE_API_DAILY_LIMIT_REACHED", ...}` on a free-tier token that's used up
+   * its daily allowance. That shape is actor-specific, so it isn't hardcoded
+   * here; a caller that cares passes a predicate and gets the same token-
+   * rotation behavior as a real 403.
+   */
+  isOutputExhausted?: (output: unknown) => boolean;
 };
 
 // Start an actor run and poll until it finishes, then return dataset items.
 // Accepts multiple tokens; rotates to the next when one hits its usage limit.
 export async function runActorAsync<T = unknown>(opts: RunActorOptions): Promise<T[]> {
+  const { items } = await runActorAsyncWithOutput<T>(opts);
+  return items;
+}
+
+/**
+ * Same as `runActorAsync`, but also returns the run's OUTPUT key-value record
+ * (parsed JSON, or null if the actor didn't write one). Some actors — e.g. the
+ * following-scraper (scraping_solutions/instagram-scraper-followers-following-
+ * no-cookies) — page internally and report a `continuationToken` in OUTPUT
+ * rather than raising the dataset past a fixed per-run cap. A caller that only
+ * reads dataset items has no way to know the result was partial; this exists
+ * so `scrapeFollowingDetailed` can detect that and keep paging.
+ */
+export async function runActorAsyncWithOutput<T = unknown>(
+  opts: RunActorOptions,
+): Promise<{ items: T[]; output: unknown }> {
   const tokens = Array.isArray(opts.token) ? opts.token : [opts.token];
   const { actorId, input, timeoutSecs = 600, memoryMbytes = 1024 } = opts;
 
   let lastErr: unknown;
   for (const token of tokens) {
     try {
-      return await _runActorAsync<T>({ token, actorId, input, timeoutSecs, memoryMbytes });
+      const result = await _runActorAsync<T>({ token, actorId, input, timeoutSecs, memoryMbytes });
+      if (opts.isOutputExhausted?.(result.output)) {
+        lastErr = new ApifyError(
+          `Apify ${actorId} run succeeded but reported quota exhaustion for this token`,
+          undefined,
+          result.output,
+        );
+        continue; // try next token
+      }
+      return result;
     } catch (err) {
       lastErr = err;
       if (err instanceof ApifyError && err.status === 403) {
@@ -42,7 +77,13 @@ export async function runActorAsync<T = unknown>(opts: RunActorOptions): Promise
   throw lastErr instanceof Error ? lastErr : new ApifyError("All Apify tokens exhausted");
 }
 
-async function _runActorAsync<T>(opts: { token: string; actorId: string; input: unknown; timeoutSecs: number; memoryMbytes: number }): Promise<T[]> {
+async function _runActorAsync<T>(opts: {
+  token: string;
+  actorId: string;
+  input: unknown;
+  timeoutSecs: number;
+  memoryMbytes: number;
+}): Promise<{ items: T[]; output: unknown }> {
   const { token, actorId, input, timeoutSecs, memoryMbytes } = opts;
 
   // 1. Start the run
@@ -56,8 +97,10 @@ async function _runActorAsync<T>(opts: { token: string; actorId: string; input: 
     const text = await startRes.text().catch(() => "");
     throw new ApifyError(`Apify ${actorId} start failed: ${startRes.status}`, startRes.status, text);
   }
-  const startData = (await startRes.json()) as { data: { id: string; defaultDatasetId: string; status: string } };
-  const { id: runId, defaultDatasetId } = startData.data;
+  const startData = (await startRes.json()) as {
+    data: { id: string; defaultDatasetId: string; defaultKeyValueStoreId: string; status: string };
+  };
+  const { id: runId, defaultDatasetId, defaultKeyValueStoreId } = startData.data;
 
   // 2. Poll until terminal state
   const POLL_INTERVAL_MS = 8_000;
@@ -76,14 +119,38 @@ async function _runActorAsync<T>(opts: { token: string; actorId: string; input: 
   }
 
   // 3. Fetch dataset items
+  //
+  // `limit` is required here: Apify's dataset-items API silently caps at 1000
+  // when it's omitted, returning a full 200 OK with no indication of
+  // truncation. That went undetected for a long time because the following-
+  // scrape's own empirical testing (see scrape-following.ts's
+  // FULL_ACCOUNT_TARGET comment) only ever exercised an account with 650
+  // following — under the undocumented cap, so it never surfaced. A crawl
+  // against @zackssiegel (3,116 following) returned exactly 1000 items and
+  // reported it as the complete list, which is what caught this.
+  const DATASET_ITEMS_LIMIT = 100_000;
   const itemsRes = await fetch(
-    `${APIFY_BASE}/datasets/${defaultDatasetId}/items?token=${token}&format=json&clean=true`,
+    `${APIFY_BASE}/datasets/${defaultDatasetId}/items?token=${token}&format=json&clean=true&limit=${DATASET_ITEMS_LIMIT}`,
   );
   if (!itemsRes.ok) {
     const text = await itemsRes.text().catch(() => "");
     throw new ApifyError(`Apify dataset fetch failed: ${itemsRes.status}`, itemsRes.status, text);
   }
-  return (await itemsRes.json()) as T[];
+  const items = (await itemsRes.json()) as T[];
+
+  // OUTPUT is best-effort: most actors don't write one, and a missing/absent
+  // record is a normal 404 here, not a reason to fail an otherwise-good run.
+  let output: unknown = null;
+  try {
+    const outputRes = await fetch(
+      `${APIFY_BASE}/key-value-stores/${defaultKeyValueStoreId}/records/OUTPUT?token=${token}`,
+    );
+    if (outputRes.ok) output = await outputRes.json();
+  } catch {
+    // best-effort — leave output null
+  }
+
+  return { items, output };
 }
 
 // Legacy sync path — kept for small actor calls where latency matters and

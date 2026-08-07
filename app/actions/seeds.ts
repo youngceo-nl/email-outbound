@@ -111,12 +111,21 @@ export async function checkFollowingCount(id: string): Promise<{ ok: true; follo
   if (apifyToken.length === 0)
     return { ok: false, error: "No Apify token configured — add one in Settings." };
 
-  const result = await scrapeFollowingDetailedWithFallback({
-    username: seed.username,
-    settings: { ...settings, following_scraper_provider: "apify" },
-    apifyToken,
-    fullAccount: true,
-  });
+  let result;
+  try {
+    result = await scrapeFollowingDetailedWithFallback({
+      username: seed.username,
+      settings: { ...settings, following_scraper_provider: "apify" },
+      apifyToken,
+      fullAccount: true,
+    });
+  } catch (err) {
+    // Every provider can be legitimately out of quota at once (monthly cap,
+    // daily cap, empty balance) — that's a normal operating condition here,
+    // not a bug, so it must surface as a message the Seeds page can render,
+    // not an uncaught exception that takes down the whole route.
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
   const followingCount = result.items.length;
 
   await sb.from("seeds").update({ following_count: followingCount }).eq("id", id);
