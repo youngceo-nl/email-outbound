@@ -192,7 +192,7 @@ function SeedRow({
             onClick={() =>
               startCheck(async () => {
                 setCountError(null);
-                const res = await checkFollowingCount(seed.id);
+                const res = await checkFollowingCount(seed.id, provider);
                 if (!res.ok) setCountError(res.error);
               })
             }

@@ -97,25 +97,35 @@ export async function unmarkBadSeed(username: string) {
  * same Apify call crawl-seed.ts already makes internally for its ceiling
  * check, just triggerable on demand instead of only mid-crawl.
  */
-export async function checkFollowingCount(id: string): Promise<{ ok: true; following_count: number } | { ok: false; error: string }> {
+export async function checkFollowingCount(
+  id: string,
+  providerOverride?: ScrapeProvider,
+): Promise<{ ok: true; following_count: number } | { ok: false; error: string }> {
   await requireUser();
   const sb = createAdminClient();
   const { data: seed } = await sb.from("seeds").select("id, username").eq("id", id).single();
   if (!seed) return { ok: false, error: "seed_not_found" };
 
   const settings = await getSettings(true);
+  /*
+   * Respects the same provider dropdown the crawl itself uses. This was
+   * hardcoded to "apify", so with Apify out of quota the button reported a
+   * quota error no matter which provider was selected — and no other provider
+   * could ever be reached from here, even a working one.
+   */
+  const provider = providerOverride ?? settings.following_scraper_provider;
   // All tokens, not one: runActorAsync rotates past a token that has hit its
   // monthly limit. With a single token an exhausted account fails the scrape
   // outright while a funded token sits unused.
   const apifyToken = resolveApifyTokens(settings);
-  if (apifyToken.length === 0)
+  if ((provider === "apify" || provider === "auto") && apifyToken.length === 0)
     return { ok: false, error: "No Apify token configured — add one in Settings." };
 
   let result;
   try {
     result = await scrapeFollowingDetailedWithFallback({
       username: seed.username,
-      settings: { ...settings, following_scraper_provider: "apify" },
+      settings: { ...settings, following_scraper_provider: provider },
       apifyToken,
       fullAccount: true,
     });
@@ -127,6 +137,20 @@ export async function checkFollowingCount(id: string): Promise<{ ok: true; follo
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
   const followingCount = result.items.length;
+
+  /*
+   * A returned cursor means the provider handed back one page, not the whole
+   * list — the cookie path pages 50 at a time and relies on crawl-seed.ts to
+   * loop, which this one-shot call does not do. Storing that number would
+   * report a 3,000-following account as "50 following — that's the scrape
+   * size", so it is refused rather than written.
+   */
+  if (result.nextCursor) {
+    return {
+      ok: false,
+      error: `${result.provider} returned a partial list (${followingCount}+ so far) — it pages through the list rather than fetching it at once. Use Apify for an exact size, or just start the search.`,
+    };
+  }
 
   await sb.from("seeds").update({ following_count: followingCount }).eq("id", id);
   revalidatePath("/seeds");
