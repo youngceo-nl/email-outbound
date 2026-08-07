@@ -1,7 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSettings } from "@/lib/config/settings";
-import { fetchFunnelPage } from "./fetch";
 import { classifyFunnel } from "./classify";
 import { pickBestFunnelLink } from "./drill";
 import { extractFunnel } from "./extract";
@@ -29,14 +28,14 @@ export type CapturedFunnelPrice = {
   context?: string | null;
 };
 
-type FunnelData = {
-  funnel_url: string;
-  funnel_platform: string;
-  program: { program_name: string | null; offer_summary: string | null; price: string | null };
-  prices: CapturedFunnelPrice[];
-  error: string | null;
-};
-
+/*
+ * Acquisition is a plain HTTP fetch. There is no rendering fallback: the
+ * ScrapingBee path this used to fall through to is gone, and Steel + Playwright
+ * (already the Instagram acquisition backend, see
+ * lib/instagram/steel-acquisition.ts) is not wired in here yet. A page that
+ * ships its offer only after JavaScript therefore reads as thin rather than
+ * failing — the LLM pass below is what recovers what it can from that.
+ */
 export async function enrichFunnelForLead(opts: {
   leadId: string;
   externalLink: string;
@@ -45,48 +44,46 @@ export async function enrichFunnelForLead(opts: {
   const domainName = extractProgramNameFromUrl(opts.externalLink);
 
   try {
-    // Step 2: free raw HTTP fetch (no ScrapingBee credits)
-    const freeResult = await tryFreeTier(opts.externalLink, domainName);
-    if (freeResult) {
-      return persistResult({ leadId: opts.leadId, ...freeResult });
-    }
-
-    // Step 3: ScrapingBee (JS rendering, behind Cloudflare, etc.)
     const settings = await getSettings();
-    const apiKey = settings.scrapingbee_api_key || process.env.SCRAPINGBEE_API_KEY || "";
 
-    if (!apiKey) {
-      return persistError(opts.leadId, "ScrapingBee API key not configured");
-    }
+    // Step 2: fetch the bio link itself
+    const entry = await freeFetchPage(normalizeUrl(opts.externalLink));
+    if (!entry) return persistError(opts.leadId, "page_fetch_failed");
 
-    // --- ScrapingBee path ---
-    const entry = await fetchFunnelPage({ apiKey, url: opts.externalLink });
     const entryClass = classifyFunnel({ url: entry.finalUrl, html: entry.html });
 
     let pageUrl = entry.finalUrl;
     let pageHtml = entry.html;
     let platform = entryClass.platform;
+    let nameFallback = domainName;
+    // Set while we are still reading the aggregator itself, so the name pass
+    // below knows to strip "… | Linktree" rather than keep it as a program name.
+    let onAggregator = false;
+    let drillError: string | null = null;
 
+    // Step 3: an aggregator is a list of links, not an offer — drill to the
+    // most offer-like child before extracting anything.
     if (entryClass.isAggregator) {
       const child = pickBestFunnelLink({ aggregatorUrl: entry.finalUrl, html: entry.html });
-      if (!child) {
-        return persistResult({
-          leadId: opts.leadId,
-          funnel_url: entry.finalUrl,
-          funnel_platform: entryClass.platform,
-          program: { program_name: domainName, offer_summary: null, price: null },
-          prices: [],
-          error: "no_drill_candidate",
-        });
+      const drilled = child ? await freeFetchPage(child) : null;
+      if (drilled) {
+        pageUrl = drilled.finalUrl;
+        pageHtml = drilled.html;
+        platform = classifyFunnel({ url: drilled.finalUrl, html: drilled.html }).platform;
+        nameFallback = extractProgramNameFromUrl(drilled.finalUrl) ?? domainName;
+      } else {
+        // The aggregator page still carries the person's or brand's own name in
+        // its og:title, which beats recording nothing at all.
+        onAggregator = true;
+        drillError = child ? "drill_fetch_failed" : "no_drill_candidate";
       }
-      const drilled = await fetchFunnelPage({ apiKey, url: child });
-      pageUrl = drilled.finalUrl;
-      pageHtml = drilled.html;
-      platform = classifyFunnel({ url: drilled.finalUrl, html: drilled.html }).platform;
     }
 
     const cheap = extractFunnel({ html: pageHtml, platform });
-    let program_name = cheap.program_name ?? domainName;
+    let program_name = cheap.program_name ?? nameFallback;
+    if (onAggregator && program_name) {
+      program_name = cleanAggregatorTitle(program_name) ?? program_name;
+    }
     let offer_summary = cheap.offer_summary;
     let price = cheap.price;
     const prices: CapturedFunnelPrice[] = cheap.prices.map((p) => ({
@@ -148,7 +145,7 @@ export async function enrichFunnelForLead(opts: {
       funnel_platform: platform,
       program: { program_name, offer_summary, price },
       prices,
-      error: null,
+      error: drillError,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -193,49 +190,10 @@ async function probeSitePricingPages(pageUrl: string): Promise<CapturedFunnelPri
   return found;
 }
 
-// Attempts to enrich using only free HTTP fetches (no ScrapingBee).
-// Returns a FunnelData object if we got something useful, null otherwise.
-async function tryFreeTier(
-  externalLink: string,
-  domainFallback: string | null,
-): Promise<FunnelData | null> {
-  const fetched = await freeFetchPage(externalLink);
-  if (!fetched) return null;
-
-  const classify = classifyFunnel({ url: fetched.finalUrl, html: fetched.html });
-
-  if (!classify.isAggregator) {
-    return extractFromPage(fetched.finalUrl, fetched.html, classify.platform, domainFallback);
-  }
-
-  // Aggregator: try drilling to a child link first
-  const childUrl = pickBestFunnelLink({ aggregatorUrl: fetched.finalUrl, html: fetched.html });
-  if (childUrl) {
-    const childFetched = await freeFetchPage(childUrl);
-    if (childFetched) {
-      const childClassify = classifyFunnel({ url: childFetched.finalUrl, html: childFetched.html });
-      const childDomainName = extractProgramNameFromUrl(childFetched.finalUrl);
-      const childResult = extractFromPage(
-        childFetched.finalUrl,
-        childFetched.html,
-        childClassify.platform,
-        childDomainName ?? domainFallback,
-      );
-      if (childResult) return childResult;
-    }
-  }
-
-  // No good child — extract from the aggregator page itself (person/brand name from og:title)
-  const aggResult = extractFromPage(fetched.finalUrl, fetched.html, classify.platform, domainFallback);
-  if (aggResult?.program.program_name) {
-    const cleaned = cleanAggregatorTitle(aggResult.program.program_name);
-    if (cleaned) {
-      aggResult.program.program_name = cleaned;
-      return aggResult;
-    }
-  }
-
-  return null;
+function normalizeUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) throw new Error("empty funnel URL");
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
 // Strips common aggregator platform suffixes from og:title values.
@@ -251,32 +209,6 @@ function cleanAggregatorTitle(title: string): string | null {
   return cleaned;
 }
 
-function extractFromPage(
-  url: string,
-  html: string,
-  platform: string,
-  domainFallback: string | null,
-): FunnelData | null {
-  const cheap = extractFunnel({ html, platform });
-  const program_name = cheap.program_name ?? domainFallback;
-
-  // Return something useful if we have at least a name or a summary
-  if (!program_name && !cheap.offer_summary) return null;
-
-  return {
-    funnel_url: url,
-    funnel_platform: platform,
-    program: { program_name, offer_summary: cheap.offer_summary, price: cheap.price },
-    prices: cheap.prices.map((p) => ({
-      raw: p.raw,
-      label: null,
-      url,
-      source: "offer_page",
-      context: p.context,
-    })),
-    error: null,
-  };
-}
 
 // Reject names that are clearly not a real program offer.
 function sanitizeProgramName(name: string | null): string | null {

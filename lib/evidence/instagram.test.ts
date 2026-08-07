@@ -67,7 +67,7 @@ test("a provider failure marks the profile failed, not empty", () => {
   const evidence = normalizeInstagramEvidence({
     username: "ghost",
     user: null,
-    providerError: "ScrapingBee 500",
+    providerError: "provider returned 500",
   });
   assert.equal(evidence.profile_capture_status, "failed");
   assert.equal(evidence.recent_posts_capture_status, "not_attempted");

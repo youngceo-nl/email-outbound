@@ -82,6 +82,8 @@ const PRIMARY_OFFER_DELIVERY = [
   "information", "done_with_you", "done_for_you_service", "commerce",
   "software", "employment", "none", "unknown",
 ] as const;
+const PAID_STATUS = ["paid", "free", "unknown"] as const;
+const OFFER_ACTIVE_STATUS = ["active", "inactive", "unknown"] as const;
 
 // ---------------------------------------------------------------------------
 // JSON Schema for native structured output
@@ -119,8 +121,8 @@ const FIELD_CATALOGUE = {
   type: "object",
   additionalProperties: false,
   required: [
-    "citations", "personal_brand", "audience", "transformation", "information_funnel",
-    "conversion_cta", "primary_visitor_outcome", "proof", "authority",
+    "citations", "personal_brand", "coach_or_consultant", "audience", "transformation",
+    "information_funnel", "conversion_cta", "primary_visitor_outcome", "proof", "authority",
     "named_mechanisms", "offer_inventory", "proof_inventory", "primary_offer",
     "primary_offer_delivery", "done_for_you_service_evidence",
     "independent_information_offer_evidence", "conflicts", "unknowns",
@@ -146,6 +148,14 @@ const FIELD_CATALOGUE = {
     },
 
     personal_brand: signalBlock(),
+
+    /*
+     * Gate 3 (does the individual operate as a coach, consultant, mentor,
+     * strategist, advisor, educator, or transformation expert), including the
+     * semantic pass signals ("I help agency owners scale past €100k/month")
+     * that do not use any of those literal words.
+     */
+    coach_or_consultant: signalBlock(),
 
     audience: {
       type: "object",
@@ -218,7 +228,7 @@ const FIELD_CATALOGUE = {
         additionalProperties: false,
         required: [
           "offer_id", "name", "type", "prominence", "audience", "delivery",
-          "customer_implementation_role", "price", "cta", "evidence_ids",
+          "customer_implementation_role", "price", "cta", "is_paid", "active_status", "evidence_ids",
         ],
         properties: {
           offer_id: str,
@@ -230,6 +240,16 @@ const FIELD_CATALOGUE = {
           customer_implementation_role: { type: "string", enum: IMPLEMENTATION_ROLES },
           price: str,
           cta: str,
+          is_paid: {
+            type: "string",
+            enum: PAID_STATUS,
+            description: 'Does this offer cost money. "unknown" when the evidence does not say — never guess "free".',
+          },
+          active_status: {
+            type: "string",
+            enum: OFFER_ACTIVE_STATUS,
+            description: '"inactive" only with evidence the offer closed, ended, or is no longer available.',
+          },
           evidence_ids: ids,
         },
       },
@@ -348,8 +368,9 @@ const FIELD_CATALOGUE = {
  * resolved separately before the two halves are merged.
  */
 const SIGNAL_FIELDS = [
-  "citations", "personal_brand", "audience", "transformation", "information_funnel",
-  "conversion_cta", "primary_visitor_outcome", "proof", "authority", "named_mechanisms",
+  "citations", "personal_brand", "coach_or_consultant", "audience", "transformation",
+  "information_funnel", "conversion_cta", "primary_visitor_outcome", "proof", "authority",
+  "named_mechanisms",
 ] as const;
 
 const COMMERCE_FIELDS = [
@@ -418,6 +439,7 @@ export const signalsExtractionSchema = z
   .object({
     citations: citationTable,
     personal_brand: signalZod({}),
+    coach_or_consultant: signalZod({}),
     audience: z
       .object({
         label: z.enum(["none", "broad", "inferred", "specific", "explicit"]),
@@ -461,6 +483,8 @@ export const commerceExtractionSchema = z
             customer_implementation_role: customerImplementationRoleSchema,
             price: nullableString,
             cta: nullableString,
+            is_paid: z.enum(PAID_STATUS).default("unknown"),
+            active_status: z.enum(OFFER_ACTIVE_STATUS).default("unknown"),
             evidence_ids: idList,
           })
           .strict(),
@@ -546,6 +570,7 @@ export function mergeHaikuExtractions(
     citations: [...signals.citations, ...commerce.citations],
 
     personal_brand: signals.personal_brand,
+    coach_or_consultant: signals.coach_or_consultant,
     audience: signals.audience,
     transformation: signals.transformation,
     information_funnel: signals.information_funnel,
@@ -743,6 +768,8 @@ export function adaptHaikuExtraction(
     customer_implementation_role: offer.customer_implementation_role,
     price: offer.price,
     cta: offer.cta,
+    is_paid: offer.is_paid,
+    active_status: offer.active_status,
     evidence: resolve(offer.evidence_ids),
   }));
 
@@ -769,6 +796,11 @@ export function adaptHaikuExtraction(
       state: extraction.personal_brand.state,
       strength: extraction.personal_brand.strength,
       evidence: resolve(extraction.personal_brand.evidence_ids),
+    },
+    coach_or_consultant: {
+      state: extraction.coach_or_consultant.state,
+      strength: extraction.coach_or_consultant.strength,
+      evidence: resolve(extraction.coach_or_consultant.evidence_ids),
     },
     audience: {
       label: extraction.audience.label,
@@ -887,6 +919,7 @@ export function validateAffirmativeCitations(extraction: CommercialExtraction): 
   };
 
   check("personal_brand", extraction.human_personal_brand);
+  if (extraction.coach_or_consultant) check("coach_or_consultant", extraction.coach_or_consultant);
   check("transformation", extraction.transformation);
   check("information_funnel", extraction.information_funnel);
   check("conversion_cta", extraction.cta);

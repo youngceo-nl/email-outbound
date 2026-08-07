@@ -31,6 +31,13 @@ export const MODEL_PRICING: Record<string, ModelPrice> = {
   "claude-opus-5": { inputPerMTok: 5, outputPerMTok: 25 },
   "claude-sonnet-5": { inputPerMTok: 3, outputPerMTok: 15 },
   "claude-opus-4-8": { inputPerMTok: 5, outputPerMTok: 25 },
+  /*
+   * Production extractor as of 2026-08-07 (see qualify-lead.ts). OpenRouter
+   * price, verified live against GET https://openrouter.ai/api/v1/models
+   * during the benchmark that picked this model — re-check there if this
+   * ever looks off, OpenRouter's per-model pricing can change.
+   */
+  "google/gemini-2.5-flash": { inputPerMTok: 0.3, outputPerMTok: 2.5 },
 };
 
 export type UsageEntry = {

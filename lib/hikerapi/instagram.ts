@@ -95,7 +95,7 @@ export async function scrapeFollowingViaHikerApi(opts: {
 // ⚠️ The /gql/user/medias field mapping below is UNVERIFIED — HikerAPI's
 // account balance ran out during testing before a real call against this
 // endpoint could be made. The shape assumed here mirrors Instagram's own
-// GraphQL response (same as lib/scrapingbee/instagram.ts parses), since
+// GraphQL response, since
 // HikerAPI's /v1/user/by/username response was itself a near-verbatim proxy
 // of Instagram's private API shape. Confirm against a real response and
 // adjust field names before relying on avg_likes/avg_comments/engagement_rate

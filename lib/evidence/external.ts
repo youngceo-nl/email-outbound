@@ -168,9 +168,6 @@ export type ExternalCollectorConfig = {
   maxChildBudget: number;
   /** Hard ceiling on pages fetched per lead, independent of hop depth. */
   maxPages: number;
-  /** Hard ceiling on paid renders per lead. */
-  maxScrapingBeeCalls: number;
-  scrapingBeeApiKey: string | null;
 };
 
 export const DEFAULT_EXTERNAL_CONFIG: ExternalCollectorConfig = {
@@ -179,8 +176,6 @@ export const DEFAULT_EXTERNAL_CONFIG: ExternalCollectorConfig = {
   defaultChildBudget: 3,
   maxChildBudget: 5,
   maxPages: 6,
-  maxScrapingBeeCalls: 2,
-  scrapingBeeApiKey: null,
 };
 
 export type ExternalCollectionResult = {
@@ -194,15 +189,70 @@ export type ExternalCollectionResult = {
 
 export type PageFetcher = (url: string) => Promise<PageFetchOutcome>;
 
-/**
- * Free fetch first, ScrapingBee only on demonstrable acquisition failure, with a
- * hard cap on paid renders. See lib/evidence/http.ts for the gating predicate.
+/** Plain HTTP fetch — see lib/evidence/http.ts for what that can and cannot read. */
+export function createPageFetcher(): PageFetcher {
+  return createAcquirePage();
+}
+
+/*
+ * Shared factory for a captured destination, used by both this module's
+ * plain-HTTP success path and the Steel-rendered funnel inspector
+ * (scripts/experiments/playwright-instagram-complete.ts, inspectFunnel). The
+ * two acquisition paths differ only in HOW the HTML arrived — one fetch, one
+ * a real browser navigation — everything downstream of `extractPage` is
+ * identical, so duplicating this object literal in both places was how the
+ * two paths silently drifted (a JS-rendered checkout page was captured by
+ * Steel and then re-summarized differently than a plain fetch would have).
  */
-export function createPageFetcher(config: ExternalCollectorConfig): PageFetcher {
-  return createAcquirePage({
-    scrapingBeeApiKey: config.scrapingBeeApiKey,
-    maxScrapingBeeCalls: config.maxScrapingBeeCalls,
-  });
+export function buildDestination(args: {
+  destinationId: string;
+  sourceUrl: string;
+  finalUrl: string;
+  redirectChain: string[];
+  visibleLabel: string | null;
+  extraction: PageExtraction;
+  commercialRelevance: CommercialRelevance;
+  selectionReason: string;
+  rank: number;
+  hop: number;
+  captureMethod: "free_fetch" | "rendered";
+  capturedAt: string;
+  httpStatus?: number | null;
+}): ExternalDestination {
+  return {
+    destination_id: args.destinationId,
+    source_url: args.sourceUrl,
+    final_url: args.finalUrl,
+    redirect_chain: args.redirectChain,
+    visible_label: args.visibleLabel,
+    page_title: args.extraction.page_title,
+    meta_description: args.extraction.meta_description,
+    headings: args.extraction.headings,
+    cta_labels: args.extraction.cta_labels,
+    offer_copy: args.extraction.offer_copy.slice(0, 25),
+    prices: args.extraction.prices,
+    destination_type: args.extraction.destination_type,
+    candidate_types: args.extraction.candidate_types,
+    classification_state: args.extraction.classification_state,
+    form_signals: args.extraction.form_signals,
+    service_delivery_signals: args.extraction.service_delivery_signals,
+    education_delivery_signals: args.extraction.education_delivery_signals,
+    proof_claims: args.extraction.proof_claims,
+    visitor_receives: args.extraction.visitor_receives,
+    commercial_relevance: args.commercialRelevance,
+    selection_reason: `${args.selectionReason} | ${args.extraction.classification_reason}`,
+    rank: args.rank,
+    hop: args.hop,
+    text_excerpt: args.extraction.text_excerpt.slice(0, 4000),
+    capture_status: "captured",
+    capture_method: args.captureMethod,
+    captured_at: args.capturedAt,
+    error: null,
+    http_status: args.httpStatus ?? null,
+    paid_offer_signals: args.extraction.paid_offer_signals ?? [],
+    offer_status_signals: args.extraction.offer_status_signals ?? [],
+    tracking_signals: args.extraction.tracking_signals ?? [],
+  };
 }
 
 export async function collectExternalEvidence(opts: {
@@ -340,6 +390,7 @@ export async function collectExternalEvidence(opts: {
           status,
           error: `${outcome.failure.kind}: ${outcome.failure.detail}`,
           capturedAt: now(),
+          httpStatus: outcome.failure.status,
         }),
       );
       if (item.hop === 0) {
@@ -354,36 +405,23 @@ export async function collectExternalEvidence(opts: {
     const extraction = extractPage({ html: outcome.page.html, url: finalUrl });
     const destinationId = `destination_${destinationIndex++}`;
 
-    destinations.push({
-      destination_id: destinationId,
-      source_url: item.url,
-      final_url: finalUrl,
-      redirect_chain: outcome.page.redirectChain,
-      visible_label: item.label,
-      page_title: extraction.page_title,
-      meta_description: extraction.meta_description,
-      headings: extraction.headings,
-      cta_labels: extraction.cta_labels,
-      offer_copy: extraction.offer_copy.slice(0, 25),
-      prices: extraction.prices,
-      destination_type: extraction.destination_type,
-      candidate_types: extraction.candidate_types,
-      classification_state: extraction.classification_state,
-      form_signals: extraction.form_signals,
-      service_delivery_signals: extraction.service_delivery_signals,
-      education_delivery_signals: extraction.education_delivery_signals,
-      proof_claims: extraction.proof_claims,
-      visitor_receives: extraction.visitor_receives,
-      commercial_relevance: item.relevance,
-      selection_reason: `${item.reason} | ${extraction.classification_reason}`,
-      rank: item.rank,
-      hop: item.hop,
-      text_excerpt: extraction.text_excerpt.slice(0, 4000),
-      capture_status: "captured",
-      capture_method: outcome.page.method,
-      captured_at: now(),
-      error: null,
-    });
+    destinations.push(
+      buildDestination({
+        destinationId,
+        sourceUrl: item.url,
+        finalUrl,
+        redirectChain: outcome.page.redirectChain,
+        visibleLabel: item.label,
+        extraction,
+        commercialRelevance: item.relevance,
+        selectionReason: item.reason,
+        rank: item.rank,
+        hop: item.hop,
+        captureMethod: outcome.page.method,
+        capturedAt: now(),
+        httpStatus: outcome.page.status,
+      }),
+    );
 
     ctaHops.push({
       hop: ctaHops.length,
@@ -499,7 +537,7 @@ export async function collectExternalEvidence(opts: {
   };
 }
 
-const RESOLVING_TYPES: DestinationType[] = [
+export const RESOLVING_TYPES: DestinationType[] = [
   "education",
   "application",
   "booking",
@@ -509,7 +547,8 @@ const RESOLVING_TYPES: DestinationType[] = [
   "lead_magnet",
 ];
 
-function outcomeResolved(destinations: ExternalDestination[]): boolean {
+/** Exported so a seeded (Steel-rendered) destination list can reuse the same test. */
+export function outcomeResolved(destinations: ExternalDestination[]): boolean {
   return destinations.some(
     (destination) =>
       destination.capture_status === "captured" &&
@@ -517,7 +556,8 @@ function outcomeResolved(destinations: ExternalDestination[]): boolean {
   );
 }
 
-function hopAction(type: DestinationType, label: string | null): string {
+/** Exported so a seeded (Steel-rendered) destination list can label its CTA hops consistently. */
+export function hopAction(type: DestinationType, label: string | null): string {
   if (label && label.length <= 60) return label.toLowerCase().replace(/\s+/g, "_");
   switch (type) {
     case "application": return "open_application";
@@ -533,7 +573,8 @@ function hopAction(type: DestinationType, label: string | null): string {
   }
 }
 
-function placeholderDestination(args: {
+/** Exported so the Steel-rendered funnel inspector can report a failed hop the same way. */
+export function placeholderDestination(args: {
   id: string;
   url: string;
   item: { label: string | null; reason: string; relevance: CommercialRelevance; rank: number; hop: number };
@@ -541,6 +582,7 @@ function placeholderDestination(args: {
   status: CaptureStatus;
   error: string;
   capturedAt: string;
+  httpStatus?: number | null;
 }): ExternalDestination {
   return {
     destination_id: args.id,
@@ -571,6 +613,10 @@ function placeholderDestination(args: {
     capture_method: "none",
     captured_at: args.capturedAt,
     error: args.error,
+    http_status: args.httpStatus ?? null,
+    paid_offer_signals: [],
+    offer_status_signals: [],
+    tracking_signals: [],
   };
 }
 

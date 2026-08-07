@@ -4,7 +4,7 @@ Automated Instagram lead discovery, scraping, scoring, and management.
 Crawls a seed account → who they follow → recursively into qualified leads → scored by Claude.
 
 ## Stack
-Next.js 15 (App Router) · Tailwind · shadcn/ui · Supabase (Postgres + Auth + RLS) · Apify · ScrapingBee · Claude · Inngest
+Next.js 15 (App Router) · Tailwind · shadcn/ui · Supabase (Postgres + Auth + RLS) · Apify · Steel + Playwright · Claude · Inngest
 
 ## Setup
 
@@ -19,7 +19,7 @@ Create the Supabase database:
 # In your Supabase project SQL editor, run in order:
 #   supabase/migrations/0001_init.sql
 #   supabase/migrations/0002_rls.sql
-#   supabase/migrations/0003_scrapingbee.sql
+#   ...then the rest of supabase/migrations/ in filename order
 # OR with the supabase CLI:
 supabase db push
 ```
@@ -34,17 +34,22 @@ pnpm dev
 pnpm inngest:dev
 ```
 
-Open http://localhost:3000, sign up, then go to Settings to fill in your Apify token, Claude key, and ScrapingBee key. Add a seed on the Seeds page and click "Start crawl".
+Open http://localhost:3000, sign up, then go to Settings to fill in your Apify token and Claude key. Add a seed on the Seeds page and click "Start crawl".
 
 ## Provider strategy
 
+Following-list scraping (`following_scraper_provider` in Settings):
+
 | Setting | Behavior |
 |---|---|
-| `auto` (default) | Apify is tried first. If Apify fails AND a ScrapingBee key is configured, fall back to SB. |
+| `auto` (default) | Apify → Playwright → cookie, in that order. |
 | `apify` | Apify only. |
-| `scrapingbee` | ScrapingBee only. **Requires** `INSTAGRAM_SESSION_COOKIE` (IG does not expose following lists anonymously). |
+| `hikerapi` | HikerAPI only. Pay-per-request; needs a funded balance. |
+| `cookie` | Free direct fetch with your own session cookie. Caps out around 250 accounts. |
 
-ScrapingBee is also used as the link-in-bio enrichment path (optional).
+Profile acquisition is Steel + Playwright (`lib/instagram/steel-acquisition.ts`).
+Link-in-bio enrichment is a plain HTTP fetch — there is no rendering fallback, so
+a landing page that ships its offer only after JavaScript reads as thin.
 
 ## How a crawl flows
 
@@ -78,7 +83,7 @@ RLS: any authenticated user can read/write everything (single-tenant). The Innge
 ## Files
 
 - `lib/apify/` — Apify REST + actor input builders
-- `lib/scrapingbee/` — generic SB client + IG-specific following scraper
+- `lib/instagram/` — Steel + Playwright profile acquisition, cookie pool, direct fetch
 - `lib/claude/score.ts` — strict-JSON scoring prompt
 - `lib/pipeline/` — filter, metrics, dedup, persist, scrape-following with fallback
 - `inngest/functions/` — `crawl-seed`, `process-profile`, `recurse-following`

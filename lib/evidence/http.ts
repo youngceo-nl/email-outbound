@@ -1,13 +1,11 @@
 /*
  * Network primitives for evidence acquisition.
  *
- * A deliberate duplicate of lib/scrapingbee/client.ts and lib/funnel/free-fetch.ts
- * minus the `server-only` import, so the acquisition layer stays runnable under
- * `tsx` for tests, fixtures, and the qualification CLI. Acquisition is read-only:
- * nothing here submits forms, authenticates, or bypasses access controls.
+ * A deliberate duplicate of lib/funnel/free-fetch.ts minus the `server-only`
+ * import, so the acquisition layer stays runnable under `tsx` for tests,
+ * fixtures, and the qualification CLI. Acquisition is read-only: nothing here
+ * submits forms, authenticates, or bypasses access controls.
  */
-
-const SB_BASE = "https://app.scrapingbee.com/api/v1/";
 
 const BROWSER_HEADERS = {
   "User-Agent":
@@ -20,12 +18,21 @@ export type FetchedPage = {
   html: string;
   finalUrl: string;
   redirectChain: string[];
-  method: "free_fetch" | "scrapingbee";
+  method: "free_fetch";
+  /** Optional so existing test fixtures built before this field existed still typecheck. */
+  status?: number | null;
 };
 
 export type PageFetchFailure = {
   kind: "http_error" | "timeout" | "non_html" | "network" | "auth_required" | "unsupported";
   detail: string;
+  /*
+   * The raw HTTP status, when one was actually received. "coaches whose paid
+   * offer is no longer active" needs to tell a dead 404/410 landing page apart
+   * from a page we simply could not reach — `detail` alone buried that as an
+   * unparsed string. Optional so existing test fixtures still typecheck.
+   */
+  status?: number | null;
 };
 
 export type PageFetchOutcome =
@@ -40,14 +47,14 @@ export async function freeFetchPage(url: string, timeoutMs = 12_000): Promise<Pa
       redirect: "follow",
     });
     if (res.status === 401 || res.status === 403) {
-      return { ok: false, failure: { kind: "auth_required", detail: `HTTP ${res.status}` } };
+      return { ok: false, failure: { kind: "auth_required", detail: `HTTP ${res.status}`, status: res.status } };
     }
     if (!res.ok) {
-      return { ok: false, failure: { kind: "http_error", detail: `HTTP ${res.status}` } };
+      return { ok: false, failure: { kind: "http_error", detail: `HTTP ${res.status}`, status: res.status } };
     }
     const contentType = res.headers.get("content-type") ?? "";
     if (!contentType.includes("html") && !contentType.includes("text")) {
-      return { ok: false, failure: { kind: "non_html", detail: contentType || "unknown" } };
+      return { ok: false, failure: { kind: "non_html", detail: contentType || "unknown", status: res.status } };
     }
     const html = await res.text();
     return {
@@ -57,92 +64,14 @@ export async function freeFetchPage(url: string, timeoutMs = 12_000): Promise<Pa
         finalUrl: res.url || url,
         redirectChain: res.url && res.url !== url ? [url, res.url] : [url],
         method: "free_fetch",
+        status: res.status,
       },
     };
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     const kind = /abort|timeout/i.test(detail) ? "timeout" : "network";
-    return { ok: false, failure: { kind, detail } };
+    return { ok: false, failure: { kind, detail, status: null } };
   }
-}
-
-export async function scrapingBeeGet(opts: {
-  apiKey: string;
-  url: string;
-  renderJs?: boolean;
-  premiumProxy?: boolean;
-  forwardHeaders?: Record<string, string>;
-  retries?: number;
-}): Promise<{ status: number; body: string }> {
-  const params = new URLSearchParams({
-    api_key: opts.apiKey,
-    url: opts.url,
-    render_js: opts.renderJs ? "true" : "false",
-    premium_proxy: opts.premiumProxy ? "true" : "false",
-    block_resources: "true",
-  });
-  if (opts.forwardHeaders) params.set("forward_headers", "true");
-
-  const headers: Record<string, string> = {};
-  for (const [key, value] of Object.entries(opts.forwardHeaders ?? {})) {
-    headers[`Spb-${key}`] = value;
-  }
-
-  const retries = opts.retries ?? 2;
-  let lastError: unknown = null;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const res = await fetch(`${SB_BASE}?${params.toString()}`, {
-        headers,
-        signal: AbortSignal.timeout(45_000),
-      });
-      const body = await res.text();
-      if (!res.ok) {
-        if ((res.status === 429 || res.status >= 500) && attempt < retries) {
-          await sleep(1000 * 2 ** attempt);
-          continue;
-        }
-        throw new Error(`ScrapingBee ${res.status}: ${body.slice(0, 200)}`);
-      }
-      return { status: res.status, body };
-    } catch (err) {
-      lastError = err;
-      if (attempt < retries) {
-        await sleep(1000 * 2 ** attempt);
-        continue;
-      }
-      throw err;
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error("ScrapingBee call failed");
-}
-
-export async function scrapingBeeFetchPage(opts: {
-  apiKey: string;
-  url: string;
-  renderJs?: boolean;
-}): Promise<PageFetchOutcome> {
-  try {
-    const { body } = await scrapingBeeGet({
-      apiKey: opts.apiKey,
-      url: opts.url,
-      renderJs: opts.renderJs ?? true,
-      premiumProxy: false,
-    });
-    return {
-      ok: true,
-      page: { html: body, finalUrl: opts.url, redirectChain: [opts.url], method: "scrapingbee" },
-    };
-  } catch (err) {
-    return {
-      ok: false,
-      failure: { kind: "network", detail: err instanceof Error ? err.message : String(err) },
-    };
-  }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ---------------------------------------------------------------------------
@@ -203,48 +132,20 @@ export function pageIsUsable(page: FetchedPage): boolean {
   return true;
 }
 
-/*
- * ScrapingBee costs credits, so it runs only when the free fetch demonstrably
- * failed to deliver readable HTML. It must NEVER be used merely because the page
- * contained no coaching offer — "we read the page and it had no offer" is a
- * finding, not an acquisition failure, and paying to re-read it changes nothing.
- */
-export function shouldUseScrapingBee(outcome: PageFetchOutcome): boolean {
-  if (!outcome.ok) {
-    // A hard 404 is a real answer; a block or transport failure is not.
-    return outcome.failure.kind !== "http_error" || /40[34]|429|5\d\d/.test(outcome.failure.detail);
-  }
-  return !pageIsUsable(outcome.page);
-}
-
 export type AcquirePage = (url: string) => Promise<PageFetchOutcome>;
 
-/** Free HTTP first, ScrapingBee only on demonstrable acquisition failure, capped. */
-export function createAcquirePage(config: {
-  scrapingBeeApiKey: string | null;
-  maxScrapingBeeCalls?: number;
-}): AcquirePage {
-  let scrapingBeeCallsUsed = 0;
-  const budget = config.maxScrapingBeeCalls ?? 2;
-
-  return async (url: string) => {
-    const free = await freeFetchPage(url);
-    if (free.ok && pageIsUsable(free.page)) return free;
-
-    if (!config.scrapingBeeApiKey) return free;
-    if (!shouldUseScrapingBee(free)) return free;
-    if (scrapingBeeCallsUsed >= budget) return free;
-
-    scrapingBeeCallsUsed += 1;
-    const rendered = await scrapingBeeFetchPage({
-      apiKey: config.scrapingBeeApiKey,
-      url,
-      renderJs: true,
-    });
-    // Falling back to the free result keeps whatever partial evidence we had
-    // rather than discarding it because the paid attempt also failed.
-    return rendered.ok && pageIsUsable(rendered.page) ? rendered : free;
-  };
+/*
+ * Plain HTTP is the only acquisition path. A page whose commercial content is
+ * behind JavaScript comes back as an unusable-but-successful outcome — the
+ * caller records it and moves on rather than treating it as a fetch failure,
+ * because "we read the page and it had no offer" is a finding, not an error.
+ *
+ * There is deliberately no rendering fallback here. Steel + Playwright is the
+ * intended one (it already serves Instagram acquisition, see
+ * lib/instagram/steel-acquisition.ts) but is not wired into this collector yet.
+ */
+export function createAcquirePage(): AcquirePage {
+  return (url: string) => freeFetchPage(url);
 }
 
 export function canonicalizeUrl(raw: string): string | null {

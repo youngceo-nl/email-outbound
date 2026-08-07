@@ -136,8 +136,6 @@ export function SeedManager({
   );
 }
 
-// ScrapingBee is gone: it has no code path in scrape-following.ts, and
-// offering it meant picking a provider that silently ran something else.
 const PROVIDER_OPTIONS: { value: ScrapeProvider; label: string }[] = [
   { value: "apify",      label: "Apify (standard)" },
   { value: "hikerapi",   label: "HikerAPI" },

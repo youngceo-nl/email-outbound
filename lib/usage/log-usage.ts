@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { computeTokenCost } from "./token-pricing";
 
-export type UsageProvider = "openai" | "claude" | "gemini" | "groq" | "scrapingbee" | "apify";
+export type UsageProvider = "openai" | "claude" | "gemini" | "groq" | "apify";
 
 export type UsageEvent = {
   provider: UsageProvider;

@@ -75,11 +75,6 @@ export function SettingsForm({
               <p className="text-xs text-muted-foreground">Add multiple accounts to rotate monthly free credits. Falls back to APIFY_TOKENS / APIFY_TOKEN env var.</p>
               <EmailKeyManager provider="apify" keys={initial.apify_api_keys ?? []} placeholder="apify_api_…" showLabel keyStatuses={initial.email_key_statuses ?? {}} />
             </div>
-            <div className="space-y-1">
-              <Label className="text-sm">ScrapingBee API keys</Label>
-              <p className="text-xs text-muted-foreground">Add multiple accounts to rotate credits. Falls back to SCRAPINGBEE_API_KEY env var.</p>
-              <EmailKeyManager provider="scrapingbee" keys={initial.scrapingbee_api_keys ?? []} placeholder="SB API key…" keyStatuses={initial.email_key_statuses ?? {}} />
-            </div>
             <Field
               label="HikerAPI key"
               name="hikerapi_api_key"

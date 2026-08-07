@@ -93,8 +93,8 @@ function buildSnapshot(report: PlaywrightReport): EvidenceSnapshot {
     pinned_posts: report.pinned_posts.map(toPost),
     pinned_posts_capture_status: statuses.pinned_posts,
     /*
-     * Titles are real evidence here — the browser read them off the rail. This
-     * is the surface the ScrapingBee path could never see at all.
+     * Titles are real evidence here — the browser read them off the rail. No
+     * HTTP-only acquisition path can see this surface at all.
      */
     story_highlight_titles: report.highlights.map((highlight) => highlight.title),
     story_highlights_capture_status: statuses.highlight_titles,
@@ -219,17 +219,25 @@ async function main(): Promise<void> {
   const decision = result.decision;
 
   console.log(`DECISION      ${decision.decision.toUpperCase()} (${decision.mode})`);
+  console.log(`qualification ${decision.qualification ?? "n/a"}`);
   console.log(`track         ${decision.track}`);
-  console.log(`commercial    ${decision.scores.commercial_fit} / 10   certainty: ${decision.certainty}`);
+  console.log(`icp score     ${decision.icp_scores?.total_icp_score ?? "n/a"} / 12   certainty: ${decision.certainty}`);
   console.log(`priority      ${decision.priority ? `${decision.priority.value} / 10` : "n/a"}`);
   console.log(`outcome       ${decision.primary_visitor_outcome ?? "unknown"}`);
   if (decision.rejection_reason) console.log(`rejected for  ${decision.rejection_reason}`);
 
   console.log(`\nSCORES`);
-  for (const [name, component] of Object.entries(decision.score_components)) {
-    console.log(`  ${name.padEnd(30)} ${String(component.value).padStart(5)}  ${component.label}`);
+  for (const [name, value] of Object.entries(decision.icp_scores ?? {})) {
+    console.log(`  ${name.padEnd(30)} ${String(value).padStart(5)}`);
   }
-  console.log(`  ${"commercial_fit".padEnd(30)} ${String(decision.scores.commercial_fit).padStart(5)}`);
+
+  console.log(`\nGATES`);
+  if (decision.icp_gates) {
+    console.log(`  follower_gate                 ${decision.icp_gates.follower_gate}`);
+    console.log(`  personal_brand                ${decision.icp_gates.personal_brand.status}`);
+    console.log(`  coach_or_consultant           ${decision.icp_gates.coach_or_consultant.status}`);
+    console.log(`  relevant_offer                ${decision.icp_gates.relevant_offer.status}`);
+  }
 
   console.log(`\nSIGNALS`);
   for (const [name, state] of Object.entries(decision.signal_states)) {

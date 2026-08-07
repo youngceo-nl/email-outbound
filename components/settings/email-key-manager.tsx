@@ -55,7 +55,7 @@ export function EmailKeyManager({
   showLabel = false,
   keyStatuses: initialStatuses = {},
 }: {
-  provider: "scrapingbee" | "apify";
+  provider: "apify";
   keys: string[];
   placeholder?: string;
   showLabel?: boolean;

@@ -13,7 +13,14 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
-export type LlmProvider = "anthropic" | "openai";
+export type LlmProvider = "anthropic" | "openai" | "openrouter";
+
+export type LlmImageInput = {
+  /** Citable id — becomes the vision facts' evidence source_id. */
+  sourceId: string;
+  mediaType: "image/jpeg" | "image/png" | "image/webp";
+  base64Data: string;
+};
 
 export type LlmRequest = {
   system: string;
@@ -23,6 +30,12 @@ export type LlmRequest = {
   /** Strict JSON Schema for native structured output. */
   jsonSchema?: Record<string, unknown>;
   schemaName?: string;
+  /*
+   * Images attached to the user turn, for the Gate 2 visual-identity pass
+   * (lib/qualification/visual-identity.ts). Empty/omitted for every other
+   * call site — text extraction and the challenger stay text-only.
+   */
+  images?: LlmImageInput[];
 };
 
 export type LlmResponse = {
@@ -41,20 +54,31 @@ export type LlmConfig = {
 };
 
 export function createLlmClient(config: LlmConfig): LlmClient {
-  return config.provider === "anthropic"
-    ? createAnthropicClient(config)
-    : createOpenAiClient(config);
+  if (config.provider === "anthropic") return createAnthropicClient(config);
+  if (config.provider === "openrouter") return createOpenRouterClient(config);
+  return createOpenAiClient(config);
 }
 
 function createAnthropicClient(config: LlmConfig): LlmClient {
   const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 3 });
 
   return async (request) => {
+    const content =
+      request.images && request.images.length > 0
+        ? [
+            ...request.images.map((image) => ({
+              type: "image" as const,
+              source: { type: "base64" as const, media_type: image.mediaType, data: image.base64Data },
+            })),
+            { type: "text" as const, text: request.user },
+          ]
+        : request.user;
+
     const params: Record<string, unknown> = {
       model: config.model,
       max_tokens: request.maxTokens ?? 8000,
       system: request.system,
-      messages: [{ role: "user", content: request.user }],
+      messages: [{ role: "user", content }],
     };
 
     /*
@@ -160,6 +184,68 @@ function createOpenAiClient(config: LlmConfig): LlmClient {
     return {
       text: json.choices?.[0]?.message?.content ?? "",
       provider: "openai",
+      model: config.model,
+      usage: {
+        inputTokens: json.usage?.prompt_tokens ?? 0,
+        outputTokens: json.usage?.completion_tokens ?? 0,
+      },
+    };
+  };
+}
+
+/*
+ * OpenRouter — a single OpenAI-compatible endpoint in front of many
+ * providers' models (Gemini, DeepSeek, Llama, Qwen, ...), used here to
+ * benchmark cheaper/alternate models against the production extractor. Same
+ * request/response shape as createOpenAiClient, just a different base URL
+ * and the attribution headers OpenRouter asks integrators to send. Structured
+ * output support varies by the underlying routed model — some ignore
+ * `response_format` — but that is exactly what the caller's repair-on-
+ * invalid-JSON retry (see extract.ts) already exists to catch.
+ */
+function createOpenRouterClient(config: LlmConfig): LlmClient {
+  return async (request) => {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+        "HTTP-Referer": "https://app.paidinfunnel.com",
+        "X-Title": "email-outbound extraction benchmark",
+      },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [
+          { role: "system", content: request.system },
+          { role: "user", content: request.user },
+        ],
+        response_format: request.jsonSchema
+          ? {
+              type: "json_schema",
+              json_schema: {
+                name: request.schemaName ?? "extraction",
+                strict: false,
+                schema: request.jsonSchema,
+              },
+            }
+          : { type: "json_object" },
+        temperature: request.temperature ?? 0.1,
+        max_tokens: request.maxTokens ?? 8000,
+      }),
+      signal: AbortSignal.timeout(180_000),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`OpenRouter ${res.status}: ${body.slice(0, 300)}`);
+    }
+    const json = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    return {
+      text: json.choices?.[0]?.message?.content ?? "",
+      provider: "openrouter",
       model: config.model,
       usage: {
         inputTokens: json.usage?.prompt_tokens ?? 0,

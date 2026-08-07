@@ -35,6 +35,18 @@
  *                                  usage split by model, and a row for EVERY
  *                                  lead — including ones that terminate before
  *                                  the AI call and therefore write no evidence.
+ *   --no-images                   skip downloading/persisting profile and post
+ *                                  images, so Gate 2 runs text-only (faster,
+ *                                  no lead-images storage writes). By default
+ *                                  images ARE persisted and the vision pass
+ *                                  runs, mirroring production acquisition
+ *                                  (inngest/functions/acquire-profile.ts) —
+ *                                  without this the CLI's whole purpose,
+ *                                  judging decision quality before production,
+ *                                  silently never exercised half of Gate 2.
+ *                                  Images are stored under a "cli-<username>"
+ *                                  key, separate from real lead uploads, and
+ *                                  are not automatically cleaned up.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -44,6 +56,7 @@ import {
   normalizeInstagramEvidence,
   usernameFromInstagramUrl,
 } from "@/lib/evidence/instagram";
+import { buildImageCandidates, persistLeadImages } from "@/lib/instagram/profile-images";
 import { createPageFetcher, DEFAULT_EXTERNAL_CONFIG } from "@/lib/evidence/external";
 import {
   requalifyFromSnapshot,
@@ -84,6 +97,7 @@ type Args = {
   persist: boolean;
   syncLegacy: boolean;
   runLabel: string | null;
+  withImages: boolean;
 };
 
 function parseArgs(argv: string[]): Args {
@@ -97,6 +111,7 @@ function parseArgs(argv: string[]): Args {
   let persist = false;
   let syncLegacy = false;
   let runLabel: string | null = null;
+  let withImages = true;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -109,6 +124,7 @@ function parseArgs(argv: string[]): Args {
     else if (arg === "--persist") persist = true;
     else if (arg === "--sync-legacy") syncLegacy = true;
     else if (arg === "--run-label") runLabel = argv[++i] ?? null;
+    else if (arg === "--no-images") withImages = false;
     else if (arg === "--file") {
       const contents = readFileSync(argv[++i], "utf8");
       inputs.push(...contents.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
@@ -138,6 +154,7 @@ function parseArgs(argv: string[]): Args {
     persist,
     syncLegacy,
     runLabel,
+    withImages,
   };
 }
 
@@ -231,7 +248,7 @@ async function recordRunLead(args: {
       mode: result.decision.mode,
       track: result.decision.track,
       certainty: result.decision.certainty,
-      commercial_fit: result.decision.scores?.commercial_fit ?? null,
+      commercial_fit: result.decision.icp_scores?.total_icp_score ?? null,
 
       evidence_snapshot_id: args.snapshotId,
       extraction_id: args.extractionId,
@@ -321,7 +338,11 @@ async function persistResult(
       leadId,
       projection: {
         qualification_state: "done",
-        qualification_outcome: result.decision.decision,
+        // The PDF's literal tier when available (see repository.ts's
+        // projectQualificationToLead, which this inline call predates and
+        // must stay consistent with) — falls back to the old decision string
+        // only for pre-icp-gates-score-v1 decisions.
+        qualification_outcome: result.decision.qualification ?? result.decision.decision,
         qualification_decision_id: decisionId,
         qualification_ready_at: new Date().toISOString(),
         qualification_review_reason: result.decision.review_flags[0] ?? null,
@@ -351,14 +372,18 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const scrapingBeeKey = process.env.SCRAPINGBEE_API_KEY ?? null;
-  if (!scrapingBeeKey && !args.replay) {
-    console.error("SCRAPINGBEE_API_KEY is required to acquire Instagram profile evidence.");
+  const apifyTokens = resolveApifyTokensFromEnv();
+  if (!apifyTokens && !args.replay) {
+    console.error("APIFY_TOKEN(S) is required to acquire Instagram profile evidence.");
     process.exit(1);
   }
 
   const apiKey =
-    args.provider === "anthropic" ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+    args.provider === "anthropic"
+      ? process.env.ANTHROPIC_API_KEY
+      : args.provider === "openrouter"
+        ? process.env.OPENROUTER_API_KEY
+        : process.env.OPENAI_API_KEY;
   if (!apiKey) {
     console.error(`Missing API key for provider "${args.provider}".`);
     process.exit(1);
@@ -375,9 +400,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  const externalConfig = { ...DEFAULT_EXTERNAL_CONFIG, scrapingBeeApiKey: scrapingBeeKey };
+  const externalConfig = { ...DEFAULT_EXTERNAL_CONFIG };
 
-  const fetchPage = createPageFetcher(externalConfig);
+  const fetchPage = createPageFetcher();
 
   const usernames = args.inputs.map((input) => ({
     input,
@@ -437,15 +462,29 @@ async function main(): Promise<void> {
       }
       try {
         const raw = await acquireInstagramEvidence({
-          apiKey: scrapingBeeKey as string,
           username: item.username,
-          sessionCookie: process.env.INSTAGRAM_SESSION_COOKIE ?? null,
-          apifyToken: resolveApifyTokensFromEnv(),
+          apifyToken: apifyTokens,
         });
         const instagram = normalizeInstagramEvidence(raw);
+        /*
+         * Mirrors acquire-profile.ts's image persistence so Gate 2's vision
+         * pass actually runs during CLI batch evaluation, not just in
+         * production. Failures degrade to "no images" (see
+         * persistLeadImages) rather than aborting the lead.
+         */
+        const visualEvidence = args.withImages
+          ? await persistLeadImages({
+              keyPrefix: `cli-${item.username}`,
+              candidates: buildImageCandidates({
+                profilePicUrl: instagram.profile_pic_url ?? null,
+                posts: [...instagram.pinned_posts, ...instagram.recent_posts],
+              }),
+            })
+          : undefined;
         const result = await runCommercialQualification({
           instagram,
           llm,
+          visualEvidence,
           external: externalConfig,
           youtube: { apiKey: process.env.YOUTUBE_API_KEY ?? null },
           dependencies: { fetchPage, llm, challengerLlm },
@@ -656,18 +695,39 @@ function printReport(entry: { input: string; result: QualificationRunResult | nu
   console.log(`@${result.username}  —  ${ig?.display_name ?? "(no display name)"}`);
   console.log(`${"-".repeat(78)}`);
   console.log(`DECISION      ${d.decision.toUpperCase()}  (${d.mode})`);
+  console.log(`qualification ${d.qualification ?? "n/a"}`);
   console.log(`track         ${d.track}`);
-  console.log(`commercial    ${d.scores.commercial_fit} / 10        certainty: ${d.certainty}`);
+  console.log(`icp score     ${d.icp_scores?.total_icp_score ?? "n/a"} / 12        certainty: ${d.certainty}`);
   console.log(`priority      ${d.priority ? `${d.priority.value} / 10 (${d.priority.data_completeness})` : "n/a"}`);
   console.log(`outcome       ${d.primary_visitor_outcome ?? "unknown"}`);
   if (d.rejection_reason) console.log(`rejected for  ${d.rejection_reason}`);
 
   console.log(`\nSCORES`);
-  console.log(
-    `  buyer ${pad(d.scores.buyer_clarity)}  transformation ${pad(d.scores.transformation_clarity)}  ` +
-      `funnel ${pad(d.scores.information_funnel_evidence)}  conversion ${pad(d.scores.conversion_intent)}  ` +
-      `proof+authority ${pad(d.scores.proof_maturity)} (${pad(d.scores.proof_strength)}+${pad(d.scores.authority_strength)})`,
-  );
+  if (d.icp_scores) {
+    console.log(
+      `  audience ${pad(d.icp_scores.audience_specificity)}  transformation ${pad(d.icp_scores.transformation_clarity)}  ` +
+        `offer ${pad(d.icp_scores.offer_clarity)}  conversion ${pad(d.icp_scores.conversion_path)}  ` +
+        `proof ${pad(d.icp_scores.proof)}  funnel ${pad(d.icp_scores.funnel_maturity)}`,
+    );
+  }
+  if (d.icp_gates) {
+    console.log(
+      `\nGATES  follower=${d.icp_gates.follower_gate}  personal_brand=${d.icp_gates.personal_brand.status}  ` +
+        `coach_or_consultant=${d.icp_gates.coach_or_consultant.status}  relevant_offer=${d.icp_gates.relevant_offer.status}`,
+    );
+  }
+
+  const vi = result.visual_identity;
+  if (vi?.ok && vi.facts) {
+    console.log(
+      `VISION images=${vi.facts.images_examined}  individual_visible=${vi.facts.individual_visible}  ` +
+        `recurring=${vi.facts.recurring_individual}`,
+    );
+  } else if (vi?.ok) {
+    console.log(`VISION no images captured`);
+  } else if (vi) {
+    console.log(`VISION FAILED  ${vi.reason}: ${vi.problems.join("; ")}`);
+  }
 
   console.log(`\nSIGNALS`);
   for (const [name, state] of Object.entries(d.signal_states)) {
@@ -782,7 +842,7 @@ function printSummary(
     const d = entry.result.decision;
     console.log(
       `${`@${entry.result.username}`.padEnd(24)} ${d.decision.padEnd(11)} ${d.mode.padEnd(15)} ` +
-        `${d.track.padEnd(28)} ${String(d.scores.commercial_fit).padEnd(6)} ${d.certainty}`,
+        `${(d.qualification ?? d.track).padEnd(28)} ${String(d.icp_scores?.total_icp_score ?? "n/a").padEnd(6)} ${d.certainty}`,
     );
   }
 }

@@ -21,6 +21,7 @@ import type {
   ProofEvidence,
   UnknownSurface,
   VisitorOutcome,
+  VisualEvidence,
 } from "@/lib/qualification/types";
 import { computeActivityMetrics } from "./instagram";
 import { collectDirectResponseCtas } from "./cta-signals";
@@ -28,11 +29,15 @@ import {
   collectExternalEvidence,
   createPageFetcher,
   DEFAULT_EXTERNAL_CONFIG,
+  hopAction,
+  outcomeResolved,
+  type ExternalCollectionResult,
   type ExternalCollectorConfig,
   type PageFetcher,
 } from "./external";
 import { collectYouTubeEvidence, parseYouTubeRef, type YouTubeConfig } from "./youtube";
 import { isYouTubeHost } from "./page-extract";
+import { computeFunnelMaturitySignals } from "./funnel-maturity";
 import { ACQUISITION_VERSION, FIXTURE_REVISION } from "./versions";
 
 export type EvidenceCollectorDependencies = {
@@ -49,6 +54,19 @@ export type CollectEvidenceOptions = {
   external?: Partial<ExternalCollectorConfig>;
   youtube?: Partial<YouTubeConfig>;
   dependencies?: Partial<EvidenceCollectorDependencies>;
+  /*
+   * The bio-link funnel as Steel already rendered it — see
+   * lib/instagram/steel-acquisition.ts, AcquisitionResult.renderedDestinations.
+   * When present and non-empty, it REPLACES the plain-HTTP external pass
+   * rather than merging with it: the rendered pages already reflect
+   * JavaScript-only content the HTTP fetcher can never see, so re-fetching
+   * them over HTTP would only downgrade the evidence. The YouTube pass and
+   * the YouTube-description second pass are unaffected — they run exactly as
+   * before.
+   */
+  seedDestinations?: ExternalDestination[];
+  /** Persisted profile/post images — see lib/instagram/profile-images.ts. */
+  visualEvidence?: VisualEvidence;
 };
 
 export async function collectCommercialEvidence(
@@ -56,7 +74,7 @@ export async function collectCommercialEvidence(
 ): Promise<EvidenceSnapshot> {
   const externalConfig = { ...DEFAULT_EXTERNAL_CONFIG, ...opts.external };
   const deps: EvidenceCollectorDependencies = {
-    fetchPage: opts.dependencies?.fetchPage ?? createPageFetcher(externalConfig),
+    fetchPage: opts.dependencies?.fetchPage ?? createPageFetcher(),
     collectYouTube: opts.dependencies?.collectYouTube ?? collectYouTubeEvidence,
     now: opts.dependencies?.now ?? (() => new Date().toISOString()),
     uuid: opts.dependencies?.uuid ?? randomUUID,
@@ -66,12 +84,15 @@ export async function collectCommercialEvidence(
   const capturedAt = deps.now();
 
   // ---- Pass 1: external destinations from the bio link ----
-  const external = await collectExternalEvidence({
-    externalLink: instagram.external_link,
-    fetcher: deps.fetchPage,
-    config: externalConfig,
-    now: deps.now,
-  });
+  const external =
+    opts.seedDestinations && opts.seedDestinations.length > 0
+      ? externalCollectionFromSeed(opts.seedDestinations)
+      : await collectExternalEvidence({
+          externalLink: instagram.external_link,
+          fetcher: deps.fetchPage,
+          config: externalConfig,
+          now: deps.now,
+        });
 
   // ---- YouTube references: the bio link, bio text, and anything the hub linked ----
   const youtubeRefs = new Set<string>(external.youtube_urls);
@@ -202,6 +223,58 @@ export async function collectCommercialEvidence(
       acquisition_version: ACQUISITION_VERSION,
       fixture_revision: FIXTURE_REVISION,
     },
+
+    visual_evidence: opts.visualEvidence,
+    funnel_maturity_signals: computeFunnelMaturitySignals({
+      instagram,
+      destinations,
+      snapshotHasTrackingSignals: destinations.some(
+        (destination) => (destination.tracking_signals?.length ?? 0) > 0,
+      ),
+    }),
+  };
+}
+
+/*
+ * Adapts an already-rendered destination list (Steel's inspectFunnel) into
+ * the same ExternalCollectionResult shape collectExternalEvidence produces,
+ * so collectCommercialEvidence cannot tell the two apart downstream. Deriving
+ * cta_hops, stop_reason, and capture_status here — rather than inside
+ * collectExternalEvidence itself — avoids retrofitting seed-awareness into
+ * that function's hop-budget and cycle-detection state machine, which tracks
+ * a `visited` set no seed could safely pre-populate without either falsely
+ * flagging a cycle on hop 0 or losing the ability to say why traversal
+ * stopped.
+ */
+function externalCollectionFromSeed(seedDestinations: ExternalDestination[]): ExternalCollectionResult {
+  const ctaHops: CtaHop[] = seedDestinations.map((destination, index) => ({
+    hop: index,
+    source_type: index === 0 ? "instagram_profile" : "external_page",
+    source_id: index === 0 ? "profile" : seedDestinations[index - 1].destination_id,
+    action: hopAction(destination.destination_type, destination.visible_label),
+    destination_url: destination.final_url,
+    visitor_receives: destination.visitor_receives[0] ?? null,
+    evidence: destination.visible_label ?? destination.page_title ?? destination.selection_reason,
+  }));
+
+  const youtubeUrls = seedDestinations
+    .filter((destination) => destination.destination_type === "youtube" && destination.final_url)
+    .map((destination) => destination.final_url as string);
+
+  const anyCaptured = seedDestinations.some((destination) => destination.capture_status === "captured");
+  const anyFailed = seedDestinations.some((destination) => destination.capture_status !== "captured");
+
+  return {
+    destinations: seedDestinations,
+    cta_hops: ctaHops,
+    youtube_urls: youtubeUrls,
+    stop_reason: outcomeResolved(seedDestinations)
+      ? "ultimate_outcome_resolved"
+      : seedDestinations.length === 0
+        ? "no_commercial_action"
+        : "complete",
+    capture_status: anyCaptured ? "captured" : anyFailed ? "failed" : "not_attempted",
+    hops_used: seedDestinations.reduce((max, destination) => Math.max(max, destination.hop), 0),
   };
 }
 
@@ -435,6 +508,12 @@ function seedOfferInventory(destinations: ExternalDestination[]): OfferEvidence[
       customer_implementation_role: "unknown",
       price: destination.prices[0] ?? null,
       cta: destination.cta_labels[0]?.label ?? null,
+      // Deterministic seed, confirmed or overridden by the extractor — see
+      // lib/evidence/page-extract.ts for what fires paid_offer_signals and
+      // offer_status_signals. "unknown" rather than "free"/"active": absence
+      // of a signal is not evidence of the opposite.
+      is_paid: (destination.paid_offer_signals?.length ?? 0) > 0 ? "paid" : "unknown",
+      active_status: (destination.offer_status_signals?.length ?? 0) > 0 ? "inactive" : "unknown",
       evidence: [
         {
           source_type: "external_page",
@@ -536,6 +615,14 @@ export function snapshotSourceIds(snapshot: EvidenceSnapshot): Set<string> {
   }
   for (const channel of snapshot.youtube_channels) ids.add(`youtube_channel:${channel.channel_id}`);
   for (const video of snapshot.youtube_videos) ids.add(`youtube_video:${video.video_id}`);
+
+  // Only images actually persisted are citable — an image we could not
+  // download must not be citable as if it were inspected.
+  for (const image of snapshot.visual_evidence?.images ?? []) {
+    if (image.capture_status === "captured") {
+      ids.add(`${image.source_type}:${image.source_id}`);
+    }
+  }
 
   return ids;
 }

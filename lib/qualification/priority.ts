@@ -7,19 +7,24 @@
  * ranked below an identical lead whose scrape happened to succeed.
  */
 
-import type { ActivityMetrics, CommercialScores, PriorityScore } from "./types";
+import type { ActivityMetrics, IcpScores, PriorityScore } from "./types";
 import { ACTIVE_SCORECARD, type Scorecard } from "./scorecard";
 
 export function computePriority(
-  scores: CommercialScores,
+  scores: IcpScores,
   activity: ActivityMetrics,
   scorecard: Scorecard = ACTIVE_SCORECARD,
 ): PriorityScore {
   const weights = scorecard.priority_weights;
 
-  // Each component is normalized to 0..1 before weighting.
-  const commercialFit = clamp01(scores.commercial_fit / 10);
-  const proofMaturity = clamp01(scores.proof_maturity / 2);
+  /*
+   * Normalized to 0..1 before weighting. Field NAMES in the weight config and
+   * the returned components (commercial_fit/proof_maturity) are unchanged
+   * from before the PDF's 12-point scorer replaced the 10-point one — only
+   * what feeds them changed, so nothing downstream needed reshaping.
+   */
+  const commercialFit = clamp01(scores.total_icp_score / 12);
+  const proofMaturity = clamp01(scores.proof / 2);
 
   const reelViewRate =
     activity.reel_view_rate === null ? null : clamp01(activity.reel_view_rate / 0.5);

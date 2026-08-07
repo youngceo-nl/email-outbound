@@ -1,5 +1,5 @@
 import { inngest } from "@/inngest/client";
-import { getSettings, resolveScrapingBeeKeys } from "@/lib/config/settings";
+import { getSettings } from "@/lib/config/settings";
 import { collectCommercialEvidence } from "@/lib/evidence/collect";
 import { assessSufficiency } from "@/lib/evidence/sufficiency";
 import {
@@ -7,6 +7,7 @@ import {
   type AcquisitionPoolEntry,
 } from "@/lib/instagram/cookie-pool";
 import { AcquisitionTimeoutError, acquireInstagramEvidence } from "@/lib/instagram/steel-acquisition";
+import { buildImageCandidates, persistLeadImages } from "@/lib/instagram/profile-images";
 import { advanceRunLead, createEvidenceSnapshot } from "@/lib/qualification/repository";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logCrawl, logError } from "@/lib/pipeline/persist";
@@ -201,6 +202,24 @@ export const acquireProfile = inngest.createFunction(
       },
     });
 
+    /*
+     * Gate 2 ("the individual appears prominently in the content") needs
+     * visual evidence, and Instagram CDN URLs are signed and expire within
+     * days — so the bytes are downloaded and stored now, while they are still
+     * live, rather than left as URLs that would 403 by the time a human or a
+     * replay looked at them. A download/upload failure on one image never
+     * blocks acquisition — see lib/instagram/profile-images.ts.
+     */
+    const visualEvidence = await step.run("persist-lead-images", () =>
+      persistLeadImages({
+        keyPrefix: lead_id,
+        candidates: buildImageCandidates({
+          profilePicUrl: acquisition.instagram.profile_pic_url ?? null,
+          posts: [...acquisition.instagram.pinned_posts, ...acquisition.instagram.recent_posts],
+        }),
+      }),
+    );
+
     await advanceRunLead({ runId: run_id, username, stage: "external_evidence" });
     const snapshot = await step.run("collect-evidence-snapshot", async () => {
       const sufficiency = assessSufficiency(acquisition.instagram);
@@ -209,14 +228,15 @@ export const acquireProfile = inngest.createFunction(
         dataQuality: sufficiency.data_quality,
         leadId: lead_id,
         /*
-         * Previously omitted, which silently disabled both. Without a
-         * ScrapingBee key the fetcher returns the free-fetch result for
-         * JS-shell landing pages (external.ts:211), and without a YouTube key
-         * the collector falls back to rate-limited HTML scraping — so the
-         * pipeline ran degraded and nothing said so.
+         * Previously omitted, which silently ran the collector degraded:
+         * without a YouTube key it falls back to rate-limited HTML scraping and
+         * nothing said so.
          */
-        external: { scrapingBeeApiKey: resolveScrapingBeeKeys(settings)[0] ?? null },
         youtube: { apiKey: settings.youtube_api_key ?? process.env.YOUTUBE_API_KEY ?? null },
+        // Steel already rendered this funnel in a real browser — see the
+        // capture_method: "rendered" note on seedDestinations.
+        seedDestinations: acquisition.renderedDestinations,
+        visualEvidence,
       });
     });
     const snapshotRow = await step.run("persist-evidence-snapshot", () =>

@@ -132,6 +132,9 @@ export const proofResultTypeSchema = z.enum([
   "other",
 ]);
 
+export const paidStatusSchema = z.enum(["paid", "free", "unknown"]);
+export const offerActiveStatusSchema = z.enum(["active", "inactive", "unknown"]);
+
 export const offerEvidenceSchema = z
   .object({
     offer_id: z.string().min(1),
@@ -145,6 +148,8 @@ export const offerEvidenceSchema = z
     price: z.string().nullable().default(null),
     cta: z.string().nullable().default(null),
     evidence: z.array(evidenceCitationSchema).default([]),
+    is_paid: paidStatusSchema.default("unknown"),
+    active_status: offerActiveStatusSchema.default("unknown"),
   })
   .strict();
 

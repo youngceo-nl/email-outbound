@@ -282,10 +282,21 @@ export type EvidenceReviewLead = {
   followers: number | null;
   track: string;
   certainty: string;
-  commercial_fit: number | null;
+  /** The PDF's literal tier, when this decision was scored under icp-gates-score-v1 or later. */
+  qualification: string | null;
+  /** 0-12 under the new scorecard. Falls back to the retired 0-10 commercial_fit for older decisions. */
+  total_icp_score: number | null;
   decision_reasons: string[];
   review_flags: string[];
+  /** Per-dimension reasoning under the new scorecard. */
   score_components: Record<string, EvidenceScoreComponent>;
+  /** Gate statuses, when this decision went through the four ICP gates. */
+  icp_gates: {
+    follower_gate: string;
+    personal_brand: { status: string; reason: string };
+    coach_or_consultant: { status: string; reason: string };
+    relevant_offer: { status: string; reason: string };
+  } | null;
 };
 
 // Supabase/PostgREST sends `.in()` filters as a query string; a few hundred
@@ -305,9 +316,15 @@ type DecisionRow = {
   track: string;
   certainty: string;
   commercial_fit: number | null;
+  qualification: string | null;
+  total_icp_score: number | null;
   decision_reasons: string[] | null;
   review_flags: string[] | null;
-  payload: { score_components?: Record<string, EvidenceScoreComponent> } | null;
+  payload: {
+    score_components?: Record<string, EvidenceScoreComponent>;
+    icp_score_components?: Record<string, EvidenceScoreComponent>;
+    icp_gates?: EvidenceReviewLead["icp_gates"];
+  } | null;
   created_at: string;
 };
 
@@ -328,7 +345,9 @@ export async function getEvidenceReviewQueue(
 
   const { data: decisions } = await sb
     .from("lead_qualification_decisions")
-    .select("id, lead_id, track, certainty, commercial_fit, decision_reasons, review_flags, payload, created_at")
+    .select(
+      "id, lead_id, track, certainty, commercial_fit, qualification, total_icp_score, decision_reasons, review_flags, payload, created_at",
+    )
     .eq("decision", decision)
     .order("created_at", { ascending: false })
     .limit(1000);
@@ -368,15 +387,20 @@ export async function getEvidenceReviewQueue(
       followers: lead.followers,
       track: d.track,
       certainty: d.certainty,
-      commercial_fit: d.commercial_fit,
+      qualification: d.qualification,
+      // Falls back to the retired 10-point commercial_fit for decisions made
+      // before icp-gates-score-v1 — never both, so the displayed number is
+      // always on one consistent scale for a given lead.
+      total_icp_score: d.total_icp_score ?? d.commercial_fit,
       decision_reasons: d.decision_reasons ?? [],
       review_flags: d.review_flags ?? [],
-      score_components: d.payload?.score_components ?? {},
+      score_components: d.payload?.icp_score_components ?? d.payload?.score_components ?? {},
+      icp_gates: d.payload?.icp_gates ?? null,
     });
   }
 
   rows.sort(
-    (a, b) => ((a.commercial_fit ?? 0) - (b.commercial_fit ?? 0)) * (direction === "asc" ? 1 : -1),
+    (a, b) => ((a.total_icp_score ?? 0) - (b.total_icp_score ?? 0)) * (direction === "asc" ? 1 : -1),
   );
   return rows.slice(0, limit);
 }
@@ -408,4 +432,96 @@ export async function getEvidenceReviewPendingCount(
     ),
   );
   return counts.reduce((a, b) => a + b, 0);
+}
+
+/**
+ * Every lead in one `scripts/qualify-profiles.ts` batch run, regardless of
+ * decision (qualified/review/rejected) — a manual audit of the whole batch,
+ * not the operational pending-queue. Unlike getEvidenceReviewQueue, this does
+ * NOT filter on `review_decision IS NULL`: these are re-scored existing leads,
+ * so most already carry a stale review_decision from before this run, and
+ * that would hide almost the entire batch from a re-review.
+ *
+ * Instead it filters on *when* the review happened relative to the decision:
+ * a lead reviewed before this decision existed is stale (show it), a lead
+ * reviewed after (i.e. during this audit) is done (hide it) — otherwise
+ * reloading this page after voting on a lead shows it again.
+ */
+export async function getRunReviewQueue(
+  runId: string,
+  direction: "asc" | "desc" = "asc",
+): Promise<EvidenceReviewLead[]> {
+  await requireUser();
+  const sb = createAdminClient();
+
+  const { data: runLeads } = await sb
+    .from("qualification_run_leads")
+    .select("lead_id, decision_id")
+    .eq("run_id", runId)
+    .not("lead_id", "is", null)
+    .not("decision_id", "is", null)
+    .limit(1000);
+  const pairs = (runLeads ?? []) as { lead_id: string; decision_id: string }[];
+  if (pairs.length === 0) return [];
+
+  const decisionIds = [...new Set(pairs.map((p) => p.decision_id))];
+  const leadIds = [...new Set(pairs.map((p) => p.lead_id))];
+
+  const [decisionBatches, leadBatches] = await Promise.all([
+    Promise.all(
+      chunk(decisionIds, IN_CLAUSE_BATCH_SIZE).map((batch) =>
+        sb
+          .from("lead_qualification_decisions")
+          .select(
+            "id, lead_id, track, certainty, commercial_fit, qualification, total_icp_score, decision_reasons, review_flags, payload, created_at",
+          )
+          .in("id", batch)
+          .then((res) => res.data ?? []),
+      ),
+    ),
+    Promise.all(
+      chunk(leadIds, IN_CLAUSE_BATCH_SIZE).map((batch) =>
+        sb
+          .from("leads")
+          .select("id, username, full_name, profile_url, bio, external_link, followers, reviewed_at")
+          .in("id", batch)
+          .then((res) => res.data ?? []),
+      ),
+    ),
+  ]);
+  const decisionsById = new Map((decisionBatches.flat() as DecisionRow[]).map((d) => [d.id, d]));
+  const leadsById = new Map(
+    leadBatches.flat().map((l) => [l.id, l as typeof l & { reviewed_at: string | null }]),
+  );
+
+  const rows: EvidenceReviewLead[] = [];
+  for (const { lead_id, decision_id } of pairs) {
+    const lead = leadsById.get(lead_id);
+    const d = decisionsById.get(decision_id);
+    if (!lead || !d) continue;
+    if (lead.reviewed_at && lead.reviewed_at > d.created_at) continue;
+    rows.push({
+      id: lead.id,
+      decision_id: d.id,
+      username: lead.username,
+      full_name: lead.full_name,
+      profile_url: lead.profile_url,
+      bio: lead.bio,
+      external_link: lead.external_link,
+      followers: lead.followers,
+      track: d.track,
+      certainty: d.certainty,
+      qualification: d.qualification,
+      total_icp_score: d.total_icp_score ?? d.commercial_fit,
+      decision_reasons: d.decision_reasons ?? [],
+      review_flags: d.review_flags ?? [],
+      score_components: d.payload?.icp_score_components ?? d.payload?.score_components ?? {},
+      icp_gates: d.payload?.icp_gates ?? null,
+    });
+  }
+
+  rows.sort(
+    (a, b) => ((a.total_icp_score ?? 0) - (b.total_icp_score ?? 0)) * (direction === "asc" ? 1 : -1),
+  );
+  return rows;
 }

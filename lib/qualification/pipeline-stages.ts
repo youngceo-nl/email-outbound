@@ -75,29 +75,49 @@ export type RunLeadRecord = {
   total_ms: number | null;
 };
 
+/*
+ * Steel is the production path (inngest/functions/acquire-profile.ts); Apify
+ * survives only in the CLI harness. Unknown values fall through to the raw
+ * string, which is what keeps rows acquired by since-removed providers (the
+ * `scrapingbee_*` sources) readable in the audit view.
+ */
 const ACQUISITION_SOURCE_LABELS: Record<string, string> = {
-  // Steel is the production path (inngest/functions/acquire-profile.ts); the
-  // others survive only in the CLI harness.
   steel: "Steel browser",
   apify: "Apify",
-  scrapingbee_web_profile_info: "ScrapingBee (web_profile_info)",
-  scrapingbee_metadata: "ScrapingBee (metadata fallback)",
 };
 
 function ms(value: number | null): string {
   return value === null ? "not recorded" : `${value}ms`;
 }
 
-/** True when every scored dimension came out at zero. */
+/*
+ * True when every scored dimension came out at zero. Checks icp_scores first
+ * (decisions made from the PDF scorecard onward) and falls back to the
+ * legacy `scores` shape so decisions stored before that cutover — like the
+ * real 2026-08-01 outage this guards against — still get the same
+ * "extraction failed, not a weak profile" protection.
+ */
 function allScoresZero(decision: CommercialDecision | null): boolean {
-  const s = decision?.scores;
-  if (!s) return false;
+  const icp = decision?.icp_scores;
+  if (icp) {
+    return (
+      icp.audience_specificity === 0 &&
+      icp.transformation_clarity === 0 &&
+      icp.offer_clarity === 0 &&
+      icp.conversion_path === 0 &&
+      icp.proof === 0 &&
+      icp.funnel_maturity === 0
+    );
+  }
+
+  const legacy = decision?.scores;
+  if (!legacy) return false;
   return (
-    s.buyer_clarity === 0 &&
-    s.transformation_clarity === 0 &&
-    s.information_funnel_evidence === 0 &&
-    s.conversion_intent === 0 &&
-    s.proof_maturity === 0
+    legacy.buyer_clarity === 0 &&
+    legacy.transformation_clarity === 0 &&
+    legacy.information_funnel_evidence === 0 &&
+    legacy.conversion_intent === 0 &&
+    legacy.proof_maturity === 0
   );
 }
 
@@ -540,17 +560,31 @@ function coreGateStage(runLead: RunLeadRecord, decision: CommercialDecision | nu
     rows.push({ label: signal.replace(/_/g, " "), value: String(state) });
   }
 
-  const s = decision.scores;
+  const s = decision.icp_scores;
   if (s) {
-    rows.push({ label: "buyer clarity", value: String(s.buyer_clarity) });
+    rows.push({ label: "audience specificity", value: String(s.audience_specificity) });
     rows.push({ label: "transformation clarity", value: String(s.transformation_clarity) });
-    rows.push({ label: "information funnel", value: String(s.information_funnel_evidence) });
-    rows.push({ label: "conversion intent", value: String(s.conversion_intent) });
-    rows.push({
-      label: "proof + authority",
-      value: `${s.proof_maturity} (${s.proof_strength} + ${s.authority_strength})`,
-    });
-    rows.push({ label: "commercial fit", value: `${s.commercial_fit} / 10` });
+    rows.push({ label: "offer clarity", value: String(s.offer_clarity) });
+    rows.push({ label: "conversion path", value: String(s.conversion_path) });
+    rows.push({ label: "proof", value: String(s.proof) });
+    rows.push({ label: "funnel maturity", value: String(s.funnel_maturity) });
+    rows.push({ label: "total ICP score", value: `${s.total_icp_score} / 12` });
+  } else if (decision.scores) {
+    // Legacy decisions (scored before the PDF's 12-point scorer) — show the
+    // old breakdown rather than nothing.
+    const legacy = decision.scores;
+    rows.push({ label: "buyer clarity (legacy)", value: String(legacy.buyer_clarity) });
+    rows.push({ label: "transformation clarity (legacy)", value: String(legacy.transformation_clarity) });
+    rows.push({ label: "information funnel (legacy)", value: String(legacy.information_funnel_evidence) });
+    rows.push({ label: "conversion intent (legacy)", value: String(legacy.conversion_intent) });
+    rows.push({ label: "commercial fit (legacy)", value: `${legacy.commercial_fit} / 10` });
+  }
+  if (decision.icp_gates) {
+    const g = decision.icp_gates;
+    rows.push({ label: "follower gate", value: g.follower_gate });
+    rows.push({ label: "personal brand gate", value: g.personal_brand.status });
+    rows.push({ label: "coach/consultant gate", value: g.coach_or_consultant.status });
+    rows.push({ label: "relevant offer gate", value: g.relevant_offer.status });
   }
 
   /*
@@ -594,7 +628,9 @@ function coreGateStage(runLead: RunLeadRecord, decision: CommercialDecision | nu
     key: "core-gate",
     title: "6. Core gate & scoring",
     state: "ok",
-    headline: `Core gate passed · commercial fit ${s?.commercial_fit ?? "?"} / 10`,
+    headline: s
+      ? `Core gate passed · ICP score ${s.total_icp_score} / 12`
+      : `Core gate passed · commercial fit ${decision.scores?.commercial_fit ?? "?"} / 10 (legacy)`,
     recorded: true,
     rows,
   };

@@ -10,7 +10,6 @@ const PROVIDER_OPTIONS: { value: ScrapeProvider; label: string }[] = [
   { value: "cookie",      label: "Cookie only (free, max ~250)" },
   { value: "apify",       label: "Apify" },
   { value: "hikerapi",    label: "HikerAPI" },
-  { value: "scrapingbee", label: "ScrapingBee" },
 ];
 
 export function ScrapeFromHistoryButton({

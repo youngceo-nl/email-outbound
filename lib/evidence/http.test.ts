@@ -12,7 +12,7 @@ const page = (html: string) => ({
   html,
   finalUrl: "https://example.com",
   redirectChain: ["https://example.com"],
-  method: "scrapingbee" as const,
+  method: "free_fetch" as const,
 });
 
 test("a page that merely loads reCAPTCHA is not a bot challenge", () => {

@@ -69,7 +69,7 @@ export async function runReport(reportId: string): Promise<RunResult> {
      * Non-fatal by design: a Cloudflare block or a dead link is an ordinary
      * outcome, and the report is still worth producing with the price labelled as
      * an assumption. Skipped when a recent extraction exists, since it spends
-     * ScrapingBee credits and a model call.
+     * a model call.
      */
     const age = lead.funnel_extracted_at ? Date.now() - new Date(lead.funnel_extracted_at).getTime() : Infinity;
     if (lead.external_link && age > STALE_AFTER_MS) {

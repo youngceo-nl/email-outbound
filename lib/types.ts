@@ -84,6 +84,10 @@ export type RecentPost = {
   taken_at: string | null;
   is_reel?: boolean;
   is_pinned?: boolean;
+  /** Visual evidence for Gate 2 — see InstagramPostEvidence in lib/qualification/types.ts. */
+  thumbnail_url?: string | null;
+  shortcode?: string | null;
+  url?: string | null;
 };
 
 export type AppSettings = {
@@ -100,7 +104,6 @@ export type AppSettings = {
    */
   shadow_qualification_enabled: boolean;
   shadow_qualification_sample_pct: number;
-  scrapingbee_api_key: string | null;
   hikerapi_api_key: string | null;
   default_seeds: string[];
   max_profiles_per_account: number;
@@ -111,7 +114,7 @@ export type AppSettings = {
   min_reels_last_30_days: number;
   include_keywords: string[];
   exclude_keywords: string[];
-  following_scraper_provider: "playwright" | "apify" | "scrapingbee" | "cookie" | "auto" | "colddms" | "hikerapi";
+  following_scraper_provider: "playwright" | "apify" | "cookie" | "auto" | "colddms" | "hikerapi";
   instagram_session_cookie: string | null;
   // ColdDMS (app.colddms.com) login for the "Auto IG Scraper" provider —
   // see lib/instagram/colddms-scraper.ts.
@@ -135,8 +138,9 @@ export type AppSettings = {
   gemini_model: string;
   groq_api_key: string | null;
   groq_model: string;
+  /** Production extractor as of 2026-08-07 — see migration 20260807000000_openrouter_api_key.sql. */
+  openrouter_api_key: string | null;
   capsolver_api_key: string | null;
-  scrapingbee_api_keys: string[];
   instagram_proxy_url: string | null;
   instagram_groups: string[];           // ordered list of group names; groups can exist with no accounts
   active_account_group: string | null; // which group is currently active for scraping; null = use all

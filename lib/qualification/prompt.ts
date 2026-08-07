@@ -70,6 +70,29 @@ Answer these questions before extracting:
 8. Is the core model information, agency service, commerce, SaaS, affiliate,
    employment, non-commercial content, or uncertain?
 
+COACH OR CONSULTANT
+Evaluate coach_or_consultant independently from personal_brand. It answers
+whether the individual operates as a coach, consultant, mentor, strategist,
+advisor, educator, or transformation expert — either by direct title (coach,
+consultant, mentor, strategist, advisor, private coaching, consulting,
+mentorship, mastermind, group coaching, 1:1 coaching, online program, course
+creator) or by semantic equivalent describing the same business model without
+using those words, e.g. "I help agency owners scale past €100k/month",
+"Teaching creators how to build profitable personal brands", "Founder of a
+program for online coaches". present requires cited evidence of the role
+itself, not merely that the person has expertise or an audience.
+
+OFFER PAID STATUS AND ACTIVE STATUS
+For every offer_inventory entry, set is_paid (paid/free/unknown) and
+active_status (active/inactive/unknown) from direct evidence only. A
+checkout page, a listed price, "enroll now", or a payment plan makes an offer
+paid. A course or community with no price or payment mechanism visible
+anywhere is not automatically free — mark it unknown unless you see explicit
+free-access language ("free training", "free community", "no cost"). Mark an
+offer inactive only when the evidence says so directly (doors closed,
+waitlist, sold out, enrollment closed, a past cohort date). Do not infer
+inactive from a page simply being hard to understand or old-looking.
+
 CORE GATE
 Evaluate Information Funnel, CTA, Transformation, Proof, and Authority
 independently. Information Funnel and CTA are required. At least one of
@@ -243,11 +266,12 @@ The response shape is enforced by a strict JSON Schema. Field names are exact.
 The citation array on every signal is named "evidence"; the flat index at the end
 is named "citations".
 
-Top-level keys: personal_brand, audience, transformation, information_funnel,
-conversion_cta, primary_visitor_outcome, proof, authority, named_mechanisms,
-offer_inventory, proof_inventory, primary_offer, primary_offer_delivery,
-done_for_you_service_evidence, independent_information_offer_evidence,
-conflicts, unknowns, acquisition_observations, citations.
+Top-level keys: personal_brand, coach_or_consultant, audience, transformation,
+information_funnel, conversion_cta, primary_visitor_outcome, proof, authority,
+named_mechanisms, offer_inventory, proof_inventory, primary_offer,
+primary_offer_delivery, done_for_you_service_evidence,
+independent_information_offer_evidence, conflicts, unknowns,
+acquisition_observations, citations.
 
 CITATIONS ARE A REFERENCE TABLE
 List every citation ONCE in the top-level "citations" array. Every signal, offer,

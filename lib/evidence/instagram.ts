@@ -17,7 +17,6 @@ import type {
   InstagramPostEvidence,
   InstagramProfileExtractionMethod,
 } from "@/lib/qualification/types";
-import { scrapingBeeGet } from "./http";
 import { fetchInstagramEvidenceViaApify } from "./apify";
 
 // ---------------------------------------------------------------------------
@@ -28,6 +27,7 @@ type RawPostNode = {
   id?: string;
   shortcode?: string;
   is_video?: boolean;
+  is_reel?: boolean;
   video_view_count?: number;
   edge_liked_by?: { count?: number };
   edge_media_preview_like?: { count?: number };
@@ -35,6 +35,8 @@ type RawPostNode = {
   edge_media_to_caption?: { edges?: Array<{ node?: { text?: string } }> };
   taken_at_timestamp?: number;
   pinned_for_users?: unknown[];
+  /** Visual evidence for Gate 2. */
+  display_url?: string;
 };
 
 export type RawInstagramUser = {
@@ -48,6 +50,8 @@ export type RawInstagramUser = {
   is_verified?: boolean;
   is_private?: boolean;
   highlight_reel_count?: number;
+  /** Signed, short-lived Instagram CDN URL — see StoredImage for the replayable copy. */
+  profile_pic_url?: string;
   edge_followed_by?: { count?: number };
   edge_follow?: { count?: number };
   edge_owner_to_timeline_media?: { count?: number; edges?: Array<{ node?: RawPostNode }> };
@@ -62,9 +66,9 @@ export type InstagramAcquisitionInput = {
   extractionMethod?: InstagramProfileExtractionMethod;
   /*
    * Which acquisition path actually served this profile. `extractionMethod`
-   * cannot answer that — Apify and the ScrapingBee endpoint both report
-   * "provider" — and "which provider served this lead" is the first question
-   * asked when a run looks wrong.
+   * cannot answer that — Steel and Apify can both report "provider" — and
+   * "which provider served this lead" is the first question asked when a run
+   * looks wrong.
    */
   acquisitionSource?: AcquisitionSource;
   /** Highlight scraping is a separate authenticated surface; v1 does not attempt it. */
@@ -107,6 +111,8 @@ export function normalizeInstagramEvidence(input: InstagramAcquisitionInput): In
       story_highlight_titles: [],
       story_highlights_capture_status: input.highlightsCaptureStatus ?? "not_attempted",
       story_highlights_captured_at: null,
+      profile_pic_url: null,
+      profile_pic_capture_status: "not_attempted",
     };
   }
 
@@ -173,10 +179,13 @@ export function normalizeInstagramEvidence(input: InstagramAcquisitionInput): In
     story_highlight_titles: highlightTitles ?? [],
     story_highlights_capture_status: highlightsStatus,
     story_highlights_captured_at: highlightsStatus === "captured" ? capturedAt : null,
+    profile_pic_url: emptyToNull(user.profile_pic_url),
+    profile_pic_capture_status: user.profile_pic_url ? "captured" : "unavailable",
   };
 }
 
 function normalizePost(node: RawPostNode): InstagramPostEvidence {
+  const shortcode = emptyToNull(node.shortcode);
   return {
     post_id: node.shortcode ?? node.id ?? "unknown",
     caption: emptyToNull(node.edge_media_to_caption?.edges?.[0]?.node?.text),
@@ -188,6 +197,10 @@ function normalizePost(node: RawPostNode): InstagramPostEvidence {
     likes: node.edge_liked_by?.count ?? node.edge_media_preview_like?.count ?? null,
     comments: node.edge_media_to_comment?.count ?? null,
     views: node.is_video ? (node.video_view_count ?? null) : null,
+    thumbnail_url: emptyToNull(node.display_url),
+    shortcode,
+    url: shortcode ? `https://www.instagram.com/p/${shortcode}/` : null,
+    is_reel: Boolean(node.is_reel),
   };
 }
 
@@ -262,174 +275,31 @@ function median(values: number[]): number {
 // Acquisition
 // ---------------------------------------------------------------------------
 
-const IG_APP_ID = "936619743392459";
-
-/** Reads the public web_profile_info endpoint through ScrapingBee's proxy pool. */
-export async function fetchInstagramEvidence(opts: {
-  apiKey: string;
-  username: string;
-  sessionCookie?: string | null;
-}): Promise<InstagramAcquisitionInput> {
-  const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(opts.username)}`;
-  const headers: Record<string, string> = {
-    "User-Agent": "Mozilla/5.0 (compatible; LeadsScraper/1.0)",
-    "X-IG-App-ID": IG_APP_ID,
-    Accept: "*/*",
-  };
-  if (opts.sessionCookie) headers.Cookie = opts.sessionCookie;
-
-  try {
-    const { body } = await scrapingBeeGet({
-      apiKey: opts.apiKey,
-      url,
-      premiumProxy: true,
-      forwardHeaders: headers,
-      /*
-       * One retry, not three. This endpoint returns a hard 500 for a meaningful
-       * share of accounts, and we have a working metadata fallback — spending
-       * three 45s attempts before reaching it just makes acquisition slow and
-       * occasionally times the whole lead out.
-       */
-      retries: 1,
-    });
-    const parsed = JSON.parse(body) as { data?: { user?: RawInstagramUser } };
-    const user = parsed?.data?.user ?? null;
-    return {
-      username: opts.username,
-      user: user && user.username ? user : null,
-      providerError: user ? null : "profile_not_returned",
-      extractionMethod: "provider",
-      acquisitionSource: "scrapingbee_web_profile_info",
-      capturedAt: new Date().toISOString(),
-    };
-  } catch (err) {
-    return {
-      username: opts.username,
-      user: null,
-      providerError: err instanceof Error ? err.message : String(err),
-      extractionMethod: "provider",
-      acquisitionSource: "scrapingbee_web_profile_info",
-      capturedAt: new Date().toISOString(),
-    };
-  }
-}
-
 /*
- * Fallback acquisition: the public profile page.
+ * Apify acquisition for the CLI harness.
  *
- * The web_profile_info endpoint returns a hard 500 for some accounts while the
- * ordinary profile page still renders. That page embeds the biography and
- * display name in JSON and reports follower/following/post counts in its
- * og:description, which is enough for a bio-only commercial score. It does NOT
- * expose the external link, so that surface is recorded as unavailable rather
- * than absent.
+ * Production acquisition is Steel + Playwright and does not come through here —
+ * see lib/instagram/steel-acquisition.ts and inngest/functions/acquire-profile.ts.
+ * This path exists so the qualification CLI can pull a profile without a browser
+ * backend; with no token there is nothing to fall back to, and the caller gets a
+ * failed acquisition rather than a silently empty profile.
  */
-export async function fetchInstagramEvidenceViaMetadata(opts: {
-  apiKey: string;
-  username: string;
-}): Promise<InstagramAcquisitionInput> {
-  try {
-    const { body } = await scrapingBeeGet({
-      apiKey: opts.apiKey,
-      url: `https://www.instagram.com/${encodeURIComponent(opts.username)}/`,
-      premiumProxy: true,
-    });
-
-    const biography = extractJsonString(body, "biography");
-    const fullName = extractJsonString(body, "full_name");
-    const metaDescription = decodeEntities(
-      body.match(/<meta property="og:description" content="([^"]*)"/)?.[1] ?? "",
-    );
-
-    if (!biography && !metaDescription) {
-      return {
-        username: opts.username,
-        user: null,
-        providerError: "metadata fallback found no bio or description",
-        extractionMethod: "metadata_fallback",
-        acquisitionSource: "scrapingbee_metadata",
-        capturedAt: new Date().toISOString(),
-      };
-    }
-
-    const counts = metaDescription.match(
-      /([\d.,]+[KMB]?)\s+Followers,\s+([\d.,]+[KMB]?)\s+Following,\s+([\d.,]+[KMB]?)\s+Posts/i,
-    );
-
-    return {
-      username: opts.username,
-      user: {
-        username: opts.username,
-        full_name: fullName ?? undefined,
-        biography: biography ?? undefined,
-        is_private: /"is_private":true/.test(body),
-        is_verified: /"is_verified":true/.test(body),
-        edge_followed_by: counts ? { count: parseCompact(counts[1]) } : undefined,
-        edge_follow: counts ? { count: parseCompact(counts[2]) } : undefined,
-        // Posts exist but were not returned by this surface. Reporting the count
-        // without the sample is what lets sufficiency mark the sample unknown
-        // instead of treating the account as inactive.
-        edge_owner_to_timeline_media: counts ? { count: parseCompact(counts[3]) } : undefined,
-      },
-      metaDescription,
-      extractionMethod: "metadata_fallback",
-      acquisitionSource: "scrapingbee_metadata",
-      capturedAt: new Date().toISOString(),
-    };
-  } catch (err) {
-    return {
-      username: opts.username,
-      user: null,
-      providerError: err instanceof Error ? err.message : String(err),
-      extractionMethod: "metadata_fallback",
-      acquisitionSource: "scrapingbee_metadata",
-      capturedAt: new Date().toISOString(),
-    };
-  }
-}
-
-/** Provider endpoint first, public profile page when it fails. */
 export async function acquireInstagramEvidence(opts: {
-  apiKey: string;
   username: string;
-  sessionCookie?: string | null;
-  /** Apify is the primary Instagram acquisition path when configured — see docs/scrape/scrape.md. */
+  /** See docs/scrape/scrape.md. */
   apifyToken?: string | string[] | null;
 }): Promise<InstagramAcquisitionInput> {
-  if (opts.apifyToken) {
-    const viaApify = await fetchInstagramEvidenceViaApify({ token: opts.apifyToken, username: opts.username });
-    if (viaApify.user) return viaApify;
+  if (!opts.apifyToken) {
+    return {
+      username: opts.username,
+      user: null,
+      providerError: "no Apify token configured — no acquisition path available",
+      extractionMethod: "provider",
+      acquisitionSource: "apify",
+      capturedAt: new Date().toISOString(),
+    };
   }
-  const primary = await fetchInstagramEvidence(opts);
-  if (primary.user) return primary;
-  return fetchInstagramEvidenceViaMetadata({ apiKey: opts.apiKey, username: opts.username });
-}
-
-function extractJsonString(html: string, key: string): string | null {
-  const match = html.match(new RegExp(`"${key}":"((?:[^"\\\\]|\\\\.)*)"`));
-  if (!match) return null;
-  try {
-    const value = JSON.parse(`"${match[1]}"`) as string;
-    return value.trim().length > 0 ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function decodeEntities(raw: string): string {
-  return raw
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCharCode(parseInt(code, 16)))
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
-
-function parseCompact(raw: string): number {
-  const match = raw.replace(/,/g, "").match(/([\d.]+)\s*([KMB])?/i);
-  if (!match) return 0;
-  const multiplier = { K: 1e3, M: 1e6, B: 1e9 }[(match[2] ?? "").toUpperCase()] ?? 1;
-  return Math.round(Number(match[1]) * multiplier);
+  return fetchInstagramEvidenceViaApify({ token: opts.apifyToken, username: opts.username });
 }
 
 /** Extracts an Instagram username from any profile URL form the operator pastes. */

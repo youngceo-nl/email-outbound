@@ -4,12 +4,11 @@
  * A deliberate duplicate of the run+poll logic in lib/apify/client.ts minus
  * the `server-only` import, so the acquisition layer stays runnable under
  * `tsx` for tests, fixtures, and the qualification CLI — same rationale as
- * lib/evidence/http.ts's ScrapingBee duplicate.
+ * lib/evidence/http.ts's duplicate of lib/funnel/free-fetch.ts.
  *
- * Apify is the standard Instagram acquisition path here, matching the
- * legacy pipeline (see docs/scrape/scrape.md: "Apify is now the standard
- * path; the cookie is the fallback"). instagram.ts's ScrapingBee/cookie path
- * is the fallback for when Apify fails or returns nothing.
+ * This is the only acquisition path the evidence layer has left, and it is
+ * reached only from the qualification CLI. Production acquisition is Steel +
+ * Playwright — see lib/instagram/steel-acquisition.ts.
  */
 
 import type { InstagramAcquisitionInput, RawInstagramUser } from "./instagram";
@@ -105,6 +104,8 @@ function mapApifyItemToRawUser(it: Record<string, unknown>): RawInstagramUser | 
       taken_at_timestamp: str(p.timestamp)
         ? Math.floor(new Date(p.timestamp as string).getTime() / 1000)
         : undefined,
+      display_url: str(p.displayUrl) ?? str(p.thumbnailSrc) ?? str(p.thumbnail_src),
+      is_reel: str(p.productType) === "clips" || str(p.type) === "Reel",
       // Verified against a live dataset item (@garyvee, 2026-08-02): the actor
       // reports isPinned on every latestPosts entry, 3 of 12 true. The key is
       // always present (empty array when not pinned) so normalizeInstagramEvidence's
@@ -122,6 +123,7 @@ function mapApifyItemToRawUser(it: Record<string, unknown>): RawInstagramUser | 
     category_name: str(it.businessCategoryName) ?? str(it.categoryName),
     is_verified: Boolean(it.verified ?? it.isVerified),
     is_private: Boolean(it.private ?? it.isPrivate),
+    profile_pic_url: str(it.profilePicUrl) ?? str(it.profilePicUrlHD) ?? str(it.profile_pic_url),
     edge_followed_by: { count: num(it.followersCount) ?? num(it.followers) },
     edge_follow: { count: num(it.followsCount) ?? num(it.following) },
     edge_owner_to_timeline_media: { count: num(it.postsCount) ?? num(it.posts), edges },

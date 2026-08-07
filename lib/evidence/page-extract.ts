@@ -26,6 +26,16 @@ export type PageExtraction = {
   service_delivery_signals: string[];
   education_delivery_signals: string[];
   proof_claims: string[];
+  /*
+   * Checkout/enrolment/price-commitment evidence — separates "a course
+   * exists" from "a PAID course exists", which the spec needs repeatedly
+   * ("do not qualify based solely on a free course").
+   */
+  paid_offer_signals: string[];
+  /** "doors closed", "waitlist", "sold out" — feeds offer-active evidence. */
+  offer_status_signals: string[];
+  /** Meta/TikTok/Google Ads pixels and GTM — the spec's retargeting signal. */
+  tracking_signals: string[];
   destination_type: DestinationType;
   /*
    * When a page carries signals for more than one model, all of them are kept.
@@ -170,6 +180,54 @@ const FORM_FIELD_PATTERNS = [
 const PRICE_PATTERN =
   /[$€£]\s?\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?(?:\s?k\b)?(?:\s?\/\s?(?:mo|month|yr|year|wk|week)\b|\s?per\s+(?:month|year|week)\b)?/gi;
 
+/*
+ * Checkout/enrolment/price-commitment phrases. Distinct from EDUCATION_CONTENT
+ * and CTA_TEXT patterns above: those detect that an offer exists at all, these
+ * detect that money is meant to change hands for it.
+ */
+const PAID_OFFER_PATTERNS = [
+  /\benroll(ment)?\s+now\b/i, /\bbuy now\b/i, /\badd to cart\b/i, /\bproceed to checkout\b/i,
+  /\bpayment plan\b/i, /\bin(stallments|stalments)\b/i, /\bpay in full\b/i,
+  /\bmonthly payment\b/i, /\bone[- ]time payment\b/i, /\bsecure your (spot|seat)\b/i,
+  /\bpurchase (now|access|the course|the program)\b/i, /\bpricing\b/i, /\binvestment:\s?[$€£]/i,
+];
+
+/** Hosts that only ever appear when a real payment/checkout flow is present. */
+const PAID_CHECKOUT_HOSTS = [
+  "stripe.com", "checkout.stripe.com", "thrivecart.com", "samcart.com",
+  "paypal.com", "checkout.square.site", "gumroad.com",
+];
+
+const OFFER_STATUS_PATTERNS = [
+  /\bdoors (are |is )?closed\b/i, /\bwaitlist\b/i, /\bjoin the waitlist\b/i, /\bsold out\b/i,
+  /\benrollment (is |are )?(open|closed|closing)\b/i, /\bapplications? (open|close)s? \w+ \d{1,2}\b/i,
+  /\bcohort (starts|begins)\b/i, /\bno longer (available|accepting|active)\b/i,
+  /\bclosed for enrollment\b/i, /\bthis (program|course|offer) (is|has) ended\b/i,
+];
+
+/*
+ * Matched against RAW html — before scripts are stripped for the excerpt —
+ * because the tags carrying these signals are exactly what gets removed.
+ * "Retargeting or paid-ad indicators" per the spec, and it costs nothing: the
+ * bytes are already downloaded.
+ */
+const TRACKING_PIXEL_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
+  { name: "meta_pixel", pattern: /\bfbq\(|connect\.facebook\.net\/[^"'\s]*\/fbevents\.js/i },
+  { name: "tiktok_pixel", pattern: /\bttq\.load\(|analytics\.tiktok\.com/i },
+  { name: "google_ads", pattern: /googleadservices\.com|gtag\(\s*['"]config['"]\s*,\s*['"]AW-/i },
+  { name: "google_tag_manager", pattern: /googletagmanager\.com\/gtm\.js/i },
+  { name: "snapchat_pixel", pattern: /sc-static\.net\/scevent\.min\.js/i },
+  { name: "pinterest_tag", pattern: /s\.pinimg\.com\/ct\/core\.js/i },
+];
+
+export function detectTrackingPixels(rawHtml: string): string[] {
+  const found: string[] = [];
+  for (const { name, pattern } of TRACKING_PIXEL_PATTERNS) {
+    if (pattern.test(rawHtml)) found.push(name);
+  }
+  return found;
+}
+
 // ---------------------------------------------------------------------------
 // Extraction
 // ---------------------------------------------------------------------------
@@ -273,6 +331,16 @@ export function extractPage(opts: { html: string; url: string }): PageExtraction
   const educationSignals = matchedPhrases(bodyText, EDUCATION_CONTENT_PATTERNS, 6);
   const proofClaims = matchedPhrases(bodyText, PROOF_PATTERNS, 6);
 
+  const paidOfferSignals = matchedPhrases(bodyText, PAID_OFFER_PATTERNS, 6);
+  for (const link of outbound) {
+    const linkHost = hostOf(link.url);
+    if (linkHost && PAID_CHECKOUT_HOSTS.some((host) => linkHost === host || linkHost.endsWith(`.${host}`))) {
+      paidOfferSignals.push(`checkout_host:${linkHost}`);
+    }
+  }
+  const offerStatusSignals = matchedPhrases(bodyText, OFFER_STATUS_PATTERNS, 6);
+  const trackingSignals = detectTrackingPixels(opts.html);
+
   const classification = classifyDestination({
     url: opts.url,
     canonicalUrl: canonical,
@@ -299,6 +367,9 @@ export function extractPage(opts: { html: string; url: string }): PageExtraction
     service_delivery_signals: serviceSignals,
     education_delivery_signals: educationSignals,
     proof_claims: proofClaims,
+    paid_offer_signals: [...new Set(paidOfferSignals)],
+    offer_status_signals: offerStatusSignals,
+    tracking_signals: trackingSignals,
     destination_type: classification.type,
     candidate_types: classification.candidateTypes,
     classification_state: classification.state,

@@ -34,8 +34,7 @@ function extractKey(raw: string): string {
 }
 
 // Resolve a key from DB first, env var as fallback.
-// Apify is OPTIONAL — required only if `following_scraper_provider` is "apify"
-// or "auto" without ScrapingBee configured.
+// Apify is OPTIONAL — required only if `following_scraper_provider` is "apify".
 export function resolveApifyToken(s: AppSettings): string | null {
   return process.env.APIFY_TOKEN || s.apify_api_key || null;
 }
@@ -67,20 +66,8 @@ export function resolveClaudeKey(s: AppSettings): string {
   return k;
 }
 
-// Returns all configured ScrapingBee keys for rotation.
-// SCRAPINGBEE_API_KEYS (comma-separated) > SCRAPINGBEE_API_KEY (single) > DB key.
-export function resolveScrapingBeeKeys(s: AppSettings): string[] {
-  const fromEnv = (process.env.SCRAPINGBEE_API_KEYS ?? "")
-    .split(",")
-    .map((k) => k.trim())
-    .filter(Boolean);
-  const single = process.env.SCRAPINGBEE_API_KEY?.trim();
-  if (single && !fromEnv.includes(single)) fromEnv.push(single);
-  for (const k of s.scrapingbee_api_keys ?? []) {
-    const t = extractKey(k.trim());
-    if (t && !fromEnv.includes(t)) fromEnv.push(t);
-  }
-  const dbKey = s.scrapingbee_api_key?.trim();
-  if (dbKey && !fromEnv.includes(dbKey)) fromEnv.push(dbKey);
-  return fromEnv;
+export function resolveOpenRouterKey(s: AppSettings): string {
+  const k = s.openrouter_api_key || process.env.OPENROUTER_API_KEY || "";
+  if (!k) throw new Error("OPENROUTER_API_KEY not configured (set in Settings or env)");
+  return k;
 }

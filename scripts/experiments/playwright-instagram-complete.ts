@@ -2,8 +2,8 @@
  * Playwright Instagram acquisition proof of concept.
  *
  * QUESTION: can a local headless Chromium collect every evidence surface the
- * commercial qualification pipeline needs, without HikerAPI, ScrapingBee,
- * Apify, or any paid provider?
+ * commercial qualification pipeline needs, without HikerAPI, Apify, or any
+ * paid provider?
  *
  * EXPERIMENT ONLY:
  *   - imports nothing from the production qualification runtime except pure
@@ -27,6 +27,8 @@ import { pathToFileURL } from "node:url";
 import { type BrowserContext, type Page, type Response } from "playwright";
 import { openBrowserSession, type BackendKind } from "./browser-backend";
 import { extractPage } from "@/lib/evidence/page-extract";
+import { buildDestination, placeholderDestination } from "@/lib/evidence/external";
+import type { ExternalDestination } from "@/lib/qualification/types";
 import { parseYouTubeRef } from "@/lib/evidence/youtube";
 import {
   OUTPUT_DIR,
@@ -125,7 +127,7 @@ export type Report = {
     commercial_groups: string[];
     profile_funnel_maturity: boolean;
   };
-  external_destinations: unknown[];
+  external_destinations: ExternalDestination[];
   youtube: { channels: unknown[]; videos: unknown[] };
   capture_statuses: CaptureStatuses;
   network_diagnostics: {
@@ -774,10 +776,13 @@ export async function runPlaywrightInstagramComplete(
 // Funnel inspection
 // ---------------------------------------------------------------------------
 
-async function inspectFunnel(page: Page, startUrl: string, report: Report): Promise<unknown[]> {
-  const destinations: unknown[] = [];
-  const queue: Array<{ url: string; hop: number }> = [{ url: startUrl, hop: 0 }];
+async function inspectFunnel(page: Page, startUrl: string, report: Report): Promise<ExternalDestination[]> {
+  const destinations: ExternalDestination[] = [];
+  const queue: Array<{ url: string; hop: number; label: string | null }> = [
+    { url: startUrl, hop: 0, label: null },
+  ];
   const visited = new Set<string>();
+  let destinationIndex = 0;
 
   while (queue.length > 0 && destinations.length < MAX_EXTERNAL_DESTINATIONS) {
     const item = queue.shift();
@@ -788,6 +793,7 @@ async function inspectFunnel(page: Page, startUrl: string, report: Report): Prom
 
     const redirects: string[] = [];
     const destinationStart = Date.now();
+    const destinationId = `steel_destination_${destinationIndex++}`;
     try {
       const response = await page.goto(item.url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
       // Walk the redirect chain without exposing request headers.
@@ -819,49 +825,49 @@ async function inspectFunnel(page: Page, startUrl: string, report: Report): Prom
         detail: finalUrl.slice(0, 50),
       });
 
-      destinations.push({
-        source_url: canonical,
-        final_url: finalUrl,
-        redirect_chain: redirects,
-        hop: item.hop,
-        page_title: extraction.page_title,
-        meta_description: extraction.meta_description,
-        headings: extraction.headings.slice(0, 10),
-        cta_labels: extraction.cta_labels.slice(0, 12),
-        offer_copy: extraction.offer_copy.slice(0, 10),
-        prices: extraction.prices,
-        form_signals: extraction.form_signals,
-        proof_claims: extraction.proof_claims,
-        service_delivery_signals: extraction.service_delivery_signals,
-        education_delivery_signals: extraction.education_delivery_signals,
-        destination_type: extraction.destination_type,
-        candidate_types: extraction.candidate_types,
-        classification_state: extraction.classification_state,
-        visitor_receives: extraction.visitor_receives,
-        capture_source: "dom",
-        capture_status: "captured" as CaptureStatus,
-        error: null,
-      });
+      destinations.push(
+        buildDestination({
+          destinationId,
+          sourceUrl: canonical,
+          finalUrl,
+          redirectChain: redirects,
+          visibleLabel: item.label,
+          extraction,
+          // Real ranking (lib/evidence/external.ts, rankFunnelLinks) is not run
+          // here — the hop-0 root is always the primary evidence; anything
+          // discovered from it is supporting until the deterministic collector
+          // re-ranks it, which it still does for whatever this pass did not reach.
+          commercialRelevance: item.hop === 0 ? "primary" : "supporting",
+          selectionReason: item.hop === 0 ? "instagram bio external link (steel rendered)" : "steel-discovered funnel link",
+          rank: item.hop,
+          hop: item.hop,
+          captureMethod: "rendered",
+          capturedAt: new Date().toISOString(),
+          httpStatus: response?.status() ?? null,
+        }),
+      );
 
       // Follow onward commercial links only from the first hop.
       if (item.hop === 0) {
         for (const link of extraction.outbound_links.slice(0, 25)) {
           if (destinations.length + queue.length >= MAX_EXTERNAL_DESTINATIONS) break;
           if (/apply|book|call|coach|program|course|training|community|join|mentor/i.test(link.label + link.url)) {
-            queue.push({ url: link.url, hop: 1 });
+            queue.push({ url: link.url, hop: 1, label: link.label || null });
           }
         }
       }
     } catch (err) {
-      destinations.push({
-        source_url: canonical,
-        final_url: null,
-        redirect_chain: redirects,
-        hop: item.hop,
-        capture_source: "dom",
-        capture_status: "failed" as CaptureStatus,
-        error: message(err),
-      });
+      destinations.push(
+        placeholderDestination({
+          id: destinationId,
+          url: canonical,
+          item: { label: item.label, reason: "steel rendered funnel", relevance: item.hop === 0 ? "primary" : "supporting", rank: item.hop, hop: item.hop },
+          type: "unknown",
+          status: "failed",
+          error: message(err),
+          capturedAt: new Date().toISOString(),
+        }),
+      );
       report.errors.push(`destination ${canonical} failed: ${message(err)}`);
     }
   }
@@ -888,8 +894,8 @@ function findYouTubeTarget(report: Report): string | null {
   const candidates: string[] = [];
   const link = (report.profile as { external_link?: string | null }).external_link;
   if (link) candidates.push(link);
-  for (const destination of report.external_destinations as Array<Record<string, unknown>>) {
-    const final = destination.final_url as string | undefined;
+  for (const destination of report.external_destinations) {
+    const final = destination.final_url ?? undefined;
     if (final) candidates.push(final);
   }
   for (const highlight of report.highlights) {

@@ -19,9 +19,11 @@ import {
   EXTRACTION_PROMPT_VERSION,
   PIPELINE_VERSION,
   SCORECARD_VERSION,
+  VISION_PROMPT_VERSION,
 } from "@/lib/evidence/versions";
 import { extractCommercialEvidence, type ExtractionResult } from "./extract";
 import { challengerTrigger, runChallenger, type ChallengerDecision } from "./challenger";
+import { runVisualIdentity, type VisualIdentityResult } from "./visual-identity";
 import { decideCommercialQualification, type FollowerRange } from "./decide";
 import { ACTIVE_SCORECARD, type Scorecard } from "./scorecard";
 import type { LlmClient } from "./providers";
@@ -37,6 +39,13 @@ export type QualificationRunResult = {
   sufficiency: SufficiencyResult;
   snapshot: EvidenceSnapshot | null;
   extraction: ExtractionResult | null;
+  /*
+   * Gate 2's visual evidence (lib/qualification/visual-identity.ts). Facts
+   * only — never null when acquisition ran, but `facts` inside it is null
+   * when no images were captured. Turning this into a gate decision is a
+   * follow-up plan; this pipeline stage only produces and stores the facts.
+   */
+  visual_identity: VisualIdentityResult | null;
   challenger: ChallengerDecision | null;
   challenger_trigger: string;
   decision: CommercialDecision;
@@ -55,6 +64,8 @@ export type QualificationDependencies = {
    * decisions that matter most get a second, more capable opinion.
    */
   challengerLlm: LlmClient;
+  /** Vision-capable model for Gate 2's visual-identity pass. Defaults to the primary extractor's client. */
+  visionLlm: LlmClient;
   now: () => string;
   uuid: () => string;
 };
@@ -65,7 +76,16 @@ export type RunOptions = {
   precollectedSnapshot?: EvidenceSnapshot;
   llm: LlmClient;
   challengerLlm?: LlmClient;
+  visionLlm?: LlmClient;
   leadId?: string | null;
+  /*
+   * Steel-rendered funnel and persisted images — see AcquisitionResult in
+   * lib/instagram/steel-acquisition.ts and VisualEvidence in types.ts.
+   * Ignored when precollectedSnapshot is set (that snapshot already carries
+   * its own visual_evidence/rendered destinations, if any).
+   */
+  seedDestinations?: EvidenceSnapshot["external_destinations"];
+  visualEvidence?: EvidenceSnapshot["visual_evidence"];
   external?: Partial<ExternalCollectorConfig>;
   youtube?: Partial<YouTubeConfig>;
   scorecard?: Scorecard;
@@ -81,11 +101,12 @@ export async function runCommercialQualification(
   const started = Date.now();
   const externalConfig = { ...DEFAULT_EXTERNAL_CONFIG, ...opts.external };
   const deps: QualificationDependencies = {
-    fetchPage: opts.dependencies?.fetchPage ?? createPageFetcher(externalConfig),
+    fetchPage: opts.dependencies?.fetchPage ?? createPageFetcher(),
     collectYouTube: opts.dependencies?.collectYouTube ?? collectYouTubeEvidence,
     llm: opts.dependencies?.llm ?? opts.llm,
     challengerLlm:
       opts.dependencies?.challengerLlm ?? opts.challengerLlm ?? opts.dependencies?.llm ?? opts.llm,
+    visionLlm: opts.dependencies?.visionLlm ?? opts.visionLlm ?? opts.dependencies?.llm ?? opts.llm,
     now: opts.dependencies?.now ?? (() => new Date().toISOString()),
     uuid: opts.dependencies?.uuid ?? randomUUID,
   };
@@ -129,6 +150,8 @@ export async function runCommercialQualification(
       leadId: opts.leadId,
       external: externalConfig,
       youtube: opts.youtube,
+      seedDestinations: opts.seedDestinations,
+      visualEvidence: opts.visualEvidence,
       dependencies: {
         fetchPage: deps.fetchPage,
         collectYouTube: deps.collectYouTube,
@@ -137,6 +160,9 @@ export async function runCommercialQualification(
       },
     }));
   const acquisitionMs = opts.precollectedSnapshot ? 0 : Date.now() - acquisitionStart;
+
+  // ---- Visual identity (Gate 2's evidence) — facts only, never a decision. ----
+  const visualIdentity = await runVisualIdentity({ snapshot, llm: deps.visionLlm });
 
   // ---- Extraction ----
   const extractionStart = Date.now();
@@ -161,6 +187,7 @@ export async function runCommercialQualification(
     return {
       ...result,
       extraction,
+      visual_identity: visualIdentity,
       timings_ms: { acquisition: acquisitionMs, extraction: extractionMs, challenger: 0, total: Date.now() - started },
       usage: extraction.usage,
     };
@@ -170,6 +197,7 @@ export async function runCommercialQualification(
   const provisional = decideCommercialQualification({
     snapshot,
     extraction: extraction.extraction,
+    visualIdentity,
     challenger: null,
     challengerAgrees: null,
     citationWarnings: extraction.citation_warnings,
@@ -181,10 +209,8 @@ export async function runCommercialQualification(
   const trigger = challengerTrigger({
     // Certainty cannot reach `high` before the challenger runs, so the test is
     // "would this auto-approve if the challenger agreed?", not the literal flag.
-    proposedAutoApproval:
-      provisional.decision === "qualified" &&
-      provisional.track === "information_personal_brand" &&
-      provisional.scores.commercial_fit >= (opts.scorecard ?? ACTIVE_SCORECARD).thresholds.auto_approve_min,
+    // `qualification` is already the raw, challenger-independent tier.
+    proposedAutoApproval: provisional.qualification === "QUALIFIED_HIGH_PRIORITY",
     trackMixed: provisional.review_flags.includes("agency_information_mixed"),
     conflicts: extraction.extraction.conflicts.length,
     hardExclusion: provisional.hard_exclusion,
@@ -207,6 +233,7 @@ export async function runCommercialQualification(
   const decision = decideCommercialQualification({
     snapshot,
     extraction: extraction.extraction,
+    visualIdentity,
     challenger: challenger?.result ?? null,
     challengerAgrees: challenger?.agrees ?? null,
     citationWarnings: extraction.citation_warnings,
@@ -220,6 +247,7 @@ export async function runCommercialQualification(
     sufficiency,
     snapshot,
     extraction,
+    visual_identity: visualIdentity,
     challenger,
     challenger_trigger: trigger,
     decision,
@@ -246,6 +274,7 @@ export async function requalifyFromSnapshot(opts: {
   snapshot: EvidenceSnapshot;
   llm: LlmClient;
   challengerLlm?: LlmClient;
+  visionLlm?: LlmClient;
   scorecard?: Scorecard;
   followerRange?: FollowerRange;
   auditSample?: boolean;
@@ -258,6 +287,10 @@ export async function requalifyFromSnapshot(opts: {
   const snapshot = opts.snapshot;
 
   const sufficiency = assessSufficiency(snapshot.instagram);
+
+  // Replays against the stored images too — a new vision-prompt version can be
+  // evaluated against exactly the same bytes, same as text extraction.
+  const visualIdentity = await runVisualIdentity({ snapshot, llm: opts.visionLlm ?? opts.llm });
 
   const extractionStart = Date.now();
   const extraction = await extractCommercialEvidence({ snapshot, llm: opts.llm });
@@ -277,6 +310,7 @@ export async function requalifyFromSnapshot(opts: {
     return {
       ...result,
       extraction,
+      visual_identity: visualIdentity,
       timings_ms: { acquisition: 0, extraction: extractionMs, challenger: 0, total: Date.now() - started },
       usage: extraction.usage,
     };
@@ -285,6 +319,7 @@ export async function requalifyFromSnapshot(opts: {
   const provisional = decideCommercialQualification({
     snapshot,
     extraction: extraction.extraction,
+    visualIdentity,
     challenger: null,
     challengerAgrees: null,
     citationWarnings: extraction.citation_warnings,
@@ -294,10 +329,7 @@ export async function requalifyFromSnapshot(opts: {
   });
 
   const trigger = challengerTrigger({
-    proposedAutoApproval:
-      provisional.decision === "qualified" &&
-      provisional.track === "information_personal_brand" &&
-      provisional.scores.commercial_fit >= scorecard.thresholds.auto_approve_min,
+    proposedAutoApproval: provisional.qualification === "QUALIFIED_HIGH_PRIORITY",
     trackMixed: provisional.review_flags.includes("agency_information_mixed"),
     conflicts: extraction.extraction.conflicts.length,
     hardExclusion: provisional.hard_exclusion,
@@ -316,6 +348,7 @@ export async function requalifyFromSnapshot(opts: {
   const decision = decideCommercialQualification({
     snapshot,
     extraction: extraction.extraction,
+    visualIdentity,
     challenger: challenger?.result ?? null,
     challengerAgrees: challenger?.agrees ?? null,
     citationWarnings: extraction.citation_warnings,
@@ -329,6 +362,7 @@ export async function requalifyFromSnapshot(opts: {
     sufficiency,
     snapshot,
     extraction,
+    visual_identity: visualIdentity,
     challenger,
     challenger_trigger: trigger,
     decision,
@@ -365,6 +399,7 @@ function terminalResult(args: {
     sufficiency: args.sufficiency,
     snapshot: args.snapshot ?? null,
     extraction: null,
+    visual_identity: null,
     challenger: null,
     challenger_trigger: "none",
     decision: {
@@ -404,6 +439,7 @@ function terminalResult(args: {
         scorecard_version: SCORECARD_VERSION,
         config_version: CONFIG_VERSION,
         pipeline_version: PIPELINE_VERSION,
+        vision_prompt_version: VISION_PROMPT_VERSION,
       },
       decided_at: args.deps.now(),
     },

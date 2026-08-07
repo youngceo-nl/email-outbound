@@ -2,7 +2,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { inngest } from "@/inngest/client";
-import { getSettings, resolveApifyTokens, resolveScrapingBeeKeys } from "@/lib/config/settings";
+import { getSettings, resolveApifyTokens } from "@/lib/config/settings";
 import { buildAcquisitionPool } from "@/lib/instagram/cookie-pool";
 import { scrapeFollowingDetailedWithFallback } from "@/lib/pipeline/scrape-following";
 import { usernameFromInstagramUrl } from "@/lib/evidence/instagram";
@@ -288,7 +288,6 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
     poolError = err instanceof Error ? err.message : String(err);
   }
   const anthropicKey = !!(settings?.claude_api_key || process.env.ANTHROPIC_API_KEY);
-  const scrapingBee = settings ? resolveScrapingBeeKeys(settings).length > 0 : false;
   const youtube = !!(settings?.youtube_api_key || process.env.YOUTUBE_API_KEY);
 
   /*
@@ -297,7 +296,7 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
    *
    *   prefilter          -> Apify
    *   acquiring          -> identity picked, then Steel opens the session
-   *   external_evidence  -> ScrapingBee
+   *   external_evidence  -> plain HTTP fetch, nothing to configure
    *   youtube            -> YouTube API
    *   extracting         -> Anthropic (Haiku), then challenger (Opus)
    *
@@ -329,14 +328,6 @@ export async function getPreflight(): Promise<PreflightCheck[]> {
             ? "Steel Cloud — set in app_settings (shared with the team)"
             : "Steel Cloud — set from STEEL_API_KEY, only on this machine, teammates will fail"
           : "not set — every acquisition fails instantly",
-    },
-    {
-      label: "ScrapingBee key",
-      ok: scrapingBee,
-      blocking: false,
-      detail: scrapingBee
-        ? "set — JavaScript landing pages can be read"
-        : "not set — JS-shell landing pages will read as empty",
     },
     {
       label: "YouTube API key",

@@ -68,9 +68,17 @@ export default async function RunDetailPage({
           <ChevronLeft className="h-4 w-4 mr-1" />
           Back to test runs
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight mt-2">
-          {run.label ?? `Run ${run.id.slice(0, 8)}`}
-        </h1>
+        <div className="flex items-center justify-between mt-2">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {run.label ?? `Run ${run.id.slice(0, 8)}`}
+          </h1>
+          <Link
+            href={`/test-environment/${id}/review`}
+            className="text-sm px-3 py-1.5 rounded-md border hover:bg-accent transition-colors"
+          >
+            Review this batch
+          </Link>
+        </div>
         <p className="text-sm text-muted-foreground">
           {formatDistanceToNow(new Date(run.started_at), { addSuffix: true })} · {run.status} ·{" "}
           <span className="font-mono text-xs">{run.id}</span>

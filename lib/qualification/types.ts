@@ -42,7 +42,9 @@ export type EvidenceSourceType =
   | "youtube_channel"
   | "youtube_video"
   | "pinned_post"
-  | "recent_post";
+  | "recent_post"
+  | "profile_image"
+  | "post_image";
 
 export type EvidenceCitation = {
   source_type: EvidenceSourceType;
@@ -65,6 +67,15 @@ export type InstagramPostEvidence = {
   likes: number | null;
   comments: number | null;
   views: number | null;
+  /*
+   * Visual evidence for Gate 2 ("the individual appears prominently in the
+   * content"). Optional so posts normalized before this field existed still
+   * validate — an absent thumbnail means "not captured", never "no image".
+   */
+  thumbnail_url?: string | null;
+  shortcode?: string | null;
+  url?: string | null;
+  is_reel?: boolean;
 };
 
 export type InstagramProfileExtractionMethod =
@@ -76,13 +87,10 @@ export type InstagramProfileExtractionMethod =
 /*
  * Which concrete acquisition path served a profile. Distinct from
  * InstagramProfileExtractionMethod, which describes the SHAPE of the parse:
- * Apify and the ScrapingBee web_profile_info endpoint are both "provider", so
- * the extraction method alone cannot tell them apart when a run misbehaves.
+ * Steel and Apify can both report "provider", so the extraction method alone
+ * cannot tell them apart when a run misbehaves.
  */
-export type AcquisitionSource =
-  | "apify"
-  | "scrapingbee_web_profile_info"
-  | "scrapingbee_metadata";
+export type AcquisitionSource = "steel" | "apify";
 
 export type InstagramEvidence = {
   username: string;
@@ -119,6 +127,31 @@ export type InstagramEvidence = {
   story_highlight_titles: string[];
   story_highlights_capture_status: CaptureStatus;
   story_highlights_captured_at: string | null;
+  /*
+   * Full highlight objects (title + semantic group + cover image), additive
+   * to `story_highlight_titles` above rather than replacing it — existing
+   * consumers of the titles-only array keep working unchanged. Optional so
+   * snapshots captured before this field existed still validate.
+   */
+  story_highlights?: StoryHighlightEvidence[];
+
+  /*
+   * Gate 2 ("the individual appears prominently in the content") is
+   * unanswerable from text alone. The URL is a signed, short-lived Instagram
+   * CDN link — see StoredImage for the replayable copy. Optional so
+   * snapshots captured before this field existed still validate.
+   */
+  profile_pic_url?: string | null;
+  profile_pic_capture_status?: CaptureStatus;
+};
+
+export type HighlightGroupLabel = "Proof" | "Offer" | "Funnel" | "Authority" | "Other";
+
+export type StoryHighlightEvidence = {
+  highlight_id: string;
+  title: string;
+  group: HighlightGroupLabel;
+  cover_url: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -206,9 +239,30 @@ export type ExternalDestination = {
   hop: number;
   text_excerpt: string | null;
   capture_status: CaptureStatus;
-  capture_method: "free_fetch" | "scrapingbee" | "none";
+  /*
+   * "rendered" means the page was opened in a real browser (the Steel session
+   * already open for Instagram acquisition), so JS-only checkout and pricing
+   * content is visible. "free_fetch" never executes JavaScript — see
+   * lib/evidence/http.ts. Distinguishing the two matters because paid-vs-free
+   * evidence is frequently JS-rendered (Kajabi, Stripe, Circle).
+   */
+  capture_method: "free_fetch" | "rendered" | "none";
   captured_at: string | null;
   error: string | null;
+  /*
+   * The raw HTTP status, when known. A 404/410 is a distinct fact from a fetch
+   * failure — "the offer page is gone" versus "we could not reach it" — and the
+   * spec needs that distinction for "coaches whose paid offer is no longer
+   * active". Optional so destinations captured before this field existed still
+   * validate.
+   */
+  http_status?: number | null;
+  /** Checkout/enrolment/price-commitment phrases — see lib/evidence/page-extract.ts. */
+  paid_offer_signals?: string[];
+  /** "doors closed", "waitlist", a past cohort date, etc. */
+  offer_status_signals?: string[];
+  /** Meta/TikTok/Google Ads pixels and GTM — the spec's retargeting signal. */
+  tracking_signals?: string[];
 };
 
 // ---------------------------------------------------------------------------
@@ -308,6 +362,9 @@ export type CustomerImplementationRole =
   | "team_implemented"
   | "unknown";
 
+export type PaidStatus = "paid" | "free" | "unknown";
+export type OfferActiveStatus = "active" | "inactive" | "unknown";
+
 export type OfferEvidence = {
   offer_id: string;
   name: string | null;
@@ -320,6 +377,16 @@ export type OfferEvidence = {
   price: string | null;
   cta: string | null;
   evidence: EvidenceCitation[];
+  /*
+   * The spec repeatedly distinguishes a course existing from a *paid* course
+   * existing ("do not qualify based solely on a free course"). Seeded from the
+   * deterministic paid_offer_signals on the destination the offer was found on,
+   * then confirmed by the extractor. Optional so offers extracted before this
+   * field existed still validate.
+   */
+  is_paid?: PaidStatus;
+  /** "coaches whose paid offer is no longer active" — seeded from offer_status_signals. */
+  active_status?: OfferActiveStatus;
 };
 
 export type ProofBeneficiary =
@@ -411,6 +478,57 @@ export type EvidenceSnapshot = {
 
   activity: ActivityMetrics;
   versions: AcquisitionVersions;
+
+  /*
+   * Facts about the stored profile/post images (Gate 2's visual evidence).
+   * Optional so snapshots captured before this field existed still validate —
+   * they simply carry no visual evidence, which routes Gate 2 to uncertain
+   * rather than a wrong answer.
+   */
+  visual_evidence?: VisualEvidence;
+  /*
+   * The spec's Dimension 6 (Funnel and Business Maturity) inventory. Assembled
+   * deterministically from data already in this snapshot — see
+   * lib/evidence/funnel-maturity.ts. Optional for the same replay reason.
+   */
+  funnel_maturity_signals?: FunnelMaturitySignal[];
+};
+
+/** A profile or post image persisted to storage so it survives CDN URL expiry. */
+export type StoredImage = {
+  source_id: string;
+  source_type: "profile_image" | "post_image";
+  /** The original, signed, short-lived Instagram CDN URL — kept for provenance only. */
+  original_url: string;
+  /** Path inside Supabase Storage; null when the download/upload failed. */
+  storage_path: string | null;
+  capture_status: CaptureStatus;
+};
+
+export type VisualEvidence = {
+  images: StoredImage[];
+  capture_status: CaptureStatus;
+};
+
+export type FunnelMaturitySignalKind =
+  | "name_field_positioning"
+  | "bio_promise"
+  | "application_funnel"
+  | "webinar_funnel"
+  | "booking_funnel"
+  | "results_highlight"
+  | "start_here_highlight"
+  | "offer_highlight"
+  | "pinned_proof_or_intro"
+  | "lead_magnet"
+  | "retargeting"
+  | "multiple_ctas"
+  | "branded_methodology";
+
+export type FunnelMaturitySignal = {
+  kind: FunnelMaturitySignalKind;
+  present: boolean;
+  evidence: EvidenceCitation[];
 };
 
 export type DirectResponseCtaEvidence = {
@@ -489,6 +607,14 @@ export type CommercialExtraction = {
   evidence_snapshot_id: string;
 
   human_personal_brand: SignalBlock;
+  /*
+   * Gate 3's independent fact: does the individual operate as a coach,
+   * consultant, mentor, strategist, advisor, educator, or transformation
+   * expert — including the spec's semantic pass signals ("I help agency
+   * owners scale past €100k/month"), not just literal titles. Optional so
+   * extractions from older prompt versions still validate.
+   */
+  coach_or_consultant?: SignalBlock;
   audience: {
     label: BuyerClarityLabel;
     value: string | null;
@@ -640,7 +766,21 @@ export type DecisionReasonCode =
   | "agency_information_mixed"
   | "follower_range"
   | "private_profile"
-  | "profile_unavailable";
+  | "profile_unavailable"
+  // Revised Instagram ICP Qualification Logic — the four hard gates
+  // (lib/qualification/icp-gates.ts). Distinct from the pre-existing codes
+  // above, which belong to the older business-model/core gate.
+  | "follower_below_minimum"
+  | "follower_count_unknown"
+  | "personal_brand_gate_failed"
+  | "personal_brand_gate_uncertain"
+  | "coach_or_consultant_gate_failed"
+  | "coach_or_consultant_gate_uncertain"
+  | "relevant_offer_gate_failed"
+  | "relevant_offer_gate_uncertain"
+  | "icp_score_below_threshold"
+  | "icp_score_review_band"
+  | "icp_score_high_priority";
 
 export type ReviewFlag =
   | "agency_information_mixed"
@@ -699,12 +839,63 @@ export type QualificationVersions = {
   scorecard_version: string;
   config_version: string;
   pipeline_version: string;
+  /** Optional so decisions stored before the vision pass existed still validate. */
+  vision_prompt_version?: string;
 };
+
+// ---------------------------------------------------------------------------
+// Revised Instagram ICP Qualification Logic — gates, score, tier
+// ---------------------------------------------------------------------------
+
+export type GateStatus = "pass" | "fail" | "uncertain";
+
+export type GateResult = {
+  status: GateStatus;
+  evidence: EvidenceCitation[];
+  reason: string;
+};
+
+export type IcpGateResults = {
+  follower_gate: "pass" | "fail" | "unknown";
+  personal_brand: GateResult;
+  coach_or_consultant: GateResult;
+  relevant_offer: GateResult;
+};
+
+export type IcpScores = {
+  audience_specificity: number;
+  transformation_clarity: number;
+  offer_clarity: number;
+  conversion_path: number;
+  proof: number;
+  funnel_maturity: number;
+  /** 0-12, the sum of the six dimensions above. */
+  total_icp_score: number;
+};
+
+export type IcpQualificationTier =
+  | "QUALIFIED_HIGH_PRIORITY"
+  | "QUALIFIED"
+  | "MANUAL_REVIEW"
+  | "REJECTED";
 
 export type CommercialDecision = {
   scorecard_version: string;
   evidence_snapshot_id: string;
   extraction_id: string | null;
+
+  /*
+   * The PDF's literal four-value output. Optional so decisions stored before
+   * this field existed still validate; present on everything decided from
+   * this scorecard version onward. See lib/qualification/icp-gates.ts and
+   * icp-score.ts for how it's derived, and decide.ts for how it maps onto
+   * `decision`/`mode` below (kept as the DB's constrained, filterable pair).
+   */
+  qualification?: IcpQualificationTier;
+  icp_gates?: IcpGateResults;
+  icp_scores?: IcpScores;
+  /** Per-dimension reasoning and citations behind icp_scores — see icp-score.ts's ScoreResult.components. */
+  icp_score_components?: Record<string, ScoreComponent>;
 
   track: CommercialTrack;
   icp_eligible: boolean;
@@ -714,8 +905,14 @@ export type CommercialDecision = {
   signal_states: SignalStates;
   primary_visitor_outcome: VisitorOutcome | null;
 
-  scores: CommercialScores;
-  score_components: Record<string, ScoreComponent>;
+  /*
+   * The retired 10-point scorer's output — last used under SCORECARD_VERSION
+   * "personal-brand-score-v1", superseded by "icp-gates-score-v1". See
+   * icp_scores above for what replaced it. Optional so old stored decisions
+   * still validate; undefined on every decision made from this version onward.
+   */
+  scores?: CommercialScores;
+  score_components?: Record<string, ScoreComponent>;
 
   certainty: Certainty;
   challenger_agreement: boolean | null;

@@ -214,7 +214,7 @@ test("metadata fallback degrades acquisition and names the reason", () => {
     instagram: {
       profile_capture_status: "captured",
       profile_extraction_method: "metadata_fallback",
-      acquisition_source: "scrapingbee_metadata",
+      acquisition_source: "apify",
       recent_posts_capture_status: "captured",
       pinned_posts_capture_status: "captured",
       story_highlights_capture_status: "captured",
@@ -225,7 +225,7 @@ test("metadata fallback degrades acquisition and names the reason", () => {
   } as unknown as EvidenceSnapshot;
 
   const stages = deriveStages({
-    runLead: runLead({ acquisition_source: "scrapingbee_metadata" }),
+    runLead: runLead({ acquisition_source: "apify" }),
     snapshot,
     extraction: null,
     decision: null,
@@ -233,7 +233,7 @@ test("metadata fallback degrades acquisition and names the reason", () => {
   const acquisition = stageBy(stages, "acquisition");
   assert.equal(acquisition.state, "degraded");
   assert.match(acquisition.headline, /metadata fallback/);
-  assert.ok(acquisition.rows.some((r) => r.value === "ScrapingBee (metadata fallback)"));
+  assert.ok(acquisition.rows.some((r) => r.value === "Apify"));
 });
 
 test("queued leads that never started count as stuck, not passed", () => {

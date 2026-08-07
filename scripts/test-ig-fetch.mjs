@@ -1,5 +1,5 @@
 // Standalone test: how reliably can we read IG follower counts for FREE
-// (direct web_profile_info, no ScrapingBee, no Apify)?
+// (direct web_profile_info, no paid provider, no Apify)?
 //
 // Usage:
 //   node scripts/test-ig-fetch.mjs [count]          # free, direct from this IP
@@ -144,7 +144,7 @@ async function run() {
     console.log("Failure breakdown:");
     for (const [k, n] of Object.entries(fails).sort((a, b) => b[1] - a[1])) console.log(`  ${n}× ${k}`);
   }
-  if (rate >= 80) console.log("\n→ Free path looks viable. Worth wiring in front of ScrapingBee.");
+  if (rate >= 80) console.log("\n→ Free path looks viable. Worth wiring in front of the paid providers.");
   else if (rate >= 30) console.log("\n→ Partial. Free-first with paid fallback would still cut costs.");
   else console.log("\n→ Mostly blocked from this IP. You'll need residential proxies (set IG_PROXY_URL).");
 }

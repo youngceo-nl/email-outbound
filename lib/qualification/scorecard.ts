@@ -10,26 +10,49 @@
 
 import { SCORECARD_VERSION } from "@/lib/evidence/versions";
 
+/*
+ * Replaces the old 10-point / five-label-ladder scorecard with the "Revised
+ * Instagram ICP Qualification Logic" spec's 0/1/2 six-dimension model
+ * (0-12 total). This is a genuine replacement, not a shadow — the old
+ * `buyer_clarity`/`information_funnel_evidence`/`authority_strength` fields
+ * and the highlight-bonus mechanic are retired. `authority` is now Gate 2
+ * evidence (lib/qualification/icp-gates.ts), not a scored dimension, and
+ * highlights feed Funnel Maturity specifically via
+ * lib/evidence/funnel-maturity.ts rather than a flat bonus added to every
+ * dimension.
+ *
+ * Offer Clarity and Funnel Maturity are not simple label ladders — they are
+ * composite/count-based scores computed directly in
+ * lib/qualification/icp-score.ts — so they have no entry here.
+ */
 export type Scorecard = {
   version: string;
-  buyer_clarity: Record<string, number>;
-  transformation_clarity: Record<string, number>;
-  information_funnel_evidence: Record<string, number>;
-  conversion_intent: Record<string, number>;
-  proof_strength: Record<string, number>;
-  authority_strength: Record<string, number>;
-  thresholds: {
-    qualified_min: number;
-    review_min: number;
-    review_max: number;
-    rejected_max: number;
-    auto_approve_min: number;
-    min_information_funnel: number;
-    min_conversion_intent: number;
+  ladders: {
+    /** Keyed by BuyerClarityLabel: none/broad/inferred/specific/explicit. */
+    audience_specificity: Record<string, number>;
+    /** Keyed by TransformationLabel. */
+    transformation_clarity: Record<string, number>;
+    /** Keyed by ConversionIntentLabel; direct-response CTAs can still push this to 2. */
+    conversion_path: Record<string, number>;
+    /** Keyed by ProofLabel: absent/weak/credible/strong. */
+    proof: Record<string, number>;
   };
-  highlights: {
-    per_group_bonus: number;
-    dimension_cap: number;
+  /** Present funnel_maturity_signals count -> points. See icp-score.ts. */
+  funnel_maturity_thresholds: {
+    /** At or above this count of present signals: 1 point. */
+    one_point_min: number;
+    /** At or above this count: 2 points. */
+    two_point_min: number;
+  };
+  thresholds: {
+    /** total_icp_score >= this -> QUALIFIED_HIGH_PRIORITY (spec: 10-12). */
+    qualified_high_priority_min: number;
+    /** total_icp_score >= this (and below the tier above) -> QUALIFIED (spec: 7-9). */
+    qualified_min: number;
+    /** total_icp_score >= this (and below the tier above) -> MANUAL_REVIEW (spec: 4-6). */
+    manual_review_min: number;
+    // Below manual_review_min -> REJECTED, subject to rejection confidence
+    // (deriveRejectionConfidence in certainty.ts, unchanged).
   };
   priority_weights: {
     commercial_fit: number;
@@ -40,55 +63,42 @@ export type Scorecard = {
   };
 };
 
-/*
- * The five anchored labels per dimension map to the spec's 0/0.5/1/1.5/2 ladder
- * by ordinal position. Proof and authority each contribute 0 to 1 and sum to
- * the 0 to 2 proof_maturity dimension; `credible` is 0.75 to reproduce the
- * worked example in the specification (2+2+1.5+2+0.75 = 8.25).
- */
 export const ACTIVE_SCORECARD: Scorecard = {
   version: SCORECARD_VERSION,
 
-  buyer_clarity: { none: 0, broad: 0.5, inferred: 1, specific: 1.5, explicit: 2 },
-  transformation_clarity: {
-    none: 0,
-    inspirational: 0.5,
-    expertise_only: 1,
-    implied_result: 1.5,
-    explicit_result: 2,
+  ladders: {
+    audience_specificity: { none: 0, broad: 1, inferred: 1, specific: 2, explicit: 2 },
+    transformation_clarity: {
+      none: 0,
+      inspirational: 1,
+      expertise_only: 1,
+      implied_result: 2,
+      explicit_result: 2,
+    },
+    conversion_path: {
+      none: 0,
+      audience_only: 1,
+      information_action: 1,
+      commercial_action: 2,
+      direct_sales_action: 2,
+    },
+    proof: { absent: 0, weak: 1, credible: 2, strong: 2 },
   },
-  information_funnel_evidence: {
-    none: 0,
-    weak_education: 0.5,
-    indirect_funnel: 1,
-    visible_offer: 1.5,
-    explicit_offer: 2,
+
+  funnel_maturity_thresholds: {
+    one_point_min: 1,
+    two_point_min: 4,
   },
-  conversion_intent: {
-    none: 0,
-    audience_only: 0.5,
-    information_action: 1,
-    commercial_action: 1.5,
-    direct_sales_action: 2,
-  },
-  proof_strength: { absent: 0, weak: 0.35, credible: 0.75, strong: 1 },
-  authority_strength: { absent: 0, weak: 0.35, credible: 0.75, strong: 1 },
 
   thresholds: {
-    qualified_min: 8.0,
-    review_min: 6.0,
-    review_max: 7.5,
-    rejected_max: 5.5,
-    auto_approve_min: 8.0,
-    min_information_funnel: 1.0,
-    min_conversion_intent: 1.0,
+    qualified_high_priority_min: 10,
+    qualified_min: 7,
+    manual_review_min: 4,
   },
 
-  highlights: {
-    per_group_bonus: 0.5,
-    dimension_cap: 1.5,
-  },
-
+  // Key names unchanged from the old scorecard (commercial_fit/proof_maturity)
+  // even though what feeds them changed — priority.ts now normalizes
+  // total_icp_score/12 and the new proof dimension/2 into these same slots.
   priority_weights: {
     commercial_fit: 0.5,
     proof_maturity: 0.15,
@@ -114,7 +124,12 @@ const HIGHLIGHT_PATTERNS: Array<{ group: HighlightGroup; pattern: RegExp }> = [
    * backwards: students are the more on-target outcome evidence.
    */
   { group: "proof", pattern: /\b(result|client|student|member|review|win|testimonial|transformation|case stud|success stor|before.?after)/i },
-  { group: "offer", pattern: /\b(1[\s-]?(?:on|to)?[\s-]?1|coaching|program|mentorship|work with me|academy|course|package)/i },
+  /*
+   * `consulting` and `mastermind` were missing even though the spec lists both
+   * explicitly (§5, High-value Highlight categories > Offer) — a folder titled
+   * CONSULTING or MASTERMIND matched nothing before this.
+   */
+  { group: "offer", pattern: /\b(1[\s-]?(?:on|to)?[\s-]?1|coaching|consulting|program|mentorship|mastermind|work with me|academy|course|package)/i },
   { group: "funnel", pattern: /\b(start here|free|apply|book|join|call|link|training|webinar|blueprint|roadmap|guide)/i },
   { group: "authority", pattern: /\b(my story|about me|journey|youtube|podcast|press|featured|media)/i },
 ];

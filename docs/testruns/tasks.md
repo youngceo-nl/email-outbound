@@ -5,43 +5,32 @@ Full background and evidence: [testrun.md](testrun.md).
 
 ---
 
-# 🔴 BLOCKING RIGHT NOW — nothing can run until this is done
+# ✅ RESOLVED 2026-08-05 — the Cloudflare Access blocker is cleared
 
-The pipeline points at the self-hosted Steel server
-(`https://steel-api.paidinfunnel.com`), which sits behind **Cloudflare Access**.
-Access answers **403 to every request** regardless of Steel's own API key —
-verified against no-auth, `steel-api-key`, and `Bearer`. **A run started today
-fails on every single lead.**
+~~The pipeline points at the self-hosted Steel server, which sits behind
+Cloudflare Access, and Access answers 403 to every request regardless of
+Steel's own API key.~~
 
-Migration `20260806000000` is applied and the code is ready. Only the token is
-missing.
+The service token is now in place in both `app_settings`
+(`steel_cf_client_id` / `steel_cf_client_secret`) and the container env
+(`CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET`). Verified from inside the
+running container: `GET https://steel-api.paidinfunnel.com/v1/sessions` → **200**
+with real session data.
 
-## 👤 YOU
+Also verified end to end the same day: an event sent to Inngest Cloud was
+accepted, the function was invoked over the public URL, executed, and wrote to
+Supabase. See `infra/self-hosting/docs/status.md`.
 
-### [ ] Create a Cloudflare Access service token
-Cloudflare renamed **Access** to **Access controls** — the paths below are the
-current ones, checked against Cloudflare's own docs on 2026-08-05.
+**Capacity note before you start a run:** only **4 of 16** Instagram accounts
+are usable — `masakonjoku61`, `bethannbuczek1`, `allinedowho`, `jeanettaze`.
+`lib/instagram/cookie-pool.ts:53` skips any account without a `proxy_url`, and
+10 accounts have valid cookies but no proxy. At `max_profiles_per_account =
+1000` that is still ~4000 profiles of headroom, so a run is fine — just size it
+knowing the pool is 4, not 16.
 
-1. **Zero Trust → Access controls → Service credentials → Service Tokens →
-   Create Service Token.** Name it something like `email-outbound-pipeline`.
-2. Copy **both** values. The **Client Secret is shown only once.**
-   - Client ID looks like `<long-string>.access`
-   - Client Secret is a long random string
-3. Attach it to the app, or the token exists and is still rejected:
-   **Zero Trust → Access controls → Applications →** the `steel-api` app **→
-   Policies → Add policy**, action **Service Auth** — not the default identity
-   action, or Cloudflare still demands a browser login and the token is
-   rejected. Include **Service Token → the one you just created**.
-4. Paste both values into the chat.
-
-**Done when:** a probe of `/v1/sessions` returns 200 instead of 403.
 
 ## 🤖 CLAUDE
 
-### [ ] Store the token and verify the connection
-Writes both values to `app_settings` (not `.env.local` — see CLAUDE.md), then
-re-probes and runs **one** real acquisition end to end before touching the 667
-waiting leads. Blocked on your step above.
 
 ### [ ] Then: fresh run to re-measure C4
 The certainty deadlock is fixed and replay-verified, but **no run has ever

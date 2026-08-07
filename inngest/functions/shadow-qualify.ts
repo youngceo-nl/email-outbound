@@ -119,7 +119,7 @@ export const shadowQualify = inngest.createFunction(
         username: lead.username,
         outcome: decision?.decision ?? null,
         decision_mode: decision?.mode ?? null,
-        score: decision?.scores.commercial_fit ?? null,
+        score: decision?.icp_scores?.total_icp_score ?? null,
         certainty: decision?.certainty ?? null,
         reason_codes: decision?.decision_reasons ?? [],
         challenger_verdict:
@@ -155,7 +155,7 @@ export const shadowQualify = inngest.createFunction(
 
     return {
       status: result?.decision.decision ?? null,
-      score: result?.decision.scores.commercial_fit ?? null,
+      score: result?.decision.icp_scores?.total_icp_score ?? null,
       certainty: result?.decision.certainty ?? null,
       legacy_status: legacy_status ?? null,
     };

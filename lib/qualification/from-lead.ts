@@ -30,6 +30,8 @@ export type CachedLeadProfile = {
   following: number | null;
   posts: number | null;
   recent_posts: RecentPost[] | null;
+  /** Signed, short-lived Instagram CDN URL, when the backfill captured one. */
+  profile_pic_url?: string | null;
 };
 
 /**
@@ -70,6 +72,7 @@ export function instagramEvidenceFromLead(
     external_url: lead.external_link ?? undefined,
     is_verified: lead.is_verified,
     is_private: lead.is_private,
+    profile_pic_url: lead.profile_pic_url ?? undefined,
     edge_followed_by: lead.followers != null ? { count: lead.followers } : undefined,
     edge_follow: lead.following != null ? { count: lead.following } : undefined,
     edge_owner_to_timeline_media: {
@@ -120,6 +123,7 @@ function toRawPostNode(post: RecentPost) {
 
   return {
     is_video: post.is_reel ?? undefined,
+    is_reel: post.is_reel ?? undefined,
     ...(post.views != null ? { video_view_count: post.views } : {}),
     ...(post.likes != null ? { edge_liked_by: { count: post.likes } } : {}),
     ...(post.comments != null ? { edge_media_to_comment: { count: post.comments } } : {}),
@@ -127,6 +131,8 @@ function toRawPostNode(post: RecentPost) {
       ? { edge_media_to_caption: { edges: [{ node: { text: post.caption } }] } }
       : {}),
     ...(Number.isFinite(takenAt) ? { taken_at_timestamp: Math.floor(takenAt / 1000) } : {}),
+    ...(post.thumbnail_url ? { display_url: post.thumbnail_url } : {}),
+    ...(post.shortcode ? { shortcode: post.shortcode } : {}),
     // pinned_for_users is the normalizer's pin signal; a non-empty array means
     // pinned. Only set when the cached row actually recorded the flag.
     ...(post.is_pinned === true ? { pinned_for_users: [{}] } : {}),

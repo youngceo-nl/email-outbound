@@ -5,6 +5,7 @@ import { CheckCircle2, ExternalLink, HelpCircle, Loader2, XCircle } from "lucide
 import {
   approveLead,
   getEvidenceReviewQueue,
+  getRunReviewQueue,
   rejectLead,
   type EvidenceReviewLead,
 } from "@/app/actions/review";
@@ -30,10 +31,13 @@ const CERTAINTY_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
 export function EvidenceReviewClient({
   queue,
   totalPending,
+  runId,
 }: {
   queue: EvidenceReviewLead[];
   /** Total leads still awaiting a verdict — queue itself is capped at one page (100). */
   totalPending: number;
+  /** When set, this is a single batch-run audit (all decisions, not just one bucket) — scopes the sort refetch to the run instead of the global queue. */
+  runId?: string;
 }) {
   const router = useRouter();
   const [items, setItems] = useState<EvidenceReviewLead[]>(queue);
@@ -88,14 +92,14 @@ export function EvidenceReviewClient({
       if (next === order || pending) return;
       setOrder(next);
       start(async () => {
-        setItems(await getEvidenceReviewQueue(100, next));
+        setItems(runId ? await getRunReviewQueue(runId, next) : await getEvidenceReviewQueue(100, next));
         setIdx(0);
         setRejecting(false);
         setReason("");
         setError(null);
       });
     },
-    [order, pending],
+    [order, pending, runId],
   );
 
   useEffect(() => {
@@ -177,10 +181,10 @@ export function EvidenceReviewClient({
               <span
                 className={cn(
                   "text-sm font-semibold tabular-nums rounded-md px-2 py-1",
-                  scoreColor(lead.commercial_fit),
+                  scoreColor(lead.total_icp_score),
                 )}
               >
-                {lead.commercial_fit ?? "–"}
+                {lead.total_icp_score ?? "–"}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -197,6 +201,9 @@ export function EvidenceReviewClient({
                 {lead.full_name && <p className="text-sm text-muted-foreground truncate">{lead.full_name}</p>}
               </div>
               <div className="flex flex-wrap gap-1 justify-end">
+                {lead.qualification && (
+                  <Badge variant="outline" className="text-[10px] font-semibold">{lead.qualification}</Badge>
+                )}
                 <Badge variant={CERTAINTY_VARIANT[lead.certainty] ?? "outline"} className="text-[10px]">
                   {lead.certainty} certainty
                 </Badge>
@@ -220,6 +227,27 @@ export function EvidenceReviewClient({
 
             {lead.followers != null && (
               <div className="text-xs text-muted-foreground tabular-nums">{lead.followers.toLocaleString()} followers</div>
+            )}
+
+            {lead.icp_gates && (
+              <div className="flex flex-wrap gap-1">
+                {(
+                  [
+                    ["followers", lead.icp_gates.follower_gate],
+                    ["personal brand", lead.icp_gates.personal_brand.status],
+                    ["coach/consultant", lead.icp_gates.coach_or_consultant.status],
+                    ["offer", lead.icp_gates.relevant_offer.status],
+                  ] as const
+                ).map(([label, status]) => (
+                  <Badge
+                    key={label}
+                    variant={status === "fail" ? "destructive" : status === "pass" ? "secondary" : "outline"}
+                    className="text-[10px]"
+                  >
+                    {label}: {status}
+                  </Badge>
+                ))}
+              </div>
             )}
 
             {Object.keys(lead.score_components).length > 0 && (

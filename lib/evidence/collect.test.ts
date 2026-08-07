@@ -72,7 +72,7 @@ test("collects Instagram first, then external, and freezes one snapshot", async 
   assert.ok(snapshot.snapshot_id.length > 0);
   assert.ok(snapshot.external_destinations.length >= 2);
   assert.equal(snapshot.acquisition_sufficiency, "sufficient");
-  assert.equal(snapshot.versions.acquisition_version, "acquisition-1.0.0");
+  assert.equal(snapshot.versions.acquisition_version, "acquisition-1.1.0");
 
   // The DM funnel in the bio outranks the bio link as the primary CTA.
   assert.match(snapshot.primary_cta ?? "", /DM CLIENTS/i);

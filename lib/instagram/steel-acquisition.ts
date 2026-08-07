@@ -1,4 +1,4 @@
-import type { InstagramEvidence } from "@/lib/qualification/types";
+import type { ExternalDestination, InstagramEvidence } from "@/lib/qualification/types";
 import { instagramEvidenceFromLead } from "@/lib/qualification/from-lead";
 import type { RecentPost } from "@/lib/types";
 import type { AcquisitionPoolEntry } from "./cookie-pool";
@@ -15,6 +15,14 @@ export type AcquisitionResult = {
   report: Report;
   sessionId: string | null;
   challenge: string | null;
+  /*
+   * The bio-link funnel as Steel already rendered it in a real browser —
+   * JS-only checkout/pricing content included. Seeded into
+   * collectCommercialEvidence so it is not re-fetched over plain HTTP, which
+   * cannot execute JavaScript at all (see lib/evidence/http.ts). Empty when
+   * the profile has no external link or the funnel inspection failed.
+   */
+  renderedDestinations: ExternalDestination[];
 };
 
 /*
@@ -122,6 +130,7 @@ export async function acquireInstagramEvidence(input: {
     total_posts?: number | null;
     is_private?: boolean | null;
     is_verified?: boolean | null;
+    profile_pic_url?: string | null;
   };
   const recentPosts: RecentPost[] = [...report.pinned_posts, ...report.recent_posts].map((post) => ({
     caption: post.caption,
@@ -131,6 +140,9 @@ export async function acquireInstagramEvidence(input: {
     taken_at: post.taken_at,
     is_reel: post.is_reel,
     is_pinned: post.is_pinned,
+    thumbnail_url: post.thumbnail_url,
+    shortcode: post.shortcode,
+    url: post.url,
   }));
 
   const normalized = instagramEvidenceFromLead(
@@ -145,6 +157,7 @@ export async function acquireInstagramEvidence(input: {
       following: profile.following ?? null,
       posts: profile.total_posts ?? null,
       recent_posts: recentPosts,
+      profile_pic_url: profile.profile_pic_url ?? null,
     },
     report.finished_at,
   );
@@ -169,7 +182,20 @@ export async function acquireInstagramEvidence(input: {
       story_highlights_capture_status: report.capture_statuses.highlight_titles,
       story_highlights_captured_at:
         report.capture_statuses.highlight_titles === "captured" ? report.finished_at : null,
+      story_highlights: report.highlights.map((highlight) => ({
+        highlight_id: highlight.highlight_id,
+        title: highlight.title,
+        group: highlight.group,
+        cover_url: highlight.cover_url,
+      })),
+      profile_pic_url: profile.profile_pic_url ?? null,
       profile_capture_status:
+        status === "captured"
+          ? report.capture_statuses.profile
+          : status === "blocked"
+            ? "unavailable"
+            : "failed",
+      profile_pic_capture_status:
         status === "captured"
           ? report.capture_statuses.profile
           : status === "blocked"
@@ -179,5 +205,8 @@ export async function acquireInstagramEvidence(input: {
     report,
     sessionId: report.steel_session_id,
     challenge: report.challenge === "none" ? null : report.challenge,
+    // Only meaningful when the funnel was actually reached and rendered.
+    renderedDestinations:
+      report.capture_statuses.external_funnel === "captured" ? report.external_destinations : [],
   };
 }

@@ -101,6 +101,8 @@ function scriptedLlm(overrides: Record<string, unknown> = {}): LlmClient & { cal
                 customer_implementation_role: "implements_with_guidance",
                 price: "",
                 cta: "apply for coaching",
+                is_paid: "paid",
+                active_status: "active",
                 evidence_ids: [0],
               },
             ],
@@ -134,12 +136,17 @@ function scriptedLlm(overrides: Record<string, unknown> = {}): LlmClient & { cal
         : {
             citations: cite,
             personal_brand: { state: "present", strength: "strong", evidence_ids: [0] },
+            coach_or_consultant: { state: "present", strength: "strong", evidence_ids: [0] },
             audience: { label: "explicit", value: "consultants", evidence_ids: [0] },
             transformation: { state: "present", strength: "strong", label: "explicit_result", outcome: "premium clients", evidence_ids: [0] },
             information_funnel: { state: "present", strength: "credible", label: "visible_offer", asset_or_offer: "1:1 coaching", evidence_ids: [0] },
             conversion_cta: { state: "present", strength: "strong", label: "direct_sales_action", action: "apply", token_or_asset: "", evidence_ids: [0] },
             primary_visitor_outcome: "coaching",
-            proof: { state: "unknown", strength: "absent", evidence_ids: [] },
+            // "present"/"strong" so this fixture clears QUALIFIED_HIGH_PRIORITY
+            // (10/12) and exercises the proposed_auto_approval challenger
+            // trigger this test is actually about — see the comment on the
+            // test itself for the rest of the score's makeup.
+            proof: { state: "present", strength: "strong", evidence_ids: [0] },
             authority: { state: "present", strength: "credible", types: ["specialization"], evidence_ids: [0] },
             named_mechanisms: [],
             ...overrides,

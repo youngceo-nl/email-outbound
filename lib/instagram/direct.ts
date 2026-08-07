@@ -3,10 +3,10 @@ import type { RecentPost } from "@/lib/types";
 import { BrowserSession, randomUA } from "@/lib/instagram/browser-fetch";
 
 // Free, direct-fetch profile metadata lookup against IG's own
-// `web_profile_info` endpoint. Same endpoint our ScrapingBee path hits, just
-// without the proxy middleman — so it's $0/profile but uses *your* IP and
-// *your* burner-account cookie. Rate-limit / ban your own account if you go
-// too fast. Throttling lives in the caller (backfill-metadata.ts), not here.
+// `web_profile_info` endpoint, with no proxy middleman — so it's $0/profile but
+// uses *your* IP and *your* burner-account cookie. Rate-limit / ban your own
+// account if you go too fast. Throttling lives in the caller
+// (backfill-metadata.ts), not here.
 
 export class InstagramDirectError extends Error {
   constructor(

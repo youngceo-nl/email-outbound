@@ -2,12 +2,36 @@
  * Final decision routing.
  *
  * Order is the whole point:
- *   universal exclusion -> hard business-model gate -> core gate -> score bands
- *     -> certainty -> automatic approval
+ *   universal exclusion -> pre-existing hard business-model gate -> the
+ *   PDF's four ICP gates (icp-gates.ts) -> unresolved-agency review ->
+ *   the 12-point score band -> certainty -> automatic approval
  *
- * Scores are computed and preserved for every outcome, including rejections, so
- * a hard-excluded agency still carries its commercial strength for analysis
- * without that strength ever being able to restore eligibility.
+ * The pre-existing hard business-model gate stays first and unchanged: it
+ * encodes done-for-you-service-primary detection and the agency-owner
+ * exception with more nuance (mixed-offer handling, "agency evidence next to
+ * an information outcome" false-positive defense) than the PDF's own Gate 3
+ * exception alone, and rewriting it would discard tested, incident-driven
+ * behavior the PDF doesn't address at all. The four ICP gates
+ * (lib/qualification/icp-gates.ts) are what the PDF actually adds: follower
+ * floor, personal brand (text + vision), coach/consultant, relevant offer.
+ *
+ * `qualification` (the PDF's literal QUALIFIED_HIGH_PRIORITY/QUALIFIED/
+ * MANUAL_REVIEW/REJECTED) is a pure function of the gates and the score —
+ * always the honest answer. `decision`/`mode` are the OPERATIONAL routing:
+ * the same confidence/certainty safety net this pipeline has always applied
+ * before executing anything irreversible. The two CAN diverge — a lead can
+ * carry `qualification: "REJECTED"` alongside `decision: "review"` when the
+ * evidence is not confident enough to auto-execute a rejection on. That is
+ * not a shortcut; it is strictly more transparent than silently downgrading
+ * the tier, and it preserves the exact asymmetric-risk posture
+ * (`deriveRejectionConfidence`/`deriveCertainty`, unchanged) that fixed the
+ * review-queue deadlock documented in certainty.ts.
+ *
+ * The 12-point score (icp-score.ts) is computed unconditionally for every
+ * outcome, including hard rejections — this pipeline has always preserved
+ * scores for analysis even on leads a gate rejected, and the new score is
+ * pure arithmetic over already-extracted facts, so there is no cost to
+ * always computing it.
  */
 
 import type {
@@ -19,15 +43,18 @@ import type {
   DecisionOutcome,
   DecisionReasonCode,
   EvidenceSnapshot,
+  IcpQualificationTier,
   QualificationVersions,
   ReviewFlag,
 } from "./types";
 import { ACTIVE_SCORECARD, type Scorecard } from "./scorecard";
 import { classifyTrack } from "./classify-track";
-import { applyCoreGate, applyHardBusinessModelGate } from "./eligibility";
-import { scoreCommercialFit } from "./score";
+import { applyCoreGate, applyHardBusinessModelGate, type CoreGateResult } from "./eligibility";
+import { applyIcpGates, DEFAULT_FOLLOWER_GATE, type FollowerGateConfig } from "./icp-gates";
+import { scoreIcpFit } from "./icp-score";
 import { deriveCertainty, deriveRejectionConfidence } from "./certainty";
 import { computePriority } from "./priority";
+import type { VisualIdentityResult } from "./visual-identity";
 import {
   ACQUISITION_VERSION,
   CHALLENGER_PROMPT_VERSION,
@@ -35,6 +62,7 @@ import {
   EXTRACTION_PROMPT_VERSION,
   PIPELINE_VERSION,
   SCORECARD_VERSION,
+  VISION_PROMPT_VERSION,
 } from "@/lib/evidence/versions";
 
 export type FollowerRange = { min: number | null; max: number | null };
@@ -42,6 +70,7 @@ export type FollowerRange = { min: number | null; max: number | null };
 export type DecideOptions = {
   snapshot: EvidenceSnapshot;
   extraction: CommercialExtraction;
+  visualIdentity?: VisualIdentityResult | null;
   challenger: ChallengerResult | null;
   challengerAgrees: boolean | null;
   citationWarnings?: string[];
@@ -65,7 +94,16 @@ export function decideCommercialQualification(opts: DecideOptions): CommercialDe
     coreGate,
     challengerAgrees: opts.challengerAgrees,
   });
-  const scoring = scoreCommercialFit(opts.extraction, opts.snapshot, scorecard);
+
+  const icpGates = applyIcpGates({
+    snapshot: opts.snapshot,
+    extraction: opts.extraction,
+    visualIdentity: opts.visualIdentity ?? null,
+    followerGate: followerGateConfig(opts.followerRange),
+  });
+
+  // Computed unconditionally — see module header.
+  const scoring = scoreIcpFit(opts.extraction, opts.snapshot, scorecard);
 
   const certainty = deriveCertainty({
     snapshot: opts.snapshot,
@@ -91,12 +129,6 @@ export function decideCommercialQualification(opts: DecideOptions): CommercialDe
   if (opts.extraction.proof.state !== "present") flags.push("proof_unverified");
   if (opts.extraction.authority.state !== "present") flags.push("authority_unverified");
 
-  const followerFlag = isOutsideFollowerRange(
-    opts.snapshot.instagram.followers,
-    opts.followerRange,
-  );
-  if (followerFlag) flags.push("follower_range");
-
   // Agency-client proof propping up an information claim is the classic false
   // positive this ICP has to defend against.
   const agencyProof = [...opts.extraction.proof.claims, ...opts.extraction.proof_attribution].some(
@@ -106,20 +138,16 @@ export function decideCommercialQualification(opts: DecideOptions): CommercialDe
     flags.push("suspicious_proof");
   }
 
-  const decision = route({
-    track,
+  const routed = route({
+    snapshot: opts.snapshot,
     hardGate,
+    icpGates,
     coreGate,
     certainty: certainty.certainty,
     canAutoReject: rejectionConfidence.confident,
-    commercialFit: scoring.scores.commercial_fit,
-    informationFunnelScore: scoring.scores.information_funnel_evidence,
-    conversionIntentScore: scoring.scores.conversion_intent,
-    snapshot: opts.snapshot,
-    extraction: opts.extraction,
+    totalIcpScore: scoring.scores.total_icp_score,
     scorecard,
     challengerAgrees: opts.challengerAgrees,
-    followerFlag,
     reasons,
   });
 
@@ -130,6 +158,7 @@ export function decideCommercialQualification(opts: DecideOptions): CommercialDe
     scorecard_version: SCORECARD_VERSION,
     config_version: CONFIG_VERSION,
     pipeline_version: PIPELINE_VERSION,
+    vision_prompt_version: VISION_PROMPT_VERSION,
   };
 
   return {
@@ -137,29 +166,31 @@ export function decideCommercialQualification(opts: DecideOptions): CommercialDe
     evidence_snapshot_id: opts.snapshot.snapshot_id,
     extraction_id: opts.extractionId ?? null,
 
+    qualification: routed.qualification,
+    icp_gates: icpGates,
+    icp_scores: scoring.scores,
+    icp_score_components: scoring.components,
+
     track: track.track,
     icp_eligible: hardGate.icp_eligible,
     hard_exclusion: hardGate.hard_exclusion,
-    rejection_reason: hardGate.rejection_reason,
+    rejection_reason: hardGate.rejection_reason ?? routed.rejectionReason,
 
     signal_states: coreGate.states,
     primary_visitor_outcome: opts.extraction.primary_visitor_outcome,
-
-    scores: scoring.scores,
-    score_components: scoring.components,
 
     certainty: certainty.certainty,
     challenger_agreement: opts.challengerAgrees,
     challenger_result: opts.challenger,
 
-    decision: decision.outcome,
-    mode: decision.mode,
-    automatic_approval_eligible: decision.autoApprove,
-    decision_reasons: dedupe(decision.reasons),
+    decision: routed.outcome,
+    mode: routed.mode,
+    automatic_approval_eligible: routed.autoApprove,
+    decision_reasons: dedupe(routed.reasons),
     review_flags: dedupe(flags),
 
     priority:
-      decision.outcome === "qualified" || decision.outcome === "review"
+      routed.outcome === "qualified" || routed.outcome === "review"
         ? computePriority(scoring.scores, opts.snapshot.activity, scorecard)
         : null,
     versions,
@@ -178,144 +209,165 @@ export function decideCommercialQualification(opts: DecideOptions): CommercialDe
   };
 }
 
+function followerGateConfig(range: FollowerRange | undefined): FollowerGateConfig {
+  return {
+    min: range?.min ?? DEFAULT_FOLLOWER_GATE.min,
+    max: range?.max ?? DEFAULT_FOLLOWER_GATE.max,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Routing
 // ---------------------------------------------------------------------------
 
 function route(args: {
-  track: ReturnType<typeof classifyTrack>;
+  snapshot: EvidenceSnapshot;
   hardGate: ReturnType<typeof applyHardBusinessModelGate>;
-  coreGate: ReturnType<typeof applyCoreGate>;
+  icpGates: ReturnType<typeof applyIcpGates>;
+  coreGate: CoreGateResult;
   certainty: Certainty;
   /** Evidence is complete enough to reject without a human — see deriveRejectionConfidence. */
   canAutoReject: boolean;
-  commercialFit: number;
-  informationFunnelScore: number;
-  conversionIntentScore: number;
-  snapshot: EvidenceSnapshot;
-  extraction: CommercialExtraction;
+  totalIcpScore: number;
   scorecard: Scorecard;
   challengerAgrees: boolean | null;
-  followerFlag: boolean;
   reasons: DecisionReasonCode[];
 }): {
   outcome: DecisionOutcome;
   mode: DecisionMode;
   autoApprove: boolean;
+  /** Undefined only for data_retry — a lead we never actually got to judge has no tier. */
+  qualification: IcpQualificationTier | undefined;
+  rejectionReason: DecisionReasonCode | null;
   reasons: DecisionReasonCode[];
 } {
   const reasons = args.reasons;
-  const thresholds = args.scorecard.thresholds;
 
-  // ---- 1. Hard business-model gate, before any score is consulted. ----
+  // ---- 1. Pre-existing hard business-model gate, before any score. ----
   if (args.hardGate.hard_exclusion) {
     reasons.push("primary_offer_done_for_you_service");
-    return { outcome: "rejected", mode: "hard_excluded", autoApprove: false, reasons };
-  }
-
-  // ---- 2. Data quality: unknown evidence is a retry, never a rejection. ----
-  if (args.snapshot.instagram.profile_capture_status !== "captured") {
-    reasons.push("profile_unavailable");
-    return { outcome: "data_retry", mode: "retry_required", autoApprove: false, reasons };
-  }
-  if (args.snapshot.activity.data_quality === "unreliable" && args.coreGate.unknown_signals.length > 0) {
-    reasons.push("unreliable_data", "core_signal_unknown");
-    return { outcome: "data_retry", mode: "retry_required", autoApprove: false, reasons };
-  }
-
-  // ---- 3. Core gate ----
-  if (!args.coreGate.passes) {
-    /*
-     * An unknown core signal means we could not see it, so the lead goes to a
-     * human rather than the bin. An absent core signal on a captured surface
-     * with a genuinely weak score is a real rejection.
-     */
-    if (args.coreGate.unknown_signals.length > 0) {
-      reasons.push("core_signal_unknown");
-      return { outcome: "review", mode: "manual_review", autoApprove: false, reasons };
-    }
-    reasons.push("missing_core_evidence");
-    if (args.commercialFit <= thresholds.rejected_max && args.canAutoReject) {
-      return { outcome: "rejected", mode: "hard_excluded", autoApprove: false, reasons };
-    }
-    return { outcome: "review", mode: "manual_review", autoApprove: false, reasons };
+    return finalize(args, "rejected", "hard_excluded", false, "REJECTED", "primary_offer_done_for_you_service", reasons);
   }
 
   /*
-   * ---- 4. Unresolved business model ----
-   * This must precede the track check. When the hard gate grants the
-   * independent-information-funnel exception, the deterministic track still
-   * reads `agency_service` from the primary visitor outcome — letting the track
-   * check run first would auto-reject exactly the agency owner the exception
-   * exists to protect. An unresolved model is a question for a human.
+   * ---- 2. Data quality: unknown evidence is a retry, never a rejection. ----
+   * Must run before the PDF gates — evaluating Gate 1 (follower count) or any
+   * other gate against a profile that was never actually captured would
+   * misreport "unknown" as a considered judgment rather than a failed fetch.
    */
+  if (args.snapshot.instagram.profile_capture_status !== "captured") {
+    reasons.push("profile_unavailable");
+    return dataRetry(reasons);
+  }
+  if (
+    args.snapshot.activity.data_quality === "unreliable" &&
+    args.coreGate.unknown_signals.length > 0
+  ) {
+    reasons.push("unreliable_data", "core_signal_unknown");
+    return dataRetry(reasons);
+  }
+
+  // ---- 3. The PDF's four gates. ----
+  if (args.icpGates.outcome === "reject") {
+    reasons.push(args.icpGates.rejection_reason as DecisionReasonCode);
+    if (args.canAutoReject) {
+      return finalize(args, "rejected", "hard_excluded", false, "REJECTED", args.icpGates.rejection_reason, reasons);
+    }
+    // Not confident enough to execute the rejection automatically — the
+    // literal tier is still REJECTED, a human just has to pull the trigger.
+    return finalize(args, "review", "manual_review", false, "REJECTED", args.icpGates.rejection_reason, reasons);
+  }
+  if (args.icpGates.outcome === "manual_review") {
+    reasons.push(...args.icpGates.review_reasons);
+    return finalize(args, "review", "manual_review", false, "MANUAL_REVIEW", null, reasons);
+  }
+
+  /*
+   * ---- 4. Unknown information_funnel or CTA signal. ----
+   * None of the PDF's four gates check these two signals directly — Gate 2
+   * already folds human_personal_brand's own unknown case into "uncertain",
+   * but information_funnel and cta have no PDF-gate equivalent at all. This
+   * pipeline's core safety invariant is that an unseen surface must never be
+   * treated as though it were fine (see certainty.ts, eligibility.ts) —
+   * without this check a profile whose funnel or CTA was simply never
+   * captured would fall straight through to scoring and could score high
+   * enough to qualify on facts nobody actually saw.
+   */
+  const unseenCoreSignals = args.coreGate.unknown_signals.filter(
+    (signal) => signal === "information_funnel" || signal === "cta",
+  );
+  if (unseenCoreSignals.length > 0) {
+    reasons.push("core_signal_unknown");
+    return finalize(args, "review", "manual_review", false, "MANUAL_REVIEW", null, reasons);
+  }
+
+  // ---- 5. Unresolved business model (pre-existing hard gate's mixed case). ----
   if (args.hardGate.needs_review) {
     reasons.push("agency_information_mixed");
-    return { outcome: "review", mode: "manual_review", autoApprove: false, reasons };
+    return finalize(args, "review", "manual_review", false, "MANUAL_REVIEW", null, reasons);
   }
 
-  // ---- 5. Track eligibility ----
-  if (args.track.track === "uncertain") {
-    reasons.push("uncertain_track");
-    return { outcome: "review", mode: "manual_review", autoApprove: false, reasons };
-  }
-  if (args.track.track !== "information_personal_brand") {
-    reasons.push("excluded_track");
-    /*
-     * Rejecting an off-ICP track needs only that we saw the profile clearly and
-     * resolved the business model — not the full approval bar. Gating this on
-     * `certainty === "high"` sent 44 streetwear brands to manual review.
-     */
+  // ---- 6. Score band ----
+  const tier = tierFromScore(args.totalIcpScore, args.scorecard);
+
+  if (tier === "REJECTED") {
+    reasons.push("icp_score_below_threshold");
     if (args.canAutoReject) {
-      return { outcome: "rejected", mode: "hard_excluded", autoApprove: false, reasons };
+      return finalize(args, "rejected", "hard_excluded", false, tier, "icp_score_below_threshold", reasons);
     }
-    return { outcome: "review", mode: "manual_review", autoApprove: false, reasons };
+    return finalize(args, "review", "manual_review", false, tier, "icp_score_below_threshold", reasons);
   }
-  reasons.push("information_personal_brand");
-
-  // ---- 6. Score bands ----
-  if (args.commercialFit <= thresholds.rejected_max) {
-    reasons.push("score_below_threshold");
-    if (args.canAutoReject) {
-      return { outcome: "rejected", mode: "hard_excluded", autoApprove: false, reasons };
-    }
-    return { outcome: "review", mode: "manual_review", autoApprove: false, reasons };
-  }
-  if (args.commercialFit < thresholds.qualified_min) {
-    reasons.push("score_in_review_band");
-    return { outcome: "review", mode: "manual_review", autoApprove: false, reasons };
+  if (tier === "MANUAL_REVIEW") {
+    reasons.push("icp_score_review_band");
+    return finalize(args, "review", "manual_review", false, tier, null, reasons);
   }
 
-  reasons.push("core_gate_passes");
+  reasons.push("information_personal_brand", "core_gate_passes");
+  if (tier === "QUALIFIED_HIGH_PRIORITY") reasons.push("icp_score_high_priority");
 
-  // ---- 7. Automatic approval ----
+  // ---- 7. Automatic approval — QUALIFIED_HIGH_PRIORITY only. ----
   const autoBlockers: DecisionReasonCode[] = [];
+  if (tier !== "QUALIFIED_HIGH_PRIORITY") autoBlockers.push("score_in_review_band");
   if (args.certainty !== "high") autoBlockers.push("acquisition_insufficient");
-  if (args.informationFunnelScore < thresholds.min_information_funnel) {
-    autoBlockers.push("missing_core_evidence");
-  }
-  if (args.conversionIntentScore < thresholds.min_conversion_intent) {
-    autoBlockers.push("missing_core_evidence");
-  }
   if (args.challengerAgrees === false) autoBlockers.push("challenger_disagreement");
-  if (args.followerFlag) autoBlockers.push("follower_range");
 
   if (autoBlockers.length > 0) {
     reasons.push(...autoBlockers);
-    return { outcome: "qualified", mode: "manual_review", autoApprove: false, reasons };
+    return finalize(args, "qualified", "manual_review", false, tier, null, reasons);
   }
 
-  return { outcome: "qualified", mode: "auto_approved", autoApprove: true, reasons };
+  return finalize(args, "qualified", "auto_approved", true, tier, null, reasons);
 }
 
-function isOutsideFollowerRange(
-  followers: number | null,
-  range: FollowerRange | undefined,
-): boolean {
-  if (!range || followers === null) return false;
-  if (range.min !== null && followers < range.min) return true;
-  if (range.max !== null && followers > range.max) return true;
-  return false;
+function finalize(
+  _args: unknown,
+  outcome: DecisionOutcome,
+  mode: DecisionMode,
+  autoApprove: boolean,
+  qualification: IcpQualificationTier,
+  rejectionReason: DecisionReasonCode | null,
+  reasons: DecisionReasonCode[],
+) {
+  return { outcome, mode, autoApprove, qualification, rejectionReason, reasons };
+}
+
+function dataRetry(reasons: DecisionReasonCode[]) {
+  return {
+    outcome: "data_retry" as const,
+    mode: "retry_required" as const,
+    autoApprove: false,
+    qualification: undefined,
+    rejectionReason: null,
+    reasons,
+  };
+}
+
+function tierFromScore(total: number, scorecard: Scorecard): IcpQualificationTier {
+  const t = scorecard.thresholds;
+  if (total >= t.qualified_high_priority_min) return "QUALIFIED_HIGH_PRIORITY";
+  if (total >= t.qualified_min) return "QUALIFIED";
+  if (total >= t.manual_review_min) return "MANUAL_REVIEW";
+  return "REJECTED";
 }
 
 function dedupe<T>(values: T[]): T[] {

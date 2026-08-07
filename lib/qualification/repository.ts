@@ -24,7 +24,13 @@ export type ApprovalSource = "automatic" | "manual";
 
 export type LeadQualificationProjection = {
   qualification_state: QualificationState;
-  qualification_outcome: CommercialDecision["decision"] | null;
+  /*
+   * The PDF's literal tier (QUALIFIED_HIGH_PRIORITY/QUALIFIED/MANUAL_REVIEW/
+   * REJECTED) on decisions made from this scorecard version onward; falls
+   * back to the older decision.decision string only for decisions that
+   * predate `qualification` — see projectQualificationToLead.
+   */
+  qualification_outcome: string | null;
   qualification_decision_id: string | null;
   qualification_ready_at: string | null;
   qualification_review_reason: string | null;
@@ -127,6 +133,8 @@ export async function createDecision(opts: {
       hard_exclusion: decision.hard_exclusion,
       rejection_reason: decision.rejection_reason,
       commercial_fit: decision.scores?.commercial_fit ?? null,
+      qualification: decision.qualification ?? null,
+      total_icp_score: decision.icp_scores?.total_icp_score ?? null,
       certainty: decision.certainty,
       challenger_agreement: decision.challenger_agreement,
       decision: decision.decision,
@@ -274,7 +282,7 @@ async function projectQualificationToLead(opts: {
     .update({
       status: operationalStatusForDecision(decision.decision),
       qualification_state: "done",
-      qualification_outcome: decision.decision,
+      qualification_outcome: decision.qualification ?? decision.decision,
       qualification_decision_id: opts.decisionId,
       qualification_ready_at: decision.decided_at,
       qualification_review_reason:

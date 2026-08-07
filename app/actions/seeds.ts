@@ -124,7 +124,7 @@ export async function checkFollowingCount(id: string): Promise<{ ok: true; follo
   return { ok: true, following_count: followingCount };
 }
 
-export type ScrapeProvider = "auto" | "playwright" | "cookie" | "apify" | "scrapingbee" | "colddms" | "hikerapi";
+export type ScrapeProvider = "auto" | "playwright" | "cookie" | "apify" | "colddms" | "hikerapi";
 
 export async function addSeedsBulk(usernames: string[]): Promise<{ added: number; skipped: number; error?: string }> {
   await requireUser();
@@ -223,7 +223,6 @@ export async function startCrawl(
   const provider = providerOverride ?? settings.following_scraper_provider;
 
   const apifyOk = !!(settings.apify_api_key || process.env.APIFY_TOKEN);
-  const sbOk = !!(settings.scrapingbee_api_key || process.env.SCRAPINGBEE_API_KEY);
   const hikerapiOk = !!(settings.hikerapi_api_key || process.env.HIKERAPI_KEY);
   const cookieOk = !!(
     (settings.instagram_session_cookies ?? []).length > 0 ||
@@ -233,8 +232,6 @@ export async function startCrawl(
 
   if (provider === "apify" && !apifyOk)
     return { error: "Apify selected but no Apify API key is set." };
-  if (provider === "scrapingbee" && !(sbOk && cookieOk))
-    return { error: "ScrapingBee selected but missing API key or Instagram cookie." };
   if (provider === "cookie" && !cookieOk)
     return { error: "Cookie/proxy selected but no Instagram session cookie configured." };
   if (provider === "colddms" && !(settings.colddms_email && settings.colddms_password))

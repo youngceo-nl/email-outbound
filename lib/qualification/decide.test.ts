@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { decideCommercialQualification } from "./decide";
 import { classifyTrack } from "./classify-track";
 import { applyCoreGate, applyHardBusinessModelGate } from "./eligibility";
-import { scoreCommercialFit } from "./score";
+import { scoreIcpFit } from "./icp-score";
 import { computePriority } from "./priority";
 import { findMaterialDisagreements, challengerTrigger } from "./challenger";
 import type {
@@ -65,6 +65,19 @@ function snapshot(overrides: Partial<EvidenceSnapshot> = {}): EvidenceSnapshot {
     acquisition_sufficiency: "sufficient",
     unknown_surfaces: [],
     hops_used: 1,
+    /*
+     * Four present signals -> funnel_maturity dimension scores 2/2 by
+     * default, so the shared "clear ICP case" fixture can reach
+     * QUALIFIED_HIGH_PRIORITY (10/12) even with proof at 0 — see "missing
+     * proof alone does not block automatic qualification" below, which
+     * depends on every OTHER dimension being maxed to make that point.
+     */
+    funnel_maturity_signals: [
+      { kind: "name_field_positioning", present: true, evidence: cite() },
+      { kind: "bio_promise", present: true, evidence: cite() },
+      { kind: "application_funnel", present: true, evidence: cite() },
+      { kind: "offer_highlight", present: true, evidence: cite() },
+    ],
     activity: {
       data_quality: "complete",
       median_unpinned_reel_views: 5000,
@@ -84,6 +97,7 @@ function extraction(overrides: Partial<CommercialExtraction> = {}): CommercialEx
     extraction_prompt_version: "personal-brand-evidence-v1",
     evidence_snapshot_id: "snap_1",
     human_personal_brand: { state: "present", strength: "strong", evidence: cite() },
+    coach_or_consultant: { state: "present", strength: "strong", evidence: cite() },
     audience: { label: "explicit", value: "consultants", evidence: cite() },
     transformation: {
       state: "present",
@@ -129,6 +143,8 @@ function extraction(overrides: Partial<CommercialExtraction> = {}): CommercialEx
         customer_implementation_role: "implements_with_guidance",
         price: null,
         cta: "apply",
+        is_paid: "paid",
+        active_status: "active",
         evidence: cite(),
       },
     ],
@@ -198,19 +214,12 @@ test("a clear personal-brand information seller auto-approves without review", (
   assert.equal(decision.decision, "qualified");
   assert.equal(decision.mode, "auto_approved");
   assert.equal(decision.certainty, "high");
-  assert.ok(decision.scores.commercial_fit >= 8);
+  assert.equal(decision.qualification, "QUALIFIED_HIGH_PRIORITY");
+  assert.ok((decision.icp_scores?.total_icp_score ?? 0) >= 10);
 });
 
-test("reproduces the specification's worked score example", () => {
-  // buyer 2 + transformation 2 + funnel 1.5 + conversion 2 + authority 0.75 = 8.25
-  const result = scoreCommercialFit(extraction(), snapshot());
-  assert.equal(result.scores.buyer_clarity, 2);
-  assert.equal(result.scores.transformation_clarity, 2);
-  assert.equal(result.scores.information_funnel_evidence, 1.5);
-  assert.equal(result.scores.conversion_intent, 2);
-  assert.equal(result.scores.proof_maturity, 0.75);
-  assert.equal(result.scores.commercial_fit, 8.25);
-});
+// The worked score example now lives in icp-score.test.ts, against the
+// PDF's actual 0/1/2 six-dimension scorer.
 
 test("missing proof alone does not block automatic qualification", () => {
   const decision = decide(
@@ -279,7 +288,7 @@ test("a reliable done-for-you agency is rejected even at a perfect score", () =>
   assert.equal(decision.rejection_reason, "primary_offer_done_for_you_service");
   assert.equal(decision.automatic_approval_eligible, false);
   // The score is preserved for analysis even though it can never restore eligibility.
-  assert.ok(decision.scores.commercial_fit > 8);
+  assert.ok((decision.icp_scores?.total_icp_score ?? 0) >= 10);
 });
 
 test("the isolated word agency never triggers the hard gate", () => {
@@ -371,6 +380,8 @@ test("an agency owner with a verified independent information funnel goes to rev
         customer_implementation_role: "self_implemented",
         price: "$997",
         cta: "enroll now",
+        is_paid: "paid",
+        active_status: "active",
         evidence: cite(),
       },
     ],
@@ -530,7 +541,7 @@ test("missing activity metrics lower confidence in priority, not the score", () 
     days_since_latest_post: null,
     median_likes_per_follower: null,
   };
-  const scores = scoreCommercialFit(extraction(), snapshot()).scores;
+  const scores = scoreIcpFit(extraction(), snapshot()).scores;
   const priority = computePriority(scores, unknownActivity);
 
   assert.equal(priority.data_completeness, "unknown");
@@ -697,7 +708,7 @@ test("an off-ICP profile that was fully captured is auto-rejected without the ch
   assert.equal(
     decision.decision,
     "rejected",
-    `got ${decision.decision}; track=${decision.track} fit=${decision.scores.commercial_fit} reasons=${JSON.stringify(decision.decision_reasons)}`,
+    `got ${decision.decision}; track=${decision.track} icp_score=${decision.icp_scores?.total_icp_score} reasons=${JSON.stringify(decision.decision_reasons)}`,
   );
   assert.notEqual(decision.certainty, "high", "rejection must not depend on reaching high certainty");
 });

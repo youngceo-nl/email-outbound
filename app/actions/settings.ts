@@ -30,7 +30,6 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
     claude_model: String(formData.get("claude_model") ?? prev.claude_model),
     report_model: String(formData.get("report_model") ?? prev.report_model),
     report_strategy_notes: String(formData.get("report_strategy_notes") ?? "") || null,
-    scrapingbee_api_key: String(formData.get("scrapingbee_api_key") ?? "") || null,
     hikerapi_api_key: String(formData.get("hikerapi_api_key") ?? "") || null,
     max_profiles_per_account: num(formData.get("max_profiles_per_account"), prev.max_profiles_per_account),
     crawl_score_threshold: num(formData.get("crawl_score_threshold"), prev.crawl_score_threshold),
@@ -44,7 +43,7 @@ export async function saveSettings(prev: AppSettings, formData: FormData) {
       const raw = formData.get("following_scraper_provider");
       if (raw == null) return prev.following_scraper_provider; // field not in form — keep DB value
       const v = String(raw);
-      return (["playwright", "apify", "scrapingbee", "cookie", "auto", "colddms", "hikerapi"] as const).includes(v as never) ? (v as "playwright" | "apify" | "scrapingbee" | "cookie" | "auto" | "colddms" | "hikerapi") : "auto";
+      return (["playwright", "apify", "cookie", "auto", "colddms", "hikerapi"] as const).includes(v as never) ? (v as "playwright" | "apify" | "cookie" | "auto" | "colddms" | "hikerapi") : "auto";
     })(),
     instagram_session_cookie: String(formData.get("instagram_session_cookie") ?? "") || null,
     colddms_email: String(formData.get("colddms_email") ?? "") || null,
@@ -103,11 +102,10 @@ export async function removeBurnerCookie(index: number) {
 }
 
 const KEY_FIELD: Record<string, keyof AppSettings> = {
-  scrapingbee: "scrapingbee_api_keys",
-  apify:       "apify_api_keys",
+  apify: "apify_api_keys",
 };
 
-export async function addEmailProviderKey(provider: "scrapingbee" | "apify", key: string) {
+export async function addEmailProviderKey(provider: "apify", key: string) {
   await requireUser();
   const settings = await getSettings(true);
   const trimmed = key.trim();
@@ -120,7 +118,7 @@ export async function addEmailProviderKey(provider: "scrapingbee" | "apify", key
   return { ok: true };
 }
 
-export async function removeEmailProviderKey(provider: "scrapingbee" | "apify", index: number) {
+export async function removeEmailProviderKey(provider: "apify", index: number) {
   await requireUser();
   const settings = await getSettings(true);
   const field = KEY_FIELD[provider];
@@ -474,7 +472,7 @@ function emailKeyStatusId(provider: string, key: string) {
   return `${provider}:${key.slice(-12)}`;
 }
 
-async function probeKey(provider: "apify" | "scrapingbee", key: string): Promise<import("@/lib/types").EmailKeyStatus> {
+async function probeKey(provider: "apify", key: string): Promise<import("@/lib/types").EmailKeyStatus> {
   const now = new Date().toISOString();
   try {
     if (provider === "apify") {
@@ -485,21 +483,6 @@ async function probeKey(provider: "apify" | "scrapingbee", key: string): Promise
       if (!res.ok) return { status: "ok", checkedAt: now };
       return { status: "ok", checkedAt: now };
     }
-
-    if (provider === "scrapingbee") {
-      // ScrapingBee has no lightweight status endpoint; validate by fetching usage
-      const res = await fetch(`https://app.scrapingbee.com/api/v1/usage?api_key=${encodeURIComponent(key)}`, {
-        signal: AbortSignal.timeout(8000),
-      });
-      if (res.status === 401 || res.status === 403) return { status: "invalid", checkedAt: now };
-      if (!res.ok) return { status: "ok", checkedAt: now };
-      const body = await res.json() as { max_api_credit?: number; used_api_credit?: number };
-      const remaining = body.max_api_credit != null && body.used_api_credit != null
-        ? body.max_api_credit - body.used_api_credit
-        : null;
-      if (remaining !== null && remaining <= 0) return { status: "exhausted", credits: 0, checkedAt: now };
-      return { status: "ok", credits: remaining ?? undefined, checkedAt: now };
-    }
   } catch {
     // network error — don't clobber existing status
   }
@@ -507,7 +490,7 @@ async function probeKey(provider: "apify" | "scrapingbee", key: string): Promise
 }
 
 export async function checkEmailProviderKey(
-  provider: "apify" | "scrapingbee",
+  provider: "apify",
   rawKey: string,
 ): Promise<import("@/lib/types").EmailKeyStatus> {
   await requireUser();

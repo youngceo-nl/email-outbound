@@ -1,5 +1,5 @@
 import { inngest } from "@/inngest/client";
-import { getSettings } from "@/lib/config/settings";
+import { getSettings, resolveOpenRouterKey } from "@/lib/config/settings";
 import { logCrawl, logError } from "@/lib/pipeline/persist";
 import { createLlmClient } from "@/lib/qualification/providers";
 import { advanceRunLead, saveQualificationRun } from "@/lib/qualification/repository";
@@ -7,7 +7,16 @@ import { runCommercialQualification } from "@/lib/qualification/run";
 import type { EvidenceSnapshot } from "@/lib/qualification/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const EXTRACTOR_MODEL = "claude-haiku-4-5";
+/*
+ * Extractor moved from Claude Haiku 4.5 to gemini-2.5-flash via OpenRouter on
+ * 2026-08-07 — benchmarked against Haiku on 5 anchor leads (0 mismatches, same
+ * qualification tier on all 5) then validated on 30 fresh leads (0 errors,
+ * human-reviewed), at ~1/3 the per-lead cost. See docs/testruns/ai-optimization.md.
+ * Challenger stays on Anthropic — separate, currently-disabled system, not part
+ * of this change.
+ */
+const EXTRACTOR_PROVIDER = "openrouter";
+const EXTRACTOR_MODEL = "google/gemini-2.5-flash";
 const CHALLENGER_MODEL = "claude-opus-5";
 
 export const qualifyLead = inngest.createFunction(
@@ -21,8 +30,9 @@ export const qualifyLead = inngest.createFunction(
   async ({ event, step }) => {
     const { lead_id, evidence_snapshot_id, crawl_job_id = null, run_id = null } = event.data;
     const settings = await step.run("load-settings", () => getSettings(true));
-    const apiKey = settings.claude_api_key ?? process.env.ANTHROPIC_API_KEY ?? null;
-    if (!apiKey) throw new Error("Anthropic API key is required for canonical qualification");
+    const extractorApiKey = resolveOpenRouterKey(settings);
+    const challengerApiKey = settings.claude_api_key ?? process.env.ANTHROPIC_API_KEY ?? null;
+    if (!challengerApiKey) throw new Error("Anthropic API key is required for the challenger pass");
 
     const snapshot = await step.run("load-evidence-snapshot", async () => {
       const sb = createAdminClient();
@@ -56,8 +66,12 @@ export const qualifyLead = inngest.createFunction(
           instagram: snapshot.instagram,
           precollectedSnapshot: snapshot,
           leadId: lead_id,
-          llm: createLlmClient({ provider: "anthropic", model: EXTRACTOR_MODEL, apiKey }),
-          challengerLlm: createLlmClient({ provider: "anthropic", model: CHALLENGER_MODEL, apiKey }),
+          llm: createLlmClient({ provider: EXTRACTOR_PROVIDER, model: EXTRACTOR_MODEL, apiKey: extractorApiKey }),
+          challengerLlm: createLlmClient({
+            provider: "anthropic",
+            model: CHALLENGER_MODEL,
+            apiKey: challengerApiKey,
+          }),
         }),
       );
     } catch (error) {
@@ -108,7 +122,9 @@ export const qualifyLead = inngest.createFunction(
         mode: result.decision.mode,
         track: result.decision.track,
         certainty: result.decision.certainty,
-        commercial_fit: result.decision.scores?.commercial_fit ?? null,
+        // Column name predates the PDF's 12-point scorer; still the run
+        // tracker's "headline score" slot, just fed by total_icp_score now.
+        commercial_fit: result.decision.icp_scores?.total_icp_score ?? null,
         extraction_ok: result.extraction?.ok ?? null,
         extraction_model: result.extraction?.model ?? null,
         extraction_input_tokens: result.extraction?.usage.inputTokens ?? null,
@@ -141,7 +157,7 @@ export const qualifyLead = inngest.createFunction(
         depth: 0,
         status: "success",
         detail:
-          `score=${result.decision.scores.commercial_fit} certainty=${result.decision.certainty} ` +
+          `score=${result.decision.icp_scores?.total_icp_score ?? "n/a"} qualification=${result.decision.qualification ?? "n/a"} certainty=${result.decision.certainty} ` +
           `reasons=${result.decision.decision_reasons.join(",")} ` +
           `pipeline=${result.decision.versions.pipeline_version}`,
       }),
@@ -149,7 +165,7 @@ export const qualifyLead = inngest.createFunction(
 
     return {
       status: result.decision.decision,
-      score: result.decision.scores.commercial_fit,
+      score: result.decision.icp_scores?.total_icp_score ?? null,
       certainty: result.decision.certainty,
       snapshot_id: evidence_snapshot_id,
     };
