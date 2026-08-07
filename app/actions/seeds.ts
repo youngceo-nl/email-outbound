@@ -100,7 +100,9 @@ export async function unmarkBadSeed(username: string) {
 export async function checkFollowingCount(
   id: string,
   providerOverride?: ScrapeProvider,
-): Promise<{ ok: true; following_count: number } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; following_count: number; partial: boolean } | { ok: false; error: string }
+> {
   await requireUser();
   const sb = createAdminClient();
   const { data: seed } = await sb.from("seeds").select("id, username").eq("id", id).single();
@@ -139,22 +141,17 @@ export async function checkFollowingCount(
   const followingCount = result.items.length;
 
   /*
-   * A returned cursor means the provider handed back one page, not the whole
-   * list — the cookie path pages 50 at a time and relies on crawl-seed.ts to
-   * loop, which this one-shot call does not do. Storing that number would
-   * report a 3,000-following account as "50 following — that's the scrape
-   * size", so it is refused rather than written.
+   * A returned cursor means the provider handed back a page rather than the
+   * whole list (the cookie path pages and relies on crawl-seed.ts to loop),
+   * so this is a floor, not the real total. It is still worth storing and
+   * showing — the alternative is no number at all — but it is reported as
+   * `partial` so the UI can say "1,000+" instead of asserting a number that
+   * understates the scrape. The crawl itself overwrites this with the true
+   * total when it finishes (crawl-seed.ts's set-counters step).
    */
-  if (result.nextCursor) {
-    return {
-      ok: false,
-      error: `${result.provider} returned a partial list (${followingCount}+ so far) — it pages through the list rather than fetching it at once. Use Apify for an exact size, or just start the search.`,
-    };
-  }
-
   await sb.from("seeds").update({ following_count: followingCount }).eq("id", id);
   revalidatePath("/seeds");
-  return { ok: true, following_count: followingCount };
+  return { ok: true, following_count: followingCount, partial: !!result.nextCursor };
 }
 
 export type ScrapeProvider = "auto" | "playwright" | "cookie" | "apify" | "colddms" | "hikerapi";

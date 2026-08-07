@@ -31,6 +31,33 @@ const PLAYWRIGHT_TIMEOUT_MS = 5 * 60 * 1000;
 // in testing.
 const COLDDMS_TIMEOUT_MS = 25 * 60 * 1000;
 
+/*
+ * "This provider cannot serve any request right now" — a billing/quota state,
+ * not an answer about the account being scraped. Every phrase here comes from
+ * a real failure observed on 2026-08-07: Apify's account-level monthly cap
+ * ("Monthly usage hard limit exceeded"), the following actor's own free-tier
+ * daily cap reported inside a 200 OK ("FREE_API_DAILY_LIMIT_REACHED", surfaced
+ * by lib/apify/client.ts as "reported quota exhaustion for this token"), and
+ * HikerAPI's empty balance ("402 Payment Required"). Matching is deliberately
+ * broad: treating a real error as unavailable only costs a wasted fallback
+ * attempt, while missing one strands the operator with no list at all.
+ */
+function isProviderUnavailable(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("quota") ||
+    m.includes("usage hard limit") ||
+    m.includes("limit exceeded") ||
+    m.includes("limit reached") ||
+    m.includes("exhausted") ||
+    m.includes("insufficient") ||
+    m.includes("payment required") ||
+    m.includes("balance") ||
+    m.includes("no apify token") ||
+    m.includes("platform-feature-disabled")
+  );
+}
+
 export type FollowingResult = {
   items: DiscoveredFollowing[];
   /** The provider that actually produced these items — never what was requested. */
@@ -203,27 +230,25 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
   const requested: FollowingProvider | "auto" =
     configured === "auto" || configured in runners ? (configured as FollowingProvider | "auto") : "apify";
 
-  if (requested !== "auto") {
-    try {
-      return await runners[requested]();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await logError({
-        context: `scrape.following.${requested}`,
-        error_message: msg,
-        payload: { username, provider: requested },
-        crawl_job_id: opts.crawl_job_id ?? null,
-      });
-      // No silent downgrade: the caller asked for this provider specifically.
-      throw new Error(`${requested} following scrape failed for @${username}: ${msg}`);
-    }
-  }
-
-  // auto — apify first, then the cookie-based paths, recording every downgrade.
-  const chain: FollowingProvider[] = ["apify", "playwright", "cookie"];
+  const AUTO_CHAIN: FollowingProvider[] = ["apify", "playwright", "cookie"];
   const fellBackFrom: { provider: FollowingProvider; reason: string }[] = [];
 
-  for (const provider of chain) {
+  /*
+   * An explicitly requested provider is tried first and its real failures
+   * still surface as its own error — a scrape must never quietly become a
+   * different provider's result when the caller asked for one specifically.
+   *
+   * The exception is a provider that is merely UNAVAILABLE: out of monthly
+   * quota, out of daily quota, or out of account balance. That says nothing
+   * about the request and leaves the operator with an error instead of the
+   * list they asked for, while a perfectly good provider sits unused. Those
+   * fall through to the rest of the chain, and every downgrade is recorded in
+   * fellBackFrom and logged, so it is visible rather than silent.
+   */
+  const chain: FollowingProvider[] =
+    requested === "auto" ? AUTO_CHAIN : [requested, ...AUTO_CHAIN.filter((p) => p !== requested)];
+
+  for (const [index, provider] of chain.entries()) {
     try {
       const result = await runners[provider]();
       if (fellBackFrom.length) {
@@ -239,6 +264,20 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
       return { ...result, fellBackFrom: fellBackFrom.length ? fellBackFrom : undefined };
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
+      /*
+       * A named provider failing for a real reason (bad cookie, blocked
+       * account, actor error) is that provider's answer and is reported as
+       * such — only unavailability is worth trying someone else for.
+       */
+      if (requested !== "auto" && index === 0 && !isProviderUnavailable(reason)) {
+        await logError({
+          context: `scrape.following.${provider}`,
+          error_message: reason,
+          payload: { username, provider },
+          crawl_job_id: opts.crawl_job_id ?? null,
+        });
+        throw new Error(`${provider} following scrape failed for @${username}: ${reason}`);
+      }
       fellBackFrom.push({ provider, reason });
       await logError({
         context: `scrape.following.${provider}`,
