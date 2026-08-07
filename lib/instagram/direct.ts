@@ -401,6 +401,52 @@ const BACKOFF_MIN_MS = 35_000;
 const BACKOFF_MAX_MS = 90_000;
 const BACKOFF_MAX_RETRIES = 2;
 
+/*
+ * Fallback id lookup via Instagram's own search endpoint.
+ *
+ * `web_profile_info` currently 400s for a large class of accounts with
+ * "Asset asset://laser.provider/ig_business_category_subvertical has been
+ * deleted. You cannot use this schema" — a Meta-side breakage, not ours.
+ * Measured 2026-08-07: it reproduces on every cookie in the pool for
+ * @zackssiegel and @yoahkonar_ (both professional/business accounts) while a
+ * personal account (@cristiano) still returns 200, so it plausibly affects
+ * most of this pipeline's ICP rather than a stray profile.
+ *
+ * topsearch returns the same numeric pk and is unaffected. It is a *search*,
+ * so the result is only trusted on an exact case-insensitive username match —
+ * a fuzzy hit here would silently scrape a different account's following list,
+ * which is far worse than failing.
+ */
+async function resolveUserIdViaSearch(opts: {
+  username: string;
+  sessionCookie: string;
+  session: BrowserSession | null;
+}): Promise<string | null> {
+  const url = `https://www.instagram.com/api/v1/web/search/topsearch/?query=${encodeURIComponent(opts.username)}`;
+  const referer = `https://www.instagram.com/${encodeURIComponent(opts.username)}/`;
+
+  const res = await igFetch(url, {
+    headers: chromeHeaders(randomUA(), opts.sessionCookie, referer),
+    timeoutMs: 15_000,
+    session: opts.session,
+  });
+  if (res.status === 429) throw new InstagramDirectError("Rate-limited resolving user_id via search", 429, true);
+  if (res.status < 200 || res.status >= 300) return null;
+
+  try {
+    const parsed = JSON.parse(res.body) as {
+      users?: { user?: { pk?: string | number; username?: string } }[];
+    };
+    const wanted = opts.username.toLowerCase();
+    const hit = (parsed.users ?? [])
+      .map((entry) => entry.user)
+      .find((user) => user?.username?.toLowerCase() === wanted);
+    return hit?.pk != null ? String(hit.pk) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function resolveUserIdDirect(opts: {
   username: string;
   sessionCookie: string;
@@ -429,13 +475,20 @@ async function resolveUserIdDirect(opts: {
   if (res.status === 429) throw new InstagramDirectError("Rate-limited resolving user_id", 429, true);
   if (res.status === 401 || res.status === 403)
     throw new InstagramDirectError(`Cookie rejected resolving user_id (HTTP ${res.status})`, res.status, false);
+  // A 404 is a real "no such account" only from web_profile_info; every other
+  // non-2xx (notably the 400 schema breakage) is worth a second opinion.
   if (res.status === 404) return null;
-  try {
-    const j = JSON.parse(res.body);
-    return j?.data?.user?.id ? String(j.data.user.id) : null;
-  } catch {
-    return null;
+
+  if (res.status >= 200 && res.status < 300) {
+    try {
+      const parsed = JSON.parse(res.body);
+      if (parsed?.data?.user?.id) return String(parsed.data.user.id);
+    } catch {
+      // fall through to search
+    }
   }
+
+  return resolveUserIdViaSearch(opts);
 }
 
 export async function fetchFollowingDirect(opts: {
