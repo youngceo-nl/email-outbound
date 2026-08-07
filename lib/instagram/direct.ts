@@ -534,34 +534,22 @@ export async function fetchFollowingDirect(opts: {
   limit: number;
   startCursor?: string | null;
   proxyUrl?: string | null;
-  steel?: SteelConnectionOptions;
 }): Promise<{ items: DiscoveredFollowingDirect[]; nextCursor: string | null }> {
   /*
-   * A browser gives Chrome's real TLS fingerprint, so it is preferred — but it
-   * is not required. Instagram's private API answers a correctly-headered
-   * request over plain HTTPS too, which is exactly what the batch metadata path
-   * already relies on (see fetchProfileMetadataDirect's `session: null` note).
+   * No browser. This path used to drive a real Chrome for its TLS fingerprint,
+   * which was reasonable when that Chrome was local and free; it became the
+   * single least reliable part of the pipeline once it turned into a REMOTE
+   * Steel session. A paginated walk is the worst case for one: sessions died
+   * mid-walk and even on the very first request, and a full 3,000-account
+   * crawl would open ~60 of them at 5-15s of startup each.
    *
-   * That matters here because the browser is now a REMOTE Steel session, and a
-   * paginated scrape is where remote browsers are least reliable: a real crawl
-   * died on "Request context disposed" five pages in, and a full 3,000-account
-   * walk would otherwise open ~60 Steel sessions. So a browser that will not
-   * start, or dies mid-walk, degrades to proxied fetch instead of failing the
-   * scrape — the pages already collected are kept either way.
+   * Instagram's private API answers a correctly-headered request over plain
+   * proxied HTTPS - the batch metadata path already defaults to exactly that
+   * and documents it as "faster and more reliable". So the browser is gone
+   * from this path rather than wrapped in more retries: each request now goes
+   * out through the account's pinned proxy with Chrome's real headers.
    */
-  let session: BrowserSession | null = new BrowserSession();
-  try {
-    await session.init(opts.sessionCookie, opts.proxyUrl, opts.steel);
-  } catch {
-    await session.close().catch(() => {});
-    session = null;
-  }
-
-  try {
-    return await _fetchFollowingPages({ ...opts, session });
-  } finally {
-    await session?.close().catch(() => {});
-  }
+  return _fetchFollowingPages({ ...opts, session: null });
 }
 
 /** A dead remote browser — the request itself was never made, so it is safe to retry. */
