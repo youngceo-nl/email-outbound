@@ -126,7 +126,18 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
     const proxyUrl =
       entry.proxyUrl ?? settings.instagram_proxy_url ?? process.env.INSTAGRAM_PROXY_URL ?? null;
     const items = await Promise.race([
-      scrapeFollowingPlaywright({ username, cookie: entry.cookie, limit: bulkLimit, proxyUrl }),
+      scrapeFollowingPlaywright({
+        username,
+        cookie: entry.cookie,
+        limit: bulkLimit,
+        proxyUrl,
+        steel: {
+          steelApiKey: settings.steel_api_key,
+          steelBaseUrl: settings.steel_base_url,
+          cfAccessClientId: settings.steel_cf_client_id,
+          cfAccessClientSecret: settings.steel_cf_client_secret,
+        },
+      }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("Playwright timed out after 5 minutes")), PLAYWRIGHT_TIMEOUT_MS),
       ),

@@ -27,16 +27,74 @@ function parseCookies(raw: string) {
   });
 }
 
-export async function scrapeFollowingPlaywright(opts: {
-  username: string;
-  cookie: string;
-  limit?: number;
-  proxyUrl?: string | null;
-}): Promise<DiscoveredFollowing[]> {
-  const { username, cookie, limit = 1000, proxyUrl = null } = opts;
+const UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const VIEWPORT = { width: 1280, height: 900 };
 
-  // Dynamic import so Next.js never bundles Playwright into the client build.
+export type SteelConnection = {
+  steelApiKey?: string | null;
+  steelBaseUrl?: string | null;
+  cfAccessClientId?: string | null;
+  cfAccessClientSecret?: string | null;
+};
+
+/*
+ * A browser context, from Steel when one is configured and locally otherwise.
+ *
+ * Scrolling the following dialog is the cheapest way to walk a large list —
+ * Instagram paginates it for us and we harvest the responses, with no API
+ * quota and none of the per-run caps the Apify actor imposes. It only ever
+ * needed a browser to exist, which is the part that was missing: the deployed
+ * image (node:24-alpine) ships no Playwright binaries, so chromium.launch()
+ * threw there and on any dev machine that had not run `npx playwright
+ * install`. Steel is the browser this app already runs for acquisition.
+ */
+async function openContext(proxyUrl: string | null, steel?: SteelConnection) {
   const { chromium } = await import("@playwright/test");
+  const baseURL = steel?.steelBaseUrl?.trim() || process.env.STEEL_BASE_URL?.trim() || undefined;
+  const apiKey =
+    steel?.steelApiKey?.trim() || process.env.STEEL_API_KEY || (baseURL ? "self-hosted" : undefined);
+
+  if (baseURL || apiKey) {
+    const Steel = (await import("steel-sdk")).default;
+    const cfId = steel?.cfAccessClientId?.trim() || process.env.CF_ACCESS_CLIENT_ID?.trim() || null;
+    const cfSecret =
+      steel?.cfAccessClientSecret?.trim() || process.env.CF_ACCESS_CLIENT_SECRET?.trim() || null;
+    const cfHeaders: Record<string, string> =
+      cfId && cfSecret ? { "CF-Access-Client-Id": cfId, "CF-Access-Client-Secret": cfSecret } : {};
+
+    const client = new Steel({
+      steelAPIKey: apiKey ?? "self-hosted",
+      ...(baseURL ? { baseURL } : {}),
+      ...(Object.keys(cfHeaders).length > 0 ? { defaultHeaders: cfHeaders } : {}),
+    });
+    const session = await client.sessions.create({
+      dimensions: VIEWPORT,
+      userAgent: UA,
+      // Generous: a 3,000-account list is many scroll rounds at 2.5s each.
+      timeout: 15 * 60 * 1000,
+      blockAds: true,
+      ...(proxyUrl ? { proxyUrl: /^https?:\/\//i.test(proxyUrl) ? proxyUrl : `http://${proxyUrl}` } : {}),
+    });
+    let browser;
+    try {
+      browser = await chromium.connectOverCDP(
+        baseURL ? session.websocketUrl : `${session.websocketUrl}&apiKey=${apiKey}`,
+        Object.keys(cfHeaders).length > 0 ? { headers: cfHeaders } : undefined,
+      );
+    } catch (err) {
+      await client.sessions.release(session.id).catch(() => {});
+      throw err;
+    }
+    const ctx = browser.contexts()[0] ?? (await browser.newContext());
+    return {
+      ctx,
+      close: async () => {
+        await browser.close().catch(() => {});
+        await client.sessions.release(session.id).catch(() => {});
+      },
+    };
+  }
 
   const browser = await chromium.launch({
     headless: true,
@@ -52,16 +110,28 @@ export async function scrapeFollowingPlaywright(opts: {
     ],
     ...(proxyUrl ? { proxy: parseProxyUrl(proxyUrl) } : {}),
   });
+  const ctx = await browser.newContext({
+    userAgent: UA,
+    locale: "en-US",
+    timezoneId: "America/New_York",
+    viewport: VIEWPORT,
+    extraHTTPHeaders: { "Accept-Language": "en-US,en;q=0.9" },
+  });
+  return { ctx, close: async () => { await browser.close().catch(() => {}); } };
+}
+
+export async function scrapeFollowingPlaywright(opts: {
+  username: string;
+  cookie: string;
+  limit?: number;
+  proxyUrl?: string | null;
+  steel?: SteelConnection;
+}): Promise<DiscoveredFollowing[]> {
+  const { username, cookie, limit = 1000, proxyUrl = null } = opts;
+
+  const { ctx, close } = await openContext(proxyUrl, opts.steel);
 
   try {
-    const ctx = await browser.newContext({
-      userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-      locale: "en-US",
-      timezoneId: "America/New_York",
-      viewport: { width: 1280, height: 900 },
-      extraHTTPHeaders: { "Accept-Language": "en-US,en;q=0.9" },
-    });
 
     await ctx.addInitScript(() => {
       Object.defineProperty(navigator, "webdriver", { get: () => undefined });
@@ -280,6 +350,6 @@ export async function scrapeFollowingPlaywright(opts: {
 
     return collected.slice(0, limit);
   } finally {
-    await browser.close();
+    await close();
   }
 }
