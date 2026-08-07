@@ -61,7 +61,18 @@ export async function scrapeFollowingViaHikerApi(opts: {
   let pageId: string | undefined;
 
   while (out.length < opts.limit) {
-    const page = await hikerGet<{ response?: { users?: HikerUser[]; next_page_id?: string } }>({
+    const page = await hikerGet<{
+      /*
+       * The paging cursor is returned at the ROOT of the v2 response, NOT
+       * inside `response` — reading it from `response.next_page_id` (which
+       * never exists) made every following scrape stop after its first page
+       * of 25, and a 3,116-account crawl reported 25 results as a success.
+       * `response.next_max_id` carries the same value and is kept as a
+       * fallback in case the shape shifts back.
+       */
+      next_page_id?: string;
+      response?: { users?: HikerUser[]; next_max_id?: string; has_more?: boolean };
+    }>({
       apiKey: opts.apiKey,
       path: "/v2/user/following",
       params: { user_id: seed.pk, page_id: pageId },
@@ -81,8 +92,8 @@ export async function scrapeFollowingViaHikerApi(opts: {
       });
     }
 
-    pageId = page.response?.next_page_id;
-    if (!pageId) break;
+    pageId = page.next_page_id ?? page.response?.next_max_id;
+    if (!pageId || page.response?.has_more === false) break;
   }
 
   return out.slice(0, opts.limit);
