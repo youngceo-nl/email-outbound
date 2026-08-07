@@ -38,7 +38,24 @@ export const crawlSeed = inngest.createFunction(
 
     const apifyToken = resolveApifyTokens(settings);
 
-    let cursor: string | null = null;
+    /*
+     * Resume where the last run stopped. The Apify actor's free tier delivers
+     * ~1,000 results per account per day and hands back a continuation token
+     * (valid ~7 days) for the rest; without carrying that across runs, the
+     * next day restarts at the top and spends its whole allowance
+     * re-delivering accounts we already have. Quota is charged on delivery, so
+     * de-duplicating our side recovers nothing.
+     */
+    const { data: seedCursor } = await createAdminClient()
+      .from("seeds")
+      .select("following_cursor, following_cursor_expires_at")
+      .eq("id", seed_id)
+      .maybeSingle();
+    const cursorStillValid =
+      seedCursor?.following_cursor &&
+      (!seedCursor.following_cursor_expires_at ||
+        new Date(seedCursor.following_cursor_expires_at).getTime() > Date.now());
+    let cursor: string | null = cursorStillValid ? (seedCursor!.following_cursor as string) : null;
     let totalNew = 0;
     let totalScraped = 0;
     let pageIndex = 0;
@@ -137,6 +154,26 @@ export const crawlSeed = inngest.createFunction(
       const delaySecs = Math.floor(Math.random() * 3) + 2; // 2–4 s
       await step.sleep(`inter-page-sleep-${pageIndex}`, `${delaySecs}s`);
     }
+
+    /*
+     * Persist the leftover cursor (or clear it when the list is finished) so a
+     * later run picks up rather than restarting. Best-effort: failing to store
+     * a cursor must never fail an otherwise-good crawl.
+     */
+    await step.run("persist-following-cursor", async () => {
+      const sb = createAdminClient();
+      await sb
+        .from("seeds")
+        .update({
+          following_cursor: cursor,
+          // The actor's tokens expire in about a week; a stale one is refused
+          // above rather than spent on a run that cannot use it.
+          following_cursor_expires_at: cursor
+            ? new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString()
+            : null,
+        })
+        .eq("id", seed_id);
+    }).catch(() => {});
 
     await step.run("set-counters", async () => {
       const sb = createAdminClient();

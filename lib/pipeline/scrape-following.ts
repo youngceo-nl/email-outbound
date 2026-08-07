@@ -103,19 +103,22 @@ export async function scrapeFollowingDetailedWithFallback(opts: {
         "Apify is the configured following scraper but no Apify token is set — add APIFY_TOKEN to the environment or an Apify key in Settings.",
       );
     }
-    const { scrapeFollowingDetailed } = await import("@/lib/apify/actors");
-    const items = await scrapeFollowingDetailed({
+    const { scrapeFollowingPaged } = await import("@/lib/apify/actors");
+    const { items, nextContinuationToken } = await scrapeFollowingPaged({
       token: opts.apifyToken,
       username,
       limit: bulkLimit,
+      // Resume where a previous run stopped rather than re-delivering the same
+      // accounts — the free tier charges ~1,000 results/account/day on what it
+      // hands back, so restarting from the top burns a whole day for nothing.
+      startContinuationToken: opts.startCursor,
     });
     if (items.length === 0) {
       // A silent empty result is the failure mode that used to look like
       // success, so it is an error here rather than an empty page.
       throw new Error(`Apify returned 0 accounts for @${username} — check the actor and its input schema.`);
     }
-    // Apify handles its own pagination, so one call is the whole list.
-    return { items, provider: "apify", nextCursor: null };
+    return { items, provider: "apify", nextCursor: nextContinuationToken };
   };
 
   const tryPlaywright = async (): Promise<FollowingResult> => {

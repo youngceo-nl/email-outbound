@@ -49,10 +49,33 @@ export async function scrapeFollowingDetailed(opts: {
   token: string | string[];
   username: string;
   limit: number;
+  /** Resume a previous extraction instead of restarting it — see scrapeFollowingPaged. */
+  startContinuationToken?: string | null;
 }): Promise<DiscoveredFollowing[]> {
+  return (await scrapeFollowingPaged(opts)).items;
+}
+
+/**
+ * As scrapeFollowingDetailed, but also returns the actor's leftover
+ * continuation token so a caller can resume later.
+ *
+ * This matters because the actor's free tier delivers ~1,000 results per
+ * account per day. Without persisting the cursor, the next day's run restarts
+ * from the top and spends its entire allowance re-delivering accounts we
+ * already have — the quota is charged on what the actor DELIVERS, so
+ * de-duplicating on our side recovers nothing. The token is valid for about a
+ * week (`expiresAtUtc` in the actor's OUTPUT).
+ */
+export async function scrapeFollowingPaged(opts: {
+  token: string | string[];
+  username: string;
+  limit: number;
+  startContinuationToken?: string | null;
+}): Promise<{ items: DiscoveredFollowing[]; nextContinuationToken: string | null }> {
   const resultsLimit = Math.max(100, Math.min(500000, opts.limit));
   const items: AnyRec[] = [];
-  let continuationToken: string | undefined;
+  let continuationToken: string | undefined = opts.startContinuationToken ?? undefined;
+  let leftoverToken: string | null = null;
 
   for (let page = 0; page < MAX_CONTINUATION_PAGES; page++) {
     const input: AnyRec = {
@@ -83,8 +106,12 @@ export async function scrapeFollowingDetailed(opts: {
 
     const continuation = (output as AnyRec | null)?.continuations as AnyRec[] | undefined;
     const next = continuation?.[0];
-    if (!next?.hasNextPage || typeof next.nextContinuationToken !== "string") break;
+    if (!next?.hasNextPage || typeof next.nextContinuationToken !== "string") {
+      leftoverToken = null;
+      break;
+    }
     continuationToken = next.nextContinuationToken;
+    leftoverToken = next.nextContinuationToken;
   }
 
   const byUsername = new Map<string, DiscoveredFollowing>();
@@ -107,7 +134,7 @@ export async function scrapeFollowingDetailed(opts: {
       ig_user_id: str(it.id) ?? str(it.pk) ?? str(user?.id) ?? null,
     });
   }
-  return [...byUsername.values()];
+  return { items: [...byUsername.values()], nextContinuationToken: leftoverToken };
 }
 
 // Backwards-compat: just the usernames.
