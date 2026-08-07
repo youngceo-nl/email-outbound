@@ -131,12 +131,28 @@ export async function removeEmailProviderKey(provider: "apify", index: number) {
 
 // ── Instagram cookie validation ───────────────────────────────────────────────
 
+/*
+ * An account's `label` is its login identifier, and per ManagedAccount that is
+ * "Instagram username OR Google email" — but this probe reuses it as the
+ * PROFILE to fetch in order to prove the cookie works. An email produces
+ * `?username=someone@outlook.com`, Instagram returns no user, and a perfectly
+ * good cookie is reported invalid. Worse, testManagedAccountCookie reacts to
+ * that by triggering an automatic re-login, spending a login attempt and
+ * risking a checkpoint on a healthy session. Any label that cannot be a handle
+ * falls back to the default probe instead.
+ */
+function usableProbeHandle(label?: string): string {
+  const handle = label?.trim();
+  if (!handle || handle.includes("@") || !/^[A-Za-z0-9._]{1,30}$/.test(handle)) return "natgeo";
+  return handle;
+}
+
 async function testInstagramCookieString(
   cookie: string,
   username?: string,
   proxyUrl?: string | null,
 ): Promise<{ ok: boolean; message: string }> {
-  const probe = username ?? "natgeo";
+  const probe = usableProbeHandle(username);
   try {
     const { fetchProfileMetadataDirect } = await import("@/lib/instagram/direct");
     const meta = await fetchProfileMetadataDirect({ username: probe, sessionCookie: cookie, skipReels: true, proxyUrl: proxyUrl ?? null });

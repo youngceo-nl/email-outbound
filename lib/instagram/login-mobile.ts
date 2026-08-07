@@ -33,6 +33,18 @@ function mobileHeaders(opts: {
     "X-IG-Android-ID": opts.deviceId,
     "Accept": "*/*",
     "Accept-Language": "en-US",
+    /*
+     * Instagram now enforces a Sec-Fetch policy on the private mobile API.
+     * Without these three, every endpoint answers `400 SecFetch Policy
+     * violation` — which surfaced here as "Could not fetch Instagram
+     * encryption key", because fetchEncryptionKey is simply the first call
+     * made. Measured 2026-08-07 against i.instagram.com/api/v1/qe/sync/:
+     * identical request 400s without them and returns 200 with the
+     * encryption pub-key with them.
+     */
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Dest": "empty",
     ...(opts.csrf ? { "X-CSRFToken": opts.csrf } : {}),
     ...(opts.cookies ? { "Cookie": opts.cookies } : {}),
   };
@@ -160,11 +172,19 @@ async function encryptPassword(
   pubKeyB64: string,
   timestamp: number,
 ): Promise<string> {
-  const { subtle, getRandomValues } = crypto;
+  /*
+   * `getRandomValues` must stay attached to `crypto`. Destructuring it strips
+   * the `this` binding and Node's brand check then throws
+   * `ERR_INVALID_THIS: Value of "this" must be of type Crypto`, which this
+   * function reported as "Password encryption failed" — a login that could
+   * never succeed. `subtle` is safe to destructure; its methods carry their
+   * own receiver.
+   */
+  const { subtle } = crypto;
   const enc = new TextEncoder();
 
-  const aesKey = getRandomValues(new Uint8Array(32));
-  const iv = getRandomValues(new Uint8Array(12));
+  const aesKey = crypto.getRandomValues(new Uint8Array(32));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
 
   const rsaKey = await importRsaPublicKey(pubKeyB64);
   const encAesKey = new Uint8Array(
