@@ -520,15 +520,45 @@ export async function fetchFollowingDirect(opts: {
   proxyUrl?: string | null;
   steel?: SteelConnectionOptions;
 }): Promise<{ items: DiscoveredFollowingDirect[]; nextCursor: string | null }> {
-  // One browser session for the whole paginated scrape — Chrome start cost is
-  // paid once and amortised across all page requests.
-  const session = new BrowserSession();
-  await session.init(opts.sessionCookie, opts.proxyUrl, opts.steel);
+  /*
+   * A browser gives Chrome's real TLS fingerprint, so it is preferred — but it
+   * is not required. Instagram's private API answers a correctly-headered
+   * request over plain HTTPS too, which is exactly what the batch metadata path
+   * already relies on (see fetchProfileMetadataDirect's `session: null` note).
+   *
+   * That matters here because the browser is now a REMOTE Steel session, and a
+   * paginated scrape is where remote browsers are least reliable: a real crawl
+   * died on "Request context disposed" five pages in, and a full 3,000-account
+   * walk would otherwise open ~60 Steel sessions. So a browser that will not
+   * start, or dies mid-walk, degrades to proxied fetch instead of failing the
+   * scrape — the pages already collected are kept either way.
+   */
+  let session: BrowserSession | null = new BrowserSession();
+  try {
+    await session.init(opts.sessionCookie, opts.proxyUrl, opts.steel);
+  } catch {
+    await session.close().catch(() => {});
+    session = null;
+  }
+
   try {
     return await _fetchFollowingPages({ ...opts, session });
   } finally {
-    await session.close();
+    await session?.close().catch(() => {});
   }
+}
+
+/** A dead remote browser — the request itself was never made, so it is safe to retry. */
+function isBrowserGone(err: unknown): boolean {
+  const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    m.includes("request context disposed") ||
+    m.includes("has been closed") ||
+    m.includes("target page, context or browser") ||
+    m.includes("browser has been closed") ||
+    m.includes("websocket") ||
+    m.includes("browsertype.launch")
+  );
 }
 
 async function _fetchFollowingPages(opts: {
@@ -536,9 +566,25 @@ async function _fetchFollowingPages(opts: {
   sessionCookie: string;
   limit: number;
   startCursor?: string | null;
-  session: BrowserSession;
+  proxyUrl?: string | null;
+  session: BrowserSession | null;
 }): Promise<{ items: DiscoveredFollowingDirect[]; nextCursor: string | null }> {
-  const { session } = opts;
+  /*
+   * Downgraded to plain proxied fetch the moment the remote browser dies, for
+   * the rest of the walk — retrying a disposed context per page would just
+   * repeat the same failure 60 times.
+   */
+  let session = opts.session;
+  const igFetchResilient: typeof igFetch = async (url, init) => {
+    try {
+      return await igFetch(url, init);
+    } catch (err) {
+      if (!session || !isBrowserGone(err)) throw err;
+      session = null;
+      return igFetch(url, { ...init, session: null, proxyUrl: opts.proxyUrl });
+    }
+  };
+
   const userId = await resolveUserIdDirect({ username: opts.username, sessionCookie: opts.sessionCookie, session });
   if (!userId) throw new InstagramDirectError(`Could not resolve user_id for @${opts.username}`, undefined, false);
 
@@ -557,20 +603,22 @@ async function _fetchFollowingPages(opts: {
     u.searchParams.set("count", String(FOLLOWING_PAGE_SIZE));
     if (maxId) u.searchParams.set("max_id", maxId);
 
-    let res = await igFetch(u.toString(), {
+    let res = await igFetchResilient(u.toString(), {
       headers: chromeHeaders(randomUA(), opts.sessionCookie, referer),
       timeoutMs: 15_000,
       session,
+      proxyUrl: opts.proxyUrl,
     });
 
     if (res.status === 429) {
       let retries = BACKOFF_MAX_RETRIES;
       while (retries-- > 0 && res.status === 429) {
         await sleep(jitter(BACKOFF_MIN_MS, BACKOFF_MAX_MS));
-        res = await igFetch(u.toString(), {
+        res = await igFetchResilient(u.toString(), {
           headers: chromeHeaders(randomUA(), opts.sessionCookie, referer),
           timeoutMs: 15_000,
           session,
+          proxyUrl: opts.proxyUrl,
         });
       }
     }
